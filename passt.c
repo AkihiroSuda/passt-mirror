@@ -204,8 +204,15 @@ int main(int argc, char **argv)
 	name = basename(argv0);
 	if (strstr(name, "pasta")) {
 		sa.sa_handler = pasta_child_handler;
-		if (sigaction(SIGCHLD, &sa, NULL) || signal(SIGPIPE, SIG_IGN))
-			die("Couldn't install signal handlers");
+		if (sigaction(SIGCHLD, &sa, NULL)) {
+			die("Couldn't install signal handlers: %s",
+			    strerror(errno));
+		}
+
+		if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+			die("Couldn't set disposition for SIGPIPE: %s",
+			    strerror(errno));
+		}
 
 		c.mode = MODE_PASTA;
 		log_name = "pasta";
