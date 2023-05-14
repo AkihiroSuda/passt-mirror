@@ -185,16 +185,16 @@ unsigned int nl_get_ext_if(sa_family_t af)
 }
 
 /**
- * nl_route() - Get/set default gateway for given interface and address family
- * @ns:		Use netlink socket in namespace
- * @ifi:	Interface index
+ * nl_route() - Get/set/copy routes for given interface and address family
+ * @op:		Requested operation
+ * @ifi:	Interface index in outer network namespace
+ * @ifi_ns:	Interface index in target namespace for NL_SET, NL_DUP
  * @af:		Address family
- * @gw:		Default gateway to fill if zero, to set if not
+ * @gw:		Default gateway to fill on NL_GET, to set on NL_SET
  */
-void nl_route(int ns, unsigned int ifi, sa_family_t af, void *gw)
+void nl_route(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
+	      sa_family_t af, void *gw)
 {
-	int set = (af == AF_INET6 && !IN6_IS_ADDR_UNSPECIFIED(gw)) ||
-		  (af == AF_INET && *(uint32_t *)gw);
 	struct req_t {
 		struct nlmsghdr nlh;
 		struct rtmsg rtm;
@@ -215,7 +215,7 @@ void nl_route(int ns, unsigned int ifi, sa_family_t af, void *gw)
 			} r4;
 		} set;
 	} req = {
-		.nlh.nlmsg_type	  = set ? RTM_NEWROUTE : RTM_GETROUTE,
+		.nlh.nlmsg_type	  = op == NL_SET ? RTM_NEWROUTE : RTM_GETROUTE,
 		.nlh.nlmsg_flags  = NLM_F_REQUEST,
 		.nlh.nlmsg_seq	  = nl_seq++,
 
@@ -228,14 +228,15 @@ void nl_route(int ns, unsigned int ifi, sa_family_t af, void *gw)
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
 		.ifi		  = ifi,
 	};
+	unsigned dup_routes = 0;
+	ssize_t n, nlmsgs_size;
 	struct nlmsghdr *nh;
 	struct rtattr *rta;
-	struct rtmsg *rtm;
 	char buf[NLBUFSIZ];
-	ssize_t n;
+	struct rtmsg *rtm;
 	size_t na;
 
-	if (set) {
+	if (op == NL_SET) {
 		if (af == AF_INET6) {
 			size_t rta_len = RTA_LENGTH(sizeof(req.set.r6.d));
 
@@ -269,30 +270,66 @@ void nl_route(int ns, unsigned int ifi, sa_family_t af, void *gw)
 		req.nlh.nlmsg_flags |= NLM_F_DUMP;
 	}
 
-	if ((n = nl_req(ns, buf, &req, req.nlh.nlmsg_len)) < 0 || set)
+	if ((n = nl_req(op == NL_SET, buf, &req, req.nlh.nlmsg_len)) < 0)
+		return;
+
+	if (op == NL_SET)
 		return;
 
 	nh = (struct nlmsghdr *)buf;
+	nlmsgs_size = n;
+
 	for ( ; NLMSG_OK(nh, n); nh = NLMSG_NEXT(nh, n)) {
 		if (nh->nlmsg_type != RTM_NEWROUTE)
 			goto next;
 
+		if (op == NL_DUP) {
+			nh->nlmsg_seq = nl_seq++;
+			nh->nlmsg_pid = 0;
+			nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
+			nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK |
+					   NLM_F_CREATE;
+			dup_routes++;
+		}
+
 		rtm = (struct rtmsg *)NLMSG_DATA(nh);
-		if (rtm->rtm_dst_len)
+		if (op == NL_GET && rtm->rtm_dst_len)
 			continue;
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			if (rta->rta_type != RTA_GATEWAY)
-				continue;
+			if (op == NL_GET) {
+				if (rta->rta_type != RTA_GATEWAY)
+					continue;
 
-			memcpy(gw, RTA_DATA(rta), RTA_PAYLOAD(rta));
-			return;
+				memcpy(gw, RTA_DATA(rta), RTA_PAYLOAD(rta));
+				return;
+			}
+
+			if (op == NL_DUP && rta->rta_type == RTA_OIF)
+				*(unsigned int *)RTA_DATA(rta) = ifi_ns;
 		}
 
 next:
 		if (nh->nlmsg_type == NLMSG_DONE)
 			break;
+	}
+
+	if (op == NL_DUP) {
+		char resp[NLBUFSIZ];
+		unsigned i;
+
+		nh = (struct nlmsghdr *)buf;
+		/* Routes might have dependencies between each other, and the
+		 * kernel processes RTM_NEWROUTE messages sequentially. For n
+		 * valid routes, we might need to send up to n requests to get
+		 * all of them inserted. Routes that have been already inserted
+		 * won't cause the whole request to fail, so we can simply
+		 * repeat the whole request. This approach avoids the need to
+		 * calculate dependencies: let the kernel do that.
+		 */
+		for (i = 0; i < dup_routes; i++)
+			nl_req(1, resp, nh, nlmsgs_size);
 	}
 }
 
