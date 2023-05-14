@@ -665,8 +665,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 	if (MAC_IS_ZERO(mac))
 		nl_link(0, ifi, mac, 0, 0);
 
-	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->gw) ||
-	    IN4_IS_ADDR_UNSPECIFIED(&ip4->addr) ||
+	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr) ||
 	    MAC_IS_ZERO(mac))
 		return 0;
 
@@ -708,7 +707,6 @@ static unsigned int conf_ip6(unsigned int ifi,
 		nl_link(0, ifi, mac, 0, 0);
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->gw) ||
-	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr_ll) ||
 	    MAC_IS_ZERO(mac))
 		return 0;
@@ -1659,6 +1657,12 @@ void conf(struct ctx *c, int argc, char **argv)
 	    (*c->ip4.ifname_out && !c->ifi4) ||
 	    (*c->ip6.ifname_out && !c->ifi6))
 		die("External interface not usable");
+
+	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.gw))
+		c->no_map_gw = c->no_dhcp = 1;
+
+	if (c->ifi6 && IN6_IS_ADDR_UNSPECIFIED(&c->ip6.gw))
+		c->no_map_gw = 1;
 
 	/* Inbound port options can be parsed now (after IPv4/IPv6 settings) */
 	optind = 1;

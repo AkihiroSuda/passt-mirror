@@ -281,7 +281,8 @@ guest or target namespace will be silently dropped.
 .TP
 .BR \-\-no-dhcp
 Disable the DHCP server. DHCP client requests coming from guest or target
-namespace will be silently dropped.
+namespace will be silently dropped. Implied if there is no gateway on the
+selected IPv4 default route.
 
 .TP
 .BR \-\-no-ndp
@@ -301,7 +302,8 @@ namespace will be ignored.
 .TP
 .BR \-\-no-map-gw
 Don't remap TCP connections and untracked UDP traffic, with the gateway address
-as destination, to the host.
+as destination, to the host. Implied if there is no gateway on the selected
+default route for any of the enabled address families.
 
 .TP
 .BR \-4 ", " \-\-ipv4-only
