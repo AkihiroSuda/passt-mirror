@@ -547,6 +547,21 @@ Configure networking in the namespace: set up addresses and routes as configured
 or sourced from the host, and bring up the tap interface.
 
 .TP
+.BR \-\-no-copy-routes " " (DEPRECATED)
+With \-\-config-net, do not copy all the routes associated to the interface we
+derive addresses and routes from: set up only the default gateway. Implied by
+-g, \-\-gateway.
+
+Default is to copy all the routing entries from the interface in the outer
+namespace to the target namespace, translating the output interface attribute to
+the outbound interface in the namespace.
+
+Note that this configuration option is \fBdeprecated\fR and will be removed in a
+future version. It is not expected to be of any use, and it simply reflects a
+legacy behaviour. If you have any use for this, refer to \fBREPORTING BUGS\fR
+below.
+
+.TP
 .BR \-\-ns-mac-addr " " \fIaddr
 Configure MAC address \fIaddr\fR on the tap interface in the namespace.
 
