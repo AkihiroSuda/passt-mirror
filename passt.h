@@ -180,7 +180,7 @@ struct ip6_ctx {
  * @ifi6:		Index of template interface for IPv6, 0 if IPv6 disabled
  * @ip6:		IPv6 configuration
  * @pasta_ifn:		Name of namespace interface for pasta
- * @pasta_ifn:		Index of namespace interface for pasta
+ * @pasta_ifi:		Index of namespace interface for pasta
  * @pasta_conf_ns:	Configure namespace after creating it
  * @no_copy_routes:	Don't copy all routes when configuring target namespace
  * @no_copy_addrs:	Don't copy all addresses when configuring namespace
