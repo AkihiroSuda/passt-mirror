@@ -645,8 +645,10 @@ static unsigned int conf_ip4(unsigned int ifi,
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->gw))
 		nl_route(NL_GET, ifi, 0, AF_INET, &ip4->gw);
 
-	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr))
-		nl_addr(0, ifi, AF_INET, &ip4->addr, &ip4->prefix_len, NULL);
+	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr)) {
+		nl_addr(NL_GET, ifi, 0, AF_INET,
+			&ip4->addr, &ip4->prefix_len, NULL);
+	}
 
 	if (!ip4->prefix_len) {
 		in_addr_t addr = ntohl(ip4->addr.s_addr);
@@ -696,7 +698,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->gw))
 		nl_route(NL_GET, ifi, 0, AF_INET6, &ip6->gw);
 
-	nl_addr(0, ifi, AF_INET6,
+	nl_addr(NL_GET, ifi, 0, AF_INET6,
 		IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ? &ip6->addr : NULL,
 		&prefix_len, &ip6->addr_ll);
 

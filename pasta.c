@@ -278,16 +278,16 @@ void pasta_ns_conf(struct ctx *c)
 		nl_link(1, c->pasta_ifi, c->mac_guest, 1, c->mtu);
 
 		if (c->ifi4) {
-			nl_addr(1, c->pasta_ifi, AF_INET, &c->ip4.addr,
-				&c->ip4.prefix_len, NULL);
+			nl_addr(NL_SET, c->ifi4, c->pasta_ifi, AF_INET,
+				&c->ip4.addr, &c->ip4.prefix_len, NULL);
 			nl_route(op_routes, c->ifi4, c->pasta_ifi, AF_INET,
 				 &c->ip4.gw);
 		}
 
 		if (c->ifi6) {
 			int prefix_len = 64;
-			nl_addr(1, c->pasta_ifi, AF_INET6, &c->ip6.addr,
-				&prefix_len, NULL);
+			nl_addr(NL_SET, c->ifi6, c->pasta_ifi, AF_INET6,
+				&c->ip6.addr, &prefix_len, NULL);
 			nl_route(op_routes, c->ifi6, c->pasta_ifi, AF_INET6,
 				 &c->ip6.gw);
 		}
