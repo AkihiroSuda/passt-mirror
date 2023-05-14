@@ -183,6 +183,7 @@ struct ip6_ctx {
  * @pasta_ifn:		Index of namespace interface for pasta
  * @pasta_conf_ns:	Configure namespace after creating it
  * @no_copy_routes:	Don't copy all routes when configuring target namespace
+ * @no_copy_addrs:	Don't copy all addresses when configuring namespace
  * @no_tcp:		Disable TCP operation
  * @tcp:		Context for TCP protocol handler
  * @no_tcp:		Disable UDP operation
@@ -242,6 +243,7 @@ struct ctx {
 	unsigned int pasta_ifi;
 	int pasta_conf_ns;
 	int no_copy_routes;
+	int no_copy_addrs;
 
 	int no_tcp;
 	struct tcp_ctx tcp;

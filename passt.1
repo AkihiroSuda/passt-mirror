@@ -564,6 +564,20 @@ legacy behaviour. If you have any use for this, refer to \fBREPORTING BUGS\fR
 below.
 
 .TP
+.BR \-\-no-copy-addrs " " (DEPRECATED)
+With \-\-config-net, do not copy all the addresses associated to the interface
+we derive addresses and routes from: set up a single one. Implied by \-a,
+\-\-address.
+
+Default is to copy all the addresses, except for link-local ones, from the
+interface from the outer namespace to the target namespace.
+
+Note that this configuration option is \fBdeprecated\fR and will be removed in a
+future version. It is not expected to be of any use, and it simply reflects a
+legacy behaviour. If you have any use for this, refer to \fBREPORTING BUGS\fR
+below.
+
+.TP
 .BR \-\-ns-mac-addr " " \fIaddr
 Configure MAC address \fIaddr\fR on the tap interface in the namespace.
 

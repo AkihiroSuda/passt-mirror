@@ -902,6 +902,8 @@ pasta_opts:
 	info(   "  --config-net		Configure tap interface in namespace");
 	info(   "  --no-copy-routes	DEPRECATED:");
 	info(   "			Don't copy all routes to namespace");
+	info(   "  --no-copy-addrs	DEPRECATED:");
+	info(   "			Don't copy all addresses to namespace");
 	info(   "  --ns-mac-addr ADDR	Set MAC address on tap interface");
 
 	exit(EXIT_FAILURE);
@@ -1178,6 +1180,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"outbound-if6", required_argument,	NULL,		16 },
 		{"config-net",	no_argument,		NULL,		17 },
 		{"no-copy-routes", no_argument,		NULL,		18 },
+		{"no-copy-addrs", no_argument,		NULL,		19 },
 		{ 0 },
 	};
 	struct get_bound_ports_ns_arg ns_ports_arg = { .c = c };
@@ -1348,6 +1351,13 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			warn("--no-copy-routes will be dropped soon");
 			c->no_copy_routes = 1;
+			break;
+		case 19:
+			if (c->mode != MODE_PASTA)
+				die("--no-copy-addrs is for pasta mode only");
+
+			warn("--no-copy-addrs will be dropped soon");
+			c->no_copy_addrs = 1;
 			break;
 		case 'd':
 			if (c->debug)
@@ -1634,8 +1644,12 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (*c->sock_path && c->fd_tap >= 0)
 		die("Options --socket and --fd are mutually exclusive");
 
-	if (c->mode == MODE_PASTA && c->no_copy_routes && !c->pasta_conf_ns)
-		die("Option --no-copy-routes needs --config-net");
+	if (c->mode == MODE_PASTA && !c->pasta_conf_ns) {
+		if (c->no_copy_routes)
+			die("Option --no-copy-routes needs --config-net");
+		if (c->no_copy_addrs)
+			die("Option --no-copy-addrs needs --config-net");
+	}
 
 	if (!ifi4 && *c->ip4.ifname_out)
 		ifi4 = if_nametoindex(c->ip4.ifname_out);
