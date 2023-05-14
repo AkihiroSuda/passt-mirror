@@ -95,10 +95,13 @@ static int pasta_wait_for_ns(void *arg)
 	char ns[PATH_MAX];
 
 	snprintf(ns, PATH_MAX, "/proc/%i/ns/net", pasta_child_pid);
-	do
-		while ((c->pasta_netns_fd = open(ns, flags)) < 0);
-	while (setns(c->pasta_netns_fd, CLONE_NEWNET) &&
-	       !close(c->pasta_netns_fd));
+	do {
+		while ((c->pasta_netns_fd = open(ns, flags)) < 0) {
+			if (errno != ENOENT)
+				return 0;
+		}
+	} while (setns(c->pasta_netns_fd, CLONE_NEWNET) &&
+		 !close(c->pasta_netns_fd));
 
 	return 0;
 }
@@ -257,6 +260,8 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 	}
 
 	NS_CALL(pasta_wait_for_ns, c);
+	if (c->pasta_netns_fd < 0)
+		die("Failed to join network namespace");
 }
 
 /**
