@@ -99,7 +99,7 @@ fail:
 /**
  * nl_req() - Send netlink request and read response
  * @ns:		Use netlink socket in namespace
- * @buf:	Buffer for response (at least BUFSIZ long)
+ * @buf:	Buffer for response (at least NLBUFSIZ long)
  * @req:	Request with netlink header
  * @len:	Request length
  *
