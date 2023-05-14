@@ -1184,7 +1184,6 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"userns",	required_argument,	NULL,		2 },
 		{"netns",	required_argument,	NULL,		3 },
 		{"netns-only",	no_argument,		&netns_only,	1 },
-		{"config-net",	no_argument,		&c->pasta_conf_ns, 1 },
 		{"ns-mac-addr",	required_argument,	NULL,		4 },
 		{"dhcp-dns",	no_argument,		NULL,		5 },
 		{"no-dhcp-dns",	no_argument,		NULL,		6 },
@@ -1198,6 +1197,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"version",	no_argument,		NULL,		14 },
 		{"outbound-if4", required_argument,	NULL,		15 },
 		{"outbound-if6", required_argument,	NULL,		16 },
+		{"config-net",	no_argument,		NULL,		17 },
 		{ 0 },
 	};
 	struct get_bound_ports_ns_arg ns_ports_arg = { .c = c };
@@ -1355,6 +1355,12 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (ret <= 0 || ret >= (int)sizeof(c->ip6.ifname_out))
 				die("Invalid interface name: %s", optarg);
 
+			break;
+		case 17:
+			if (c->mode != MODE_PASTA)
+				die("--config-net is for pasta mode only");
+
+			c->pasta_conf_ns = 1;
 			break;
 		case 'd':
 			if (c->debug)
