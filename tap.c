@@ -739,7 +739,7 @@ resume:
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_seen)) {
 				c->ip6.addr_seen = *saddr;
 			}
-		} else {
+		} else if (!IN6_IS_ADDR_UNSPECIFIED(saddr)){
 			c->ip6.addr_seen = *saddr;
 		}
 
