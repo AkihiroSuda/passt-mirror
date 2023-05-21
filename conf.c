@@ -1096,10 +1096,6 @@ static int conf_runas(char *opt, unsigned int *uid, unsigned int *gid)
  */
 static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 {
-	const char root_uid_map[] = "         0          0 4294967295";
-	char buf[BUFSIZ];
-	int fd;
-
 	/* If user has specified --runas, that takes precedence... */
 	if (runas) {
 		if (conf_runas(runas, uid, gid))
@@ -1116,18 +1112,8 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 		return;
 
 	/* ...or at least not root in the init namespace... */
-	if ((fd = open("/proc/self/uid_map", O_RDONLY | O_CLOEXEC)) < 0) {
-		die("Can't determine if we're in init namespace: %s",
-		    strerror(errno));
-	}
-
-	if (read(fd, buf, BUFSIZ) != sizeof(root_uid_map) ||
-	    strncmp(buf, root_uid_map, sizeof(root_uid_map) - 1)) {
-		close(fd);
+	if (!ns_is_init())
 		return;
-	}
-
-	close(fd);
 
 	/* ...otherwise use nobody:nobody */
 	warn("Don't run as root. Changing to nobody...");

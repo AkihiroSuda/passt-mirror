@@ -391,6 +391,31 @@ int ns_enter(const struct ctx *c)
 }
 
 /**
+ * ns_is_init() - Is the caller running in the "init" user namespace?
+ *
+ * Return: true if caller is in init, false otherwise, won't return on failure
+ */
+bool ns_is_init(void)
+{
+	const char root_uid_map[] = "         0          0 4294967295\n";
+	char buf[sizeof(root_uid_map)] = { 0 };
+	bool ret = true;
+	int fd;
+
+	if ((fd = open("/proc/self/uid_map", O_RDONLY | O_CLOEXEC)) < 0) {
+		die("Can't determine if we're in init namespace: %s",
+		    strerror(errno));
+	}
+
+	if (read(fd, buf, sizeof(root_uid_map)) != sizeof(root_uid_map) - 1 ||
+	    strncmp(buf, root_uid_map, sizeof(root_uid_map)))
+		ret = false;
+
+	close(fd);
+	return ret;
+}
+
+/**
  * pid_file() - Write PID to file, if requested to do so, and close it
  * @fd:		Open PID file descriptor, closed on exit, -1 to skip writing it
  * @pid:	PID value to write
