@@ -177,6 +177,8 @@ static void clamp_caps(void)
  */
 void isolate_initial(void)
 {
+	uint64_t keep;
+
 	/* We want to keep CAP_NET_BIND_SERVICE in the initial
 	 * namespace if we have it, so that we can forward low ports
 	 * into the guest/namespace
@@ -193,9 +195,18 @@ void isolate_initial(void)
 	 * further capabilites in isolate_user() and
 	 * isolate_prefork().
 	 */
-	drop_caps_ep_except(BIT(CAP_NET_BIND_SERVICE) |
-			    BIT(CAP_SETUID) | BIT(CAP_SETGID) |
-			    BIT(CAP_SYS_ADMIN) | BIT(CAP_NET_ADMIN));
+	keep = BIT(CAP_NET_BIND_SERVICE) | BIT(CAP_SETUID) | BIT(CAP_SETGID) |
+	       BIT(CAP_SYS_ADMIN) | BIT(CAP_NET_ADMIN);
+
+	/* Since Linux 5.12, if we want to update /proc/self/uid_map to create
+	 * a mapping from UID 0, which only happens with pasta spawning a child
+	 * from a non-init user namespace (pasta can't run as root), we need to
+	 * retain CAP_SETFCAP too.
+	 */
+	if (!ns_is_init() && !geteuid())
+		keep |= BIT(CAP_SETFCAP);
+
+	drop_caps_ep_except(keep);
 }
 
 /**
