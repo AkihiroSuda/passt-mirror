@@ -29,6 +29,7 @@
 #include <syslog.h>
 #include <sys/epoll.h>
 #include <sys/inotify.h>
+#include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -172,6 +173,10 @@ static int pasta_spawn_cmd(void *arg)
 	const struct pasta_spawn_cmd_arg *a;
 	sigset_t set;
 
+	/* We run in a detached PID and mount namespace: mount /proc over */
+	if (mount("", "/proc", "proc", 0, NULL))
+		warn("Couldn't mount /proc: %s", strerror(errno));
+
 	if (write_file("/proc/sys/net/ipv4/ping_group_range", "0 0"))
 		warn("Cannot set ping_group_range, ICMP requests might fail");
 
@@ -243,7 +248,7 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 	pasta_child_pid = do_clone(pasta_spawn_cmd, ns_fn_stack,
 				   sizeof(ns_fn_stack),
 				   CLONE_NEWIPC | CLONE_NEWPID | CLONE_NEWNET |
-				   CLONE_NEWUTS | SIGCHLD,
+				   CLONE_NEWUTS | CLONE_NEWNS  | SIGCHLD,
 				   (void *)&arg);
 
 	if (pasta_child_pid == -1) {
