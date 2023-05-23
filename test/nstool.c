@@ -93,14 +93,22 @@ static void usage(void)
 	    "    terminate.\n");
 }
 
+static void sockaddr_from_path(struct sockaddr_un *addr, const char *sockpath)
+{
+	if (strlen(sockpath) > UNIX_PATH_MAX)
+		die("\"%s\" is too long for Unix socket path (%zu > %d)",
+		    sockpath, strlen(sockpath), UNIX_PATH_MAX);
+
+	addr->sun_family = AF_UNIX;
+	strncpy(addr->sun_path, sockpath, UNIX_PATH_MAX);
+}
+
 static int connect_ctl(const char *sockpath, bool wait,
 		       struct holder_info *info,
 		       struct ucred *peercred)
 {
 	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, PF_UNIX);
-	struct sockaddr_un addr = {
-		.sun_family = AF_UNIX,
-	};
+	struct sockaddr_un addr;
 	struct holder_info discard;
 	ssize_t len;
 	int rc;
@@ -108,7 +116,7 @@ static int connect_ctl(const char *sockpath, bool wait,
 	if (fd < 0)
 		die("socket(): %s\n", strerror(errno));
 
-	strncpy(addr.sun_path, sockpath, UNIX_PATH_MAX);
+	sockaddr_from_path(&addr, sockpath);
 
 	do {
 		rc = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
@@ -149,9 +157,7 @@ static int connect_ctl(const char *sockpath, bool wait,
 static void cmd_hold(int argc, char *argv[])
 {
 	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, PF_UNIX);
-	struct sockaddr_un addr = {
-		.sun_family = AF_UNIX,
-	};
+	struct sockaddr_un addr;
 	const char *sockpath = argv[1];
 	struct holder_info info;
 	int rc;
@@ -162,7 +168,7 @@ static void cmd_hold(int argc, char *argv[])
 	if (fd < 0)
 		die("socket(): %s\n", strerror(errno));
 
-	strncpy(addr.sun_path, sockpath, UNIX_PATH_MAX);
+	sockaddr_from_path(&addr, sockpath);
 
 	rc = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
 	if (rc < 0)
