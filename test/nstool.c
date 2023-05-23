@@ -201,6 +201,8 @@ static void cmd_hold(int argc, char *argv[])
 		rc = read(afd, &buf, sizeof(buf));
 		if (rc < 0)
 			die("read(): %s\n", strerror(errno));
+
+		close(afd);
 	} while (rc == 0);
 
 	unlink(sockpath);
