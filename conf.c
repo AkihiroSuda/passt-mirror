@@ -708,7 +708,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 	if (MAC_IS_ZERO(mac))
 		nl_link(0, ifi, mac, 0, 0);
 
-	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->gw) ||
+	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr_ll) ||
 	    MAC_IS_ZERO(mac))
 		return 0;
