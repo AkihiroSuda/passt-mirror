@@ -43,17 +43,19 @@ static char	log_header[BUFSIZ];	/* File header, written back on cuts */
 
 static time_t	log_start;		/* Start timestamp */
 int		log_trace;		/* --trace mode enabled */
+int		log_to_stdout;		/* Print to stdout instead of stderr */
 
 #define BEFORE_DAEMON		(setlogmask(0) == LOG_MASK(LOG_EMERG))
 
 #define logfn(name, level)						\
 void name(const char *format, ...) {					\
+	FILE *out = log_to_stdout ? stdout : stderr;			\
 	struct timespec tp;						\
 	va_list args;							\
 									\
 	if (setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) {	\
 		clock_gettime(CLOCK_REALTIME, &tp);			\
-		fprintf(stderr, "%lli.%04lli: ",			\
+		fprintf(out, "%lli.%04lli: ",				\
 			(long long int)tp.tv_sec - log_start,		\
 			(long long int)tp.tv_nsec / (100L * 1000));	\
 	}								\
@@ -70,10 +72,10 @@ void name(const char *format, ...) {					\
 	if ((setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) ||	\
 	    (BEFORE_DAEMON && !(log_opt & LOG_PERROR))) {		\
 		va_start(args, format);					\
-		(void)vfprintf(stderr, format, args); 			\
+		(void)vfprintf(out, format, args); 			\
 		va_end(args);						\
 		if (format[strlen(format)] != '\n')			\
-			fprintf(stderr, "\n");				\
+			fprintf(out, "\n");				\
 	}								\
 }
 

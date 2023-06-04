@@ -717,10 +717,11 @@ static unsigned int conf_ip6(unsigned int ifi,
 }
 
 /**
- * usage() - Print usage and exit
+ * print_usage() - Print usage, exit with given status code
  * @name:	Executable name
+ * @status:	Status code for exit()
  */
-static void usage(const char *name)
+static void print_usage(const char *name, int status)
 {
 	if (strstr(name, "pasta")) {
 		info("Usage: %s [OPTION]... [COMMAND] [ARGS]...", name);
@@ -856,7 +857,7 @@ static void usage(const char *name)
 	info(   "    SPEC is as described for TCP above");
 	info(   "    default: none");
 
-	exit(EXIT_FAILURE);
+	exit(status);
 
 pasta_opts:
 
@@ -906,7 +907,16 @@ pasta_opts:
 	info(   "			Don't copy all addresses to namespace");
 	info(   "  --ns-mac-addr ADDR	Set MAC address on tap interface");
 
-	exit(EXIT_FAILURE);
+	exit(status);
+}
+
+/**
+ * usage() - Print usage and exit with failure
+ * @name:	Executable name
+ */
+static void usage(const char *name)
+{
+	print_usage(name, EXIT_FAILURE);
 }
 
 /**
@@ -1630,8 +1640,11 @@ void conf(struct ctx *c, int argc, char **argv)
 		case 'U':
 			/* Handle these later, once addresses are configured */
 			break;
-		case '?':
 		case 'h':
+			log_to_stdout = 1;
+			print_usage(argv[0], EXIT_SUCCESS);
+			break;
+		case '?':
 		default:
 			usage(argv[0]);
 			break;
