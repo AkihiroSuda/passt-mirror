@@ -1481,6 +1481,9 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			break;
 		case 'a':
+			if (c->mode == MODE_PASTA)
+				c->no_copy_addrs = 1;
+
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)	&&
 			    inet_pton(AF_INET6, optarg, &c->ip6.addr)	&&
 			    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)	&&
