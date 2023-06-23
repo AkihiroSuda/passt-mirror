@@ -1195,6 +1195,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	};
 	struct get_bound_ports_ns_arg ns_ports_arg = { .c = c };
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
+	bool copy_addrs_opt = false, copy_routes_opt = false;
 	bool v4_only = false, v6_only = false;
 	char *runas = NULL, *logfile = NULL;
 	struct in6_addr *dns6 = c->ip6.dns;
@@ -1360,14 +1361,14 @@ void conf(struct ctx *c, int argc, char **argv)
 				die("--no-copy-routes is for pasta mode only");
 
 			warn("--no-copy-routes will be dropped soon");
-			c->no_copy_routes = 1;
+			c->no_copy_routes = copy_routes_opt = true;
 			break;
 		case 19:
 			if (c->mode != MODE_PASTA)
 				die("--no-copy-addrs is for pasta mode only");
 
 			warn("--no-copy-addrs will be dropped soon");
-			c->no_copy_addrs = 1;
+			c->no_copy_addrs = copy_addrs_opt = true;
 			break;
 		case 'd':
 			if (c->debug)
@@ -1661,10 +1662,10 @@ void conf(struct ctx *c, int argc, char **argv)
 		die("Options --socket and --fd are mutually exclusive");
 
 	if (c->mode == MODE_PASTA && !c->pasta_conf_ns) {
-		if (c->no_copy_routes)
-			die("Option --no-copy-routes needs --config-net");
-		if (c->no_copy_addrs)
-			die("Option --no-copy-addrs needs --config-net");
+		if (copy_routes_opt)
+			die("--no-copy-routes needs --config-net");
+		if (copy_addrs_opt)
+			die("--no-copy-addrs needs --config-net");
 	}
 
 	if (!ifi4 && *c->ip4.ifname_out)
