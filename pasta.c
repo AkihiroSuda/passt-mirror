@@ -135,15 +135,17 @@ void pasta_open_ns(struct ctx *c, const char *netns)
 	int nfd = -1;
 
 	nfd = open(netns, O_RDONLY | O_CLOEXEC);
-	if (nfd < 0)
-		die("Couldn't open network namespace %s", netns);
+	if (nfd < 0) {
+		die("Couldn't open network namespace %s: %s",
+		    netns, strerror(errno));
+	}
 
 	c->pasta_netns_fd = nfd;
 
 	NS_CALL(ns_check, c);
 
 	if (c->pasta_netns_fd < 0)
-		die("Couldn't switch to pasta namespaces");
+		die("Couldn't switch to pasta namespaces: %s", strerror(errno));
 
 	if (!c->no_netns_quit) {
 		char buf[PATH_MAX] = { 0 };
@@ -261,7 +263,7 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 
 	NS_CALL(pasta_wait_for_ns, c);
 	if (c->pasta_netns_fd < 0)
-		die("Failed to join network namespace");
+		die("Failed to join network namespace: %s", strerror(errno));
 }
 
 /**
