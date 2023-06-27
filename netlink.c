@@ -226,7 +226,7 @@ void nl_route(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
 
 		.rta.rta_type	  = RTA_OIF,
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
-		.ifi		  = ifi,
+		.ifi		  = op == NL_SET ? ifi_ns : ifi,
 	};
 	unsigned dup_routes = 0;
 	ssize_t n, nlmsgs_size;
@@ -370,7 +370,7 @@ void nl_addr(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
 		.nlh.nlmsg_seq     = nl_seq++,
 
 		.ifa.ifa_family    = af,
-		.ifa.ifa_index     = ifi,
+		.ifa.ifa_index     = op == NL_SET ? ifi_ns : ifi,
 		.ifa.ifa_prefixlen = op == NL_SET ? *prefix_len : 0,
 	};
 	ssize_t n, nlmsgs_size;
