@@ -1439,9 +1439,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (*c->pasta_ifn)
 				die("Multiple --ns-ifname options given");
 
-			ret = snprintf(c->pasta_ifn, IFNAMSIZ - 1, "%s",
+			ret = snprintf(c->pasta_ifn, IFNAMSIZ, "%s",
 				       optarg);
-			if (ret <= 0 || ret >= IFNAMSIZ - 1)
+			if (ret <= 0 || ret >= IFNAMSIZ)
 				die("Invalid interface name: %s", optarg);
 
 			break;
