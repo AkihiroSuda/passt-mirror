@@ -256,11 +256,16 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 			goto bad;
 
 		if ((ifname = strchr(buf, '%'))) {
-			if (spec - ifname >= IFNAMSIZ - 1)
-				goto bad;
-
 			*ifname = 0;
 			ifname++;
+
+			/* spec is already advanced one past the '/',
+			 * so the length of the given ifname is:
+			 * (spec - ifname - 1)
+			 */
+			if (spec - ifname - 1 >= IFNAMSIZ)
+				goto bad;
+
 		}
 
 		if (ifname == buf + 1)		/* Interface without address */
