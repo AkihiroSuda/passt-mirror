@@ -1,4 +1,5 @@
 *~
+*.o
 /passt
 /passt.avx2
 /pasta
