@@ -62,6 +62,7 @@ static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS, pkt_buf);
 static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS, pkt_buf);
 
 #define TAP_SEQS		128 /* Different L4 tuples in one batch */
+#define FRAGMENT_MSG_RATE	10  /* # seconds between fragment warnings */
 
 /**
  * tap_send() - Send frame, with qemu socket header if needed
@@ -544,6 +545,32 @@ static void tap_packet_debug(const struct iphdr *iph,
 }
 
 /**
+ * tap4_is_fragment() - Determine if a packet is an IP fragment
+ * @iph:	IPv4 header (length already validated)
+ * @now:	Current timestamp
+ *
+ * Return: true if iph is an IP fragment, false otherwise
+ */
+static bool tap4_is_fragment(const struct iphdr *iph,
+			     const struct timespec *now)
+{
+	if (ntohs(iph->frag_off) & ~IP_DF) {
+		/* Ratelimit messages */
+		static time_t last_message;
+		static unsigned num_dropped;
+
+		num_dropped++;
+		if (now->tv_sec - last_message > FRAGMENT_MSG_RATE) {
+			warn("Can't process IPv4 fragments (%lu dropped)", num_dropped);
+			last_message = now->tv_sec;
+			num_dropped = 0;
+		}
+		return true;
+	}
+	return false;
+}
+
+/**
  * tap4_handler() - IPv4 and ARP packet handler for tap file descriptor
  * @c:		Execution context
  * @in:		Ingress packet pool, packets with Ethernet headers
@@ -589,6 +616,10 @@ resume:
 		hlen = iph->ihl * 4UL;
 		if (hlen < sizeof(*iph) || htons(iph->tot_len) != l3_len ||
 		    hlen > l3_len)
+			continue;
+
+		/* We don't handle IP fragments, drop them */
+		if (tap4_is_fragment(iph, now))
 			continue;
 
 		l4_len = l3_len - hlen;
