@@ -100,41 +100,29 @@ else
 BIN := passt pasta qrap
 endif
 
-.NOTPARALLEL: seccomp.h
-all: seccomp.h $(BIN) $(MANPAGES) docs
-
-PASST_OBJS = $(PASST_SRCS:.c=.o)
-PASST_AVX2_OBJS = $(PASST_SRCS:.c=.avx2.o)
-OBJS = $(SRCS:.c=.o)
-QRAP_OBJS = $(QRAP_SRCS:.c=.o)
-AVXFLAGS += -Ofast -mavx2 -ftree-vectorize -funroll-loops
+all: $(BIN) $(MANPAGES) docs
 
 static: FLAGS += -static -DGLIBC_NO_STATIC_NSS
-static: clean seccomp.h all
+static: clean all
 
 seccomp.h: seccomp.sh $(PASST_SRCS) $(PASST_HEADERS)
 	@ EXTRA_SYSCALLS="$(EXTRA_SYSCALLS)" ARCH="$(TARGET_ARCH)" CC="$(CC)" ./seccomp.sh $(PASST_SRCS) $(PASST_HEADERS)
 
-.c.o:
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+passt: $(PASST_SRCS) $(HEADERS)
+	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_SRCS) -o passt $(LDFLAGS)
 
-$(PASST_AVX2_OBJS): seccomp.h
-	$(CC) $(AVXFLAGS) $(FLAGS) $(CFLAGS) $(CPPFLAGS) -c $(@:.avx2.o=.c) -o $@
+passt.avx2: FLAGS += -Ofast -mavx2 -ftree-vectorize -funroll-loops
+passt.avx2: $(PASST_SRCS) $(HEADERS)
+	$(CC) $(filter-out -O2,$(FLAGS)) $(CFLAGS) $(CPPFLAGS) \
+		$(PASST_SRCS) -o passt.avx2 $(LDFLAGS)
 
-passt: $(PASST_OBJS) seccomp.h
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(PASST_OBJS) -o passt $(LDFLAGS)
-
-passt.avx2: $(PASST_AVX2_OBJS) $(HEADERS) seccomp.h
-	$(CC) $(filter-out -O2,$(FLAGS)) $(CFLAGS) $(CPPFLAGS) $(AVXFLAGS) \
-		$(PASST_AVX2_OBJS) -o passt.avx2 $(LDFLAGS)
-
-passt.avx2: passt seccomp.h
+passt.avx2: passt
 
 pasta.avx2 pasta.1 pasta: pasta%: passt%
 	ln -sf $< $@
 
-qrap: $(QRAP_OBJS) passt.h seccomp.h
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(QRAP_OBJS) -o qrap $(LDFLAGS)
+qrap: $(QRAP_SRCS) passt.h
+	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(QRAP_SRCS) -o qrap $(LDFLAGS)
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
 			    getpid gettid kill clock_gettime mmap	\
@@ -182,8 +170,21 @@ pkgs: static
 # other way around: the web version should be obtained by adding HTML and
 # JavaScript portions to a plain Markdown, instead. However, cgit needs to use
 # a file in the git tree. Find a better way around this.
-docs:
-	[ ! -e doc/ ]; mkdir docs; perl makedocs.pl > docs/README.plain.md
+docs: README.md
+	@(								\
+		skip=0;							\
+		while read l; do					\
+			case $$l in					\
+			"## Demo")	exit 0		;;		\
+			"<!"*)				;;		\
+			"</"*)		skip=1		;;		\
+			"<"*)		skip=2		;;		\
+			esac;						\
+									\
+			[ $$skip -eq 0 ]	&& echo "$$l";		\
+			[ $$skip -eq 1 ]	&& skip=0;		\
+		done < README.md;					\
+	) > README.plain.md
 
 # Checkers currently disabled for clang-tidy:
 # - llvmlibc-restrict-system-libc-headers
