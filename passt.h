@@ -32,6 +32,8 @@ struct tap_l4_msg {
 union epoll_ref;
 
 #include <stdbool.h>
+#include <assert.h>
+#include <sys/epoll.h>
 
 #include "packet.h"
 #include "icmp.h"
@@ -64,6 +66,8 @@ union epoll_ref {
 	};
 	uint64_t u64;
 };
+static_assert(sizeof(union epoll_ref) <= sizeof(union epoll_data),
+	      "epoll_ref must have same size as epoll_data");
 
 #define TAP_BUF_BYTES							\
 	ROUND_DOWN(((ETH_MAX_MTU + sizeof(uint32_t)) * 128), PAGE_SIZE)
