@@ -33,7 +33,7 @@ AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/MIPS64EL/MIPSEL64/')
 AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/HPPA/PARISC/')
 AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/SH4/SH/')
 
-FLAGS := -Wall -Wextra -pedantic -std=c99 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
+FLAGS := -Wall -Wextra -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
 FLAGS += -D_FORTIFY_SOURCE=2 -O2 -pie -fPIE
 FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
 FLAGS += -DNETNS_RUN_DIR=\"/run/netns\"
@@ -284,7 +284,7 @@ VER := $(shell $(CC) -dumpversion)
 SYSTEM_INCLUDES += /usr/lib/gcc/$(TARGET)/$(VER)/include
 endif
 cppcheck: $(SRCS) $(HEADERS)
-	cppcheck --std=c99 --error-exitcode=1 --enable=all --force	\
+	cppcheck --std=c11 --error-exitcode=1 --enable=all --force	\
 	--inconclusive --library=posix --quiet				\
 	$(SYSTEM_INCLUDES:%=-I%)					\
 	$(SYSTEM_INCLUDES:%=--config-exclude=%)				\
