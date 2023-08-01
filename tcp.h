@@ -41,7 +41,7 @@ union tcp_epoll_ref {
 				outbound:1,
 				timer:1,
 				index:20;
-	} tcp;
+	};
 	uint32_t u32;
 };
 

@@ -102,7 +102,7 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data)
 {
-	union epoll_ref ref = { .r.proto = proto, .r.p.data = data };
+	union epoll_ref ref = { .proto = proto, .data = data };
 	struct sockaddr_in addr4 = {
 		.sin_family = AF_INET,
 		.sin_port = htons(port),
@@ -145,7 +145,7 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 		return -EBADF;
 	}
 
-	ref.r.s = fd;
+	ref.s = fd;
 
 	if (af == AF_INET) {
 		if (bind_addr)

@@ -643,8 +643,8 @@ static void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int m = conn->c.in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref = { .r.proto = IPPROTO_TCP, .r.s = conn->sock,
-				.r.p.tcp.tcp.index = CONN_IDX(conn) };
+	union epoll_ref ref = { .proto = IPPROTO_TCP, .s = conn->sock,
+				.tcp.index = CONN_IDX(conn) };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
 	if (conn->events == CLOSED) {
@@ -663,10 +663,10 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	conn->c.in_epoll = true;
 
 	if (conn->timer != -1) {
-		union epoll_ref ref_t = { .r.proto = IPPROTO_TCP,
-					  .r.s = conn->sock,
-					  .r.p.tcp.tcp.timer = 1,
-					  .r.p.tcp.tcp.index = CONN_IDX(conn) };
+		union epoll_ref ref_t = { .proto = IPPROTO_TCP,
+					  .s = conn->sock,
+					  .tcp.timer = 1,
+					  .tcp.index = CONN_IDX(conn) };
 		struct epoll_event ev_t = { .data.u64 = ref_t.u64,
 					    .events = EPOLLIN | EPOLLET };
 
@@ -692,10 +692,10 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		return;
 
 	if (conn->timer == -1) {
-		union epoll_ref ref = { .r.proto = IPPROTO_TCP,
-					.r.s = conn->sock,
-					.r.p.tcp.tcp.timer = 1,
-					.r.p.tcp.tcp.index = CONN_IDX(conn) };
+		union epoll_ref ref = { .proto = IPPROTO_TCP,
+					.s = conn->sock,
+					.tcp.timer = 1,
+					.tcp.index = CONN_IDX(conn) };
 		struct epoll_event ev = { .data.u64 = ref.u64,
 					  .events = EPOLLIN | EPOLLET };
 		int fd;
@@ -2749,7 +2749,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	conn_event(c, conn, SOCK_ACCEPTED);
 
 	inany_from_sockaddr(&conn->addr, &conn->sock_port, sa);
-	conn->tap_port = ref.r.p.tcp.tcp.index;
+	conn->tap_port = ref.tcp.index;
 
 	tcp_snat_inbound(c, &conn->addr);
 
@@ -2780,7 +2780,7 @@ static void tcp_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	socklen_t sl;
 	int s;
 
-	ASSERT(ref.r.p.tcp.tcp.listen);
+	ASSERT(ref.tcp.listen);
 
 	if (c->tcp.conn_count >= TCP_MAX_CONNS)
 		return;
@@ -2791,7 +2791,7 @@ static void tcp_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	 * https://github.com/llvm/llvm-project/issues/58992
 	 */
 	memset(&sa, 0, sizeof(struct sockaddr_in6));
-	s = accept4(ref.r.s, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
+	s = accept4(ref.s, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
 		return;
 
@@ -2815,7 +2815,7 @@ static void tcp_conn_from_sock(struct ctx *c, union epoll_ref ref,
  */
 static void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 {
-	struct tcp_tap_conn *conn = conn_at_idx(ref.r.p.tcp.tcp.index);
+	struct tcp_tap_conn *conn = conn_at_idx(ref.tcp.index);
 	struct itimerspec check_armed = { { 0 }, { 0 } };
 
 	if (!conn)
@@ -2935,20 +2935,20 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
 {
 	union tcp_conn *conn;
 
-	if (ref.r.p.tcp.tcp.timer) {
+	if (ref.tcp.timer) {
 		tcp_timer_handler(c, ref);
 		return;
 	}
 
-	if (ref.r.p.tcp.tcp.listen) {
+	if (ref.tcp.listen) {
 		tcp_conn_from_sock(c, ref, now);
 		return;
 	}
 
-	conn = tc + ref.r.p.tcp.tcp.index;
+	conn = tc + ref.tcp.index;
 
 	if (conn->c.spliced)
-		tcp_splice_sock_handler(c, &conn->splice, ref.r.s, events);
+		tcp_splice_sock_handler(c, &conn->splice, ref.s, events);
 	else
 		tcp_tap_sock_handler(c, &conn->tap, events);
 }
@@ -2967,7 +2967,7 @@ static int tcp_sock_init_af(const struct ctx *c, int af, in_port_t port,
 			    const struct in_addr *addr, const char *ifname)
 {
 	in_port_t idx = port + c->tcp.fwd_in.delta[port];
-	union tcp_epoll_ref tref = { .tcp.listen = 1, .tcp.index = idx };
+	union tcp_epoll_ref tref = { .listen = 1, .index = idx };
 	int s;
 
 	s = sock_l4(c, af, IPPROTO_TCP, addr, ifname, port, tref.u32);
@@ -3027,8 +3027,8 @@ int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
 static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 {
 	in_port_t idx = port + c->tcp.fwd_out.delta[port];
-	union tcp_epoll_ref tref = { .tcp.listen = 1, .tcp.outbound = 1,
-				     .tcp.index = idx };
+	union tcp_epoll_ref tref = { .listen = 1, .outbound = 1,
+				     .index = idx };
 	struct in_addr loopback = { htonl(INADDR_LOOPBACK) };
 	int s;
 
@@ -3052,8 +3052,8 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
 {
 	in_port_t idx = port + c->tcp.fwd_out.delta[port];
-	union tcp_epoll_ref tref = { .tcp.listen = 1, .tcp.outbound = 1,
-				     .tcp.index = idx };
+	union tcp_epoll_ref tref = { .listen = 1, .outbound = 1,
+				     .index = idx };
 	int s;
 
 	ASSERT(c->mode == MODE_PASTA);

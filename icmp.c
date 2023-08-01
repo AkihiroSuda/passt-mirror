@@ -69,7 +69,7 @@ static uint8_t icmp_act[IP_VERSIONS][DIV_ROUND_UP(ICMP_NUM_IDS, 8)];
 void icmp_sock_handler(const struct ctx *c, union epoll_ref ref,
 		       uint32_t events, const struct timespec *now)
 {
-	union icmp_epoll_ref *iref = &ref.r.p.icmp;
+	union icmp_epoll_ref *iref = &ref.icmp;
 	struct sockaddr_storage sr;
 	socklen_t sl = sizeof(sr);
 	char buf[USHRT_MAX];
@@ -79,11 +79,11 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref,
 	(void)events;
 	(void)now;
 
-	n = recvfrom(ref.r.s, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
+	n = recvfrom(ref.s, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
 	if (n < 0)
 		return;
 
-	if (iref->icmp.v6) {
+	if (iref->v6) {
 		struct sockaddr_in6 *sr6 = (struct sockaddr_in6 *)&sr;
 		struct icmp6hdr *ih = (struct icmp6hdr *)buf;
 
@@ -93,8 +93,8 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref,
 		/* If bind() fails e.g. because of a broken SELinux policy, this
 		 * might happen. Fix up the identifier to match the sent one.
 		 */
-		if (id != iref->icmp.id)
-			ih->icmp6_identifier = htons(iref->icmp.id);
+		if (id != iref->id)
+			ih->icmp6_identifier = htons(iref->id);
 
 		/* In PASTA mode, we'll get any reply we send, discard them. */
 		if (c->mode == MODE_PASTA) {
@@ -116,8 +116,8 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref,
 		id = ntohs(ih->un.echo.id);
 		seq = ntohs(ih->un.echo.sequence);
 
-		if (id != iref->icmp.id)
-			ih->un.echo.id = htons(iref->icmp.id);
+		if (id != iref->id)
+			ih->un.echo.id = htons(iref->id);
 
 		if (c->mode == MODE_PASTA) {
 
@@ -150,7 +150,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 	size_t plen;
 
 	if (af == AF_INET) {
-		union icmp_epoll_ref iref = { .icmp.v6 = 0 };
+		union icmp_epoll_ref iref = { .v6 = 0 };
 		struct sockaddr_in sa = {
 			.sin_family = AF_INET,
 			.sin_addr = { .s_addr = htonl(INADDR_ANY) },
@@ -167,7 +167,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 
 		sa.sin_port = ih->un.echo.id;
 
-		iref.icmp.id = id = ntohs(ih->un.echo.id);
+		iref.id = id = ntohs(ih->un.echo.id);
 
 		if ((s = icmp_id_map[V4][id].sock) <= 0) {
 			const struct in_addr *bind_addr = NULL;
@@ -204,7 +204,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 			      id, ntohs(ih->un.echo.sequence));
 		}
 	} else if (af == AF_INET6) {
-		union icmp_epoll_ref iref = { .icmp.v6 = 1 };
+		union icmp_epoll_ref iref = { .v6 = 1 };
 		struct sockaddr_in6 sa = {
 			.sin6_family = AF_INET6,
 			.sin6_addr = IN6ADDR_ANY_INIT,
@@ -222,7 +222,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 
 		sa.sin6_port = ih->icmp6_identifier;
 
-		iref.icmp.id = id = ntohs(ih->icmp6_identifier);
+		iref.id = id = ntohs(ih->icmp6_identifier);
 		if ((s = icmp_id_map[V6][id].sock) <= 0) {
 			const struct in6_addr *bind_addr = NULL;
 			const char *bind_if;

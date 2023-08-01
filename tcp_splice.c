@@ -173,10 +173,10 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 				struct tcp_splice_conn *conn)
 {
 	int m = conn->c.in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref_a = { .r.proto = IPPROTO_TCP, .r.s = conn->a,
-				  .r.p.tcp.tcp.index = CONN_IDX(conn) };
-	union epoll_ref ref_b = { .r.proto = IPPROTO_TCP, .r.s = conn->b,
-				  .r.p.tcp.tcp.index = CONN_IDX(conn) };
+	union epoll_ref ref_a = { .proto = IPPROTO_TCP, .s = conn->a,
+				  .tcp.index = CONN_IDX(conn) };
+	union epoll_ref ref_b = { .proto = IPPROTO_TCP, .s = conn->b,
+				  .tcp.index = CONN_IDX(conn) };
 	struct epoll_event ev_a = { .data.u64 = ref_a.u64 };
 	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
 	uint32_t events_a, events_b;
@@ -516,8 +516,7 @@ bool tcp_splice_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	c->tcp.splice_conn_count++;
 	conn->a = s;
 
-	if (tcp_splice_new(c, conn, ref.r.p.tcp.tcp.index,
-			   ref.r.p.tcp.tcp.outbound))
+	if (tcp_splice_new(c, conn, ref.tcp.index, ref.tcp.outbound))
 		conn_flag(c, conn, CLOSING);
 
 	return true;

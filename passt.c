@@ -75,14 +75,14 @@ static void sock_handler(struct ctx *c, union epoll_ref ref,
 {
 	trace("%s: %s packet from socket %i (events: 0x%08x)",
 	      c->mode == MODE_PASST ? "passt" : "pasta",
-	      IP_PROTO_STR(ref.r.proto), ref.r.s, events);
+	      IP_PROTO_STR(ref.proto), ref.s, events);
 
-	if (!c->no_tcp && ref.r.proto == IPPROTO_TCP)
+	if (!c->no_tcp && ref.proto == IPPROTO_TCP)
 		tcp_sock_handler( c, ref, events, now);
-	else if (!c->no_udp && ref.r.proto == IPPROTO_UDP)
+	else if (!c->no_udp && ref.proto == IPPROTO_UDP)
 		udp_sock_handler( c, ref, events, now);
 	else if (!c->no_icmp &&
-		 (ref.r.proto == IPPROTO_ICMP || ref.r.proto == IPPROTO_ICMPV6))
+		 (ref.proto == IPPROTO_ICMP || ref.proto == IPPROTO_ICMPV6))
 		icmp_sock_handler(c, ref, events, now);
 }
 
