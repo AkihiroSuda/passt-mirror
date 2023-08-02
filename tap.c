@@ -1171,7 +1171,7 @@ static int tun_ns_fd = -1;
  * tap_ns_tun() - Get tuntap fd in namespace
  * @c:		Execution context
  *
- * Return: 0
+ * Return: 0 on success, exits on failure
  *
  * #syscalls:pasta ioctl openat
  */
@@ -1180,17 +1180,24 @@ static int tap_ns_tun(void *arg)
 	struct ifreq ifr = { .ifr_flags = IFF_TAP | IFF_NO_PI };
 	int flags = O_RDWR | O_NONBLOCK | O_CLOEXEC;
 	struct ctx *c = (struct ctx *)arg;
+	int fd, rc;
 
+	tun_ns_fd = -1;
 	memcpy(ifr.ifr_name, c->pasta_ifn, IFNAMSIZ);
 	ns_enter(c);
 
-	if ((tun_ns_fd = open("/dev/net/tun", flags)) < 0 ||
-	    ioctl(tun_ns_fd, TUNSETIFF, &ifr) ||
-	    !(c->pasta_ifi = if_nametoindex(c->pasta_ifn))) {
-		if (tun_ns_fd != -1)
-			close(tun_ns_fd);
-		tun_ns_fd = -1;
-	}
+	fd = open("/dev/net/tun", flags);
+	if (fd < 0)
+		die("Failed to open() /dev/net/tun: %s", strerror(errno));
+
+	rc = ioctl(fd, TUNSETIFF, &ifr);
+	if (rc < 0)
+		die("TUNSETIFF failed: %s", strerror(errno));
+
+	if (!(c->pasta_ifi = if_nametoindex(c->pasta_ifn)))
+		die("Tap device opened but no network interface found");
+
+	tun_ns_fd = fd;
 
 	return 0;
 }
@@ -1205,7 +1212,7 @@ static void tap_sock_tun_init(struct ctx *c)
 
 	NS_CALL(tap_ns_tun, c);
 	if (tun_ns_fd == -1)
-		die("Failed to open tun socket in namespace");
+		die("Failed to set up tap device in namespace");
 
 	pasta_ns_conf(c);
 
