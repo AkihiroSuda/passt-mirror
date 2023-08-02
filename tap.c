@@ -1165,8 +1165,6 @@ static void tap_sock_unix_new(struct ctx *c)
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
 }
 
-static int tun_ns_fd = -1;
-
 /**
  * tap_ns_tun() - Get tuntap fd in namespace
  * @c:		Execution context
@@ -1182,7 +1180,7 @@ static int tap_ns_tun(void *arg)
 	struct ctx *c = (struct ctx *)arg;
 	int fd, rc;
 
-	tun_ns_fd = -1;
+	c->fd_tap = -1;
 	memcpy(ifr.ifr_name, c->pasta_ifn, IFNAMSIZ);
 	ns_enter(c);
 
@@ -1197,7 +1195,7 @@ static int tap_ns_tun(void *arg)
 	if (!(c->pasta_ifi = if_nametoindex(c->pasta_ifn)))
 		die("Tap device opened but no network interface found");
 
-	tun_ns_fd = fd;
+	c->fd_tap = fd;
 
 	return 0;
 }
@@ -1211,12 +1209,10 @@ static void tap_sock_tun_init(struct ctx *c)
 	struct epoll_event ev = { 0 };
 
 	NS_CALL(tap_ns_tun, c);
-	if (tun_ns_fd == -1)
+	if (c->fd_tap == -1)
 		die("Failed to set up tap device in namespace");
 
 	pasta_ns_conf(c);
-
-	c->fd_tap = tun_ns_fd;
 
 	ev.data.fd = c->fd_tap;
 	ev.events = EPOLLIN | EPOLLRDHUP;
