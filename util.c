@@ -378,16 +378,14 @@ void procfs_scan_listen(struct ctx *c, uint8_t proto, int ip_version, int ns,
  * ns_enter() - Enter configured user (unless already joined) and network ns
  * @c:		Execution context
  *
- * Return: 0, won't return on failure
+ * Won't return on failure
  *
  * #syscalls:pasta setns
  */
-int ns_enter(const struct ctx *c)
+void ns_enter(const struct ctx *c)
 {
 	if (setns(c->pasta_netns_fd, CLONE_NEWNET))
-		exit(EXIT_FAILURE);
-
-	return 0;
+		die("setns() failed entering netns: %s", strerror(errno));
 }
 
 /**

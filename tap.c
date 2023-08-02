@@ -1182,9 +1182,9 @@ static int tap_ns_tun(void *arg)
 	struct ctx *c = (struct ctx *)arg;
 
 	memcpy(ifr.ifr_name, c->pasta_ifn, IFNAMSIZ);
+	ns_enter(c);
 
-	if (ns_enter(c) ||
-	    (tun_ns_fd = open("/dev/net/tun", flags)) < 0 ||
+	if ((tun_ns_fd = open("/dev/net/tun", flags)) < 0 ||
 	    ioctl(tun_ns_fd, TUNSETIFF, &ifr) ||
 	    !(c->pasta_ifi = if_nametoindex(c->pasta_ifn))) {
 		if (tun_ns_fd != -1)

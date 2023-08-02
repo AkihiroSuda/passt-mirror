@@ -473,8 +473,7 @@ static int udp_splice_new_ns(void *arg)
 
 	a = (struct udp_splice_new_ns_arg *)arg;
 
-	if (ns_enter(a->c))
-		return 0;
+	ns_enter(a->c);
 
 	a->s = udp_splice_new(a->c, a->v6, a->src, true);
 
@@ -1064,8 +1063,7 @@ int udp_sock_init_ns(void *arg)
 	struct ctx *c = (struct ctx *)arg;
 	unsigned dst;
 
-	if (ns_enter(c))
-		return 0;
+	ns_enter(c);
 
 	for (dst = 0; dst < NUM_PORTS; dst++) {
 		if (!bitmap_isset(c->udp.fwd_out.f.map, dst))

@@ -101,9 +101,10 @@ static int get_bound_ports_ns(void *arg)
 	struct get_bound_ports_ns_arg *a = (struct get_bound_ports_ns_arg *)arg;
 	struct ctx *c = a->c;
 
-	if (!c->pasta_netns_fd || ns_enter(c))
+	if (!c->pasta_netns_fd)
 		return 0;
 
+	ns_enter(c);
 	get_bound_ports(c, 1, a->proto);
 
 	return 0;
