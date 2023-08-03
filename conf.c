@@ -641,7 +641,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 			     struct ip4_ctx *ip4, unsigned char *mac)
 {
 	if (!ifi)
-		ifi = nl_get_ext_if(AF_INET);
+		ifi = nl_get_ext_if(nl_sock, AF_INET);
 
 	if (!ifi) {
 		warn("No external routable interface for IPv4");
@@ -649,10 +649,11 @@ static unsigned int conf_ip4(unsigned int ifi,
 	}
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->gw))
-		nl_route_get_def(ifi, AF_INET, &ip4->gw);
+		nl_route_get_def(nl_sock, ifi, AF_INET, &ip4->gw);
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr))
-		nl_addr_get(ifi, AF_INET, &ip4->addr, &ip4->prefix_len, NULL);
+		nl_addr_get(nl_sock, ifi, AF_INET,
+			    &ip4->addr, &ip4->prefix_len, NULL);
 
 	if (!ip4->prefix_len) {
 		in_addr_t addr = ntohl(ip4->addr.s_addr);
@@ -669,7 +670,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 	memcpy(&ip4->addr_seen, &ip4->addr, sizeof(ip4->addr_seen));
 
 	if (MAC_IS_ZERO(mac))
-		nl_link_get_mac(0, ifi, mac);
+		nl_link_get_mac(nl_sock, ifi, mac);
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr) ||
 	    MAC_IS_ZERO(mac))
@@ -692,7 +693,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 	int prefix_len = 0;
 
 	if (!ifi)
-		ifi = nl_get_ext_if(AF_INET6);
+		ifi = nl_get_ext_if(nl_sock, AF_INET6);
 
 	if (!ifi) {
 		warn("No external routable interface for IPv6");
@@ -700,9 +701,9 @@ static unsigned int conf_ip6(unsigned int ifi,
 	}
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->gw))
-		nl_route_get_def(ifi, AF_INET6, &ip6->gw);
+		nl_route_get_def(nl_sock, ifi, AF_INET6, &ip6->gw);
 
-	nl_addr_get(ifi, AF_INET6,
+	nl_addr_get(nl_sock, ifi, AF_INET6,
 		    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ? &ip6->addr : NULL,
 		    &prefix_len, &ip6->addr_ll);
 

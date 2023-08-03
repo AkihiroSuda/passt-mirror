@@ -38,8 +38,8 @@
 #define NLBUFSIZ	(8192 * sizeof(struct nlmsghdr)) /* See netlink(7) */
 
 /* Socket in init, in target namespace, sequence (just needs to be monotonic) */
-static int nl_sock	= -1;
-static int nl_sock_ns	= -1;
+int nl_sock	= -1;
+int nl_sock_ns	= -1;
 static int nl_seq;
 
 /**
@@ -98,17 +98,17 @@ fail:
 
 /**
  * nl_req() - Send netlink request and read response
- * @ns:		Use netlink socket in namespace
+ * @s:		Netlink socket
  * @buf:	Buffer for response (at least NLBUFSIZ long)
  * @req:	Request with netlink header
  * @len:	Request length
  *
  * Return: received length on success, negative error code on failure
  */
-static int nl_req(int ns, char *buf, const void *req, ssize_t len)
+static int nl_req(int s, char *buf, const void *req, ssize_t len)
 {
-	int s = ns ? nl_sock_ns : nl_sock, done = 0;
 	char flush[NLBUFSIZ];
+	int done = 0;
 	ssize_t n;
 
 	while (!done && (n = recv(s, flush, sizeof(flush), MSG_DONTWAIT)) > 0) {
@@ -133,12 +133,13 @@ static int nl_req(int ns, char *buf, const void *req, ssize_t len)
 
 /**
  * nl_get_ext_if() - Get interface index supporting IP version being probed
+ * @s:	Netlink socket
  * @af:	Address family (AF_INET or AF_INET6) to look for connectivity
  *      for.
  *
  * Return: interface index, 0 if not found
  */
-unsigned int nl_get_ext_if(sa_family_t af)
+unsigned int nl_get_ext_if(int s, sa_family_t af)
 {
 	struct { struct nlmsghdr nlh; struct rtmsg rtm; } req = {
 		.nlh.nlmsg_type	 = RTM_GETROUTE,
@@ -157,7 +158,7 @@ unsigned int nl_get_ext_if(sa_family_t af)
 	ssize_t n;
 	size_t na;
 
-	if ((n = nl_req(0, buf, &req, sizeof(req))) < 0)
+	if ((n = nl_req(s, buf, &req, sizeof(req))) < 0)
 		return 0;
 
 	nh = (struct nlmsghdr *)buf;
@@ -186,11 +187,12 @@ unsigned int nl_get_ext_if(sa_family_t af)
 
 /**
  * nl_route_get_def() - Get default route for given interface and address family
+ * @s:		Netlink socket
  * @ifi:	Interface index
  * @af:		Address family
  * @gw:		Default gateway to fill on NL_GET
  */
-void nl_route_get_def(unsigned int ifi, sa_family_t af, void *gw)
+void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -216,7 +218,7 @@ void nl_route_get_def(unsigned int ifi, sa_family_t af, void *gw)
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	if ((n = nl_req(0, buf, &req, req.nlh.nlmsg_len)) < 0)
+	if ((n = nl_req(s, buf, &req, req.nlh.nlmsg_len)) < 0)
 		return;
 
 	for (nh = (struct nlmsghdr *)buf;
@@ -245,11 +247,12 @@ void nl_route_get_def(unsigned int ifi, sa_family_t af, void *gw)
 
 /**
  * nl_route_set_def() - Set default route for given interface and address family
+ * @s:		Netlink socket
  * @ifi:	Interface index in target namespace
  * @af:		Address family
  * @gw:		Default gateway to set
  */
-void nl_route_set_def(unsigned int ifi, sa_family_t af, void *gw)
+void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -314,16 +317,19 @@ void nl_route_set_def(unsigned int ifi, sa_family_t af, void *gw)
 		req.set.r4.rta_gw.rta_len = rta_len;
 	}
 
-	nl_req(1, buf, &req, req.nlh.nlmsg_len);
+	nl_req(s, buf, &req, req.nlh.nlmsg_len);
 }
 
 /**
  * nl_route_dup() - Copy routes for given interface and address family
- * @ifi:	Interface index in outer network namespace
- * @ifi_ns:	Interface index in target namespace for NL_SET, NL_DUP
+ * @s_src:	Netlink socket in source namespace
+ * @ifi_src:	Source interface index
+ * @s_dst:	Netlink socket in destination namespace
+ * @ifi_dst:	Interface index in destination namespace
  * @af:		Address family
  */
-void nl_route_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
+void nl_route_dup(int s_src, unsigned int ifi_src,
+		  int s_dst, unsigned int ifi_dst, sa_family_t af)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -343,7 +349,7 @@ void nl_route_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
 
 		.rta.rta_type	  = RTA_OIF,
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
-		.ifi		  = ifi,
+		.ifi		  = ifi_src,
 	};
 	char buf[NLBUFSIZ], resp[NLBUFSIZ];
 	unsigned dup_routes = 0;
@@ -351,7 +357,7 @@ void nl_route_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
 	struct nlmsghdr *nh;
 	unsigned i;
 
-	if ((n = nl_req(0, buf, &req, req.nlh.nlmsg_len)) < 0)
+	if ((n = nl_req(s_src, buf, &req, req.nlh.nlmsg_len)) < 0)
 		return;
 
 	nlmsgs_size = n;
@@ -376,7 +382,7 @@ void nl_route_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
 			if (rta->rta_type == RTA_OIF)
-				*(unsigned int *)RTA_DATA(rta) = ifi_ns;
+				*(unsigned int *)RTA_DATA(rta) = ifi_dst;
 		}
 	}
 
@@ -389,19 +395,20 @@ void nl_route_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
 	 * avoids the need to calculate dependencies: let the kernel do that.
 	 */
 	for (i = 0; i < dup_routes; i++)
-		nl_req(1, resp, nh, nlmsgs_size);
+		nl_req(s_dst, resp, nh, nlmsgs_size);
 }
 
 /**
  * nl_addr_get() - Get IP address for given interface and address family
+ * @s:		Netlink socket
  * @ifi:	Interface index in outer network namespace
  * @af:		Address family
  * @addr:	Global address to fill
  * @prefix_len:	Mask or prefix length, to fill (for IPv4)
  * @addr_l:	Link-scoped address to fill (for IPv6)
  */
-void nl_addr_get(unsigned int ifi, sa_family_t af, void *addr,
-		 int *prefix_len, void *addr_l)
+void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
+		 void *addr, int *prefix_len, void *addr_l)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -419,7 +426,7 @@ void nl_addr_get(unsigned int ifi, sa_family_t af, void *addr,
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	if ((n = nl_req(0, buf, &req, req.nlh.nlmsg_len)) < 0)
+	if ((n = nl_req(s, buf, &req, req.nlh.nlmsg_len)) < 0)
 		return;
 
 	for (nh = (struct nlmsghdr *)buf;
@@ -457,12 +464,14 @@ void nl_addr_get(unsigned int ifi, sa_family_t af, void *addr,
 
 /**
  * nl_add_set() - Set IP addresses for given interface and address family
+ * @s:		Netlink socket
  * @ifi:	Interface index
  * @af:		Address family
  * @addr:	Global address to set
  * @prefix_len:	Mask or prefix length to set
  */
-void nl_addr_set(unsigned int ifi, sa_family_t af, void *addr, int prefix_len)
+void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
+		 void *addr, int prefix_len)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -523,16 +532,19 @@ void nl_addr_set(unsigned int ifi, sa_family_t af, void *addr, int prefix_len)
 		req.set.a4.rta_a.rta_type = IFA_ADDRESS;
 	}
 
-	nl_req(1, buf, &req, req.nlh.nlmsg_len);
+	nl_req(s, buf, &req, req.nlh.nlmsg_len);
 }
 
 /**
  * nl_addr_dup() - Copy IP addresses for given interface and address family
- * @ifi:	Interface index in outer network namespace
- * @ifi_ns:	Interface index in target namespace
+ * @s_src:	Netlink socket in source network namespace
+ * @ifi_src:	Interface index in source network namespace
+ * @s_dst:	Netlink socket in destination network namespace
+ * @ifi_dst:	Interface index in destination namespace
  * @af:		Address family
  */
-void nl_addr_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
+void nl_addr_dup(int s_src, unsigned int ifi_src,
+		 int s_dst, unsigned int ifi_dst, sa_family_t af)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -544,14 +556,14 @@ void nl_addr_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
 		.nlh.nlmsg_seq     = nl_seq++,
 
 		.ifa.ifa_family    = af,
-		.ifa.ifa_index     = ifi,
+		.ifa.ifa_index     = ifi_src,
 		.ifa.ifa_prefixlen = 0,
 	};
 	char buf[NLBUFSIZ], resp[NLBUFSIZ];
 	ssize_t n, nlmsgs_size;
 	struct nlmsghdr *nh;
 
-	if ((n = nl_req(0, buf, &req, sizeof(req))) < 0)
+	if ((n = nl_req(s_src, buf, &req, sizeof(req))) < 0)
 		return;
 
 	nlmsgs_size = n;
@@ -573,12 +585,13 @@ void nl_addr_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
 
 		ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 
-		if (ifa->ifa_scope == RT_SCOPE_LINK || ifa->ifa_index != ifi) {
+		if (ifa->ifa_scope == RT_SCOPE_LINK ||
+		    ifa->ifa_index != ifi_src) {
 			ifa->ifa_family = AF_UNSPEC;
 			continue;
 		}
 
-		ifa->ifa_index = ifi_ns;
+		ifa->ifa_index = ifi_dst;
 
 		for (rta = IFA_RTA(ifa), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
@@ -587,16 +600,16 @@ void nl_addr_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
 		}
 	}
 
-	nl_req(1, resp, buf, nlmsgs_size);
+	nl_req(s_dst, resp, buf, nlmsgs_size);
 }
 
 /**
  * nl_link_get_mac() - Get link MAC address
- * @ns:		Use netlink socket in namespace
+ * @s:		Netlink socket
  * @ifi:	Interface index
  * @mac:	Fill with current MAC address
  */
-void nl_link_get_mac(int ns, unsigned int ifi, void *mac)
+void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -613,7 +626,7 @@ void nl_link_get_mac(int ns, unsigned int ifi, void *mac)
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	n = nl_req(ns, buf, &req, sizeof(req));
+	n = nl_req(s, buf, &req, sizeof(req));
 	if (n < 0)
 		return;
 
@@ -641,11 +654,12 @@ void nl_link_get_mac(int ns, unsigned int ifi, void *mac)
 
 /**
  * nl_link_set_mac() - Set link MAC address
+ * @s:		Netlink socket
  * @ns:		Use netlink socket in namespace
  * @ifi:	Interface index
  * @mac:	MAC address to set
  */
-void nl_link_set_mac(int ns, unsigned int ifi, void *mac)
+void nl_link_set_mac(int s, unsigned int ifi, void *mac)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -666,16 +680,16 @@ void nl_link_set_mac(int ns, unsigned int ifi, void *mac)
 
 	memcpy(req.mac, mac, ETH_ALEN);
 
-	nl_req(ns, buf, &req, sizeof(req));
+	nl_req(s, buf, &req, sizeof(req));
 }
 
 /**
  * nl_link_up() - Bring link up
- * @ns:		Use netlink socket in namespace
+ * @s:		Netlink socket
  * @ifi:	Interface index
  * @mtu:	If non-zero, set interface MTU
  */
-void nl_link_up(int ns, unsigned int ifi, int mtu)
+void nl_link_up(int s, unsigned int ifi, int mtu)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -701,5 +715,5 @@ void nl_link_up(int ns, unsigned int ifi, int mtu)
 		/* Shorten request to drop MTU attribute */
 		req.nlh.nlmsg_len = offsetof(struct req_t, rta);
 
-	nl_req(ns, buf, &req, req.nlh.nlmsg_len);
+	nl_req(s, buf, &req, req.nlh.nlmsg_len);
 }
