@@ -354,8 +354,10 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
  * @ifi:	Interface index in target namespace
  * @af:		Address family
  * @gw:		Default gateway to set
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
+int nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -413,7 +415,7 @@ void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		req.set.r4.rta_gw.rta_len = rta_len;
 	}
 
-	nl_do(s, &req, RTM_NEWROUTE, NLM_F_CREATE | NLM_F_EXCL, len);
+	return nl_do(s, &req, RTM_NEWROUTE, NLM_F_CREATE | NLM_F_EXCL, len);
 }
 
 /**
@@ -558,9 +560,11 @@ void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
  * @af:		Address family
  * @addr:	Global address to set
  * @prefix_len:	Mask or prefix length to set
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
-		 void *addr, int prefix_len)
+int nl_addr_set(int s, unsigned int ifi, sa_family_t af,
+		void *addr, int prefix_len)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -613,7 +617,7 @@ void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 		req.set.a4.rta_a.rta_type = IFA_ADDRESS;
 	}
 
-	nl_do(s, &req, RTM_NEWADDR, NLM_F_CREATE | NLM_F_EXCL, len);
+	return nl_do(s, &req, RTM_NEWADDR, NLM_F_CREATE | NLM_F_EXCL, len);
 }
 
 /**
@@ -713,8 +717,10 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
  * @ns:		Use netlink socket in namespace
  * @ifi:	Interface index
  * @mac:	MAC address to set
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_link_set_mac(int s, unsigned int ifi, void *mac)
+int nl_link_set_mac(int s, unsigned int ifi, void *mac)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -730,7 +736,7 @@ void nl_link_set_mac(int s, unsigned int ifi, void *mac)
 
 	memcpy(req.mac, mac, ETH_ALEN);
 
-	nl_do(s, &req, RTM_NEWLINK, 0, sizeof(req));
+	return nl_do(s, &req, RTM_NEWLINK, 0, sizeof(req));
 }
 
 /**
@@ -738,8 +744,10 @@ void nl_link_set_mac(int s, unsigned int ifi, void *mac)
  * @s:		Netlink socket
  * @ifi:	Interface index
  * @mtu:	If non-zero, set interface MTU
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_link_up(int s, unsigned int ifi, int mtu)
+int nl_link_up(int s, unsigned int ifi, int mtu)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -761,5 +769,5 @@ void nl_link_up(int s, unsigned int ifi, int mtu)
 		/* Shorten request to drop MTU attribute */
 		len = offsetof(struct req_t, rta);
 
-	nl_do(s, &req, RTM_NEWLINK, 0, len);
+	return nl_do(s, &req, RTM_NEWLINK, 0, len);
 }

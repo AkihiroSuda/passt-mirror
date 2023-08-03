@@ -272,52 +272,82 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
  */
 void pasta_ns_conf(struct ctx *c)
 {
-	nl_link_up(nl_sock_ns, 1 /* lo */, 0);
+	int rc = 0;
+
+	rc = nl_link_up(nl_sock_ns, 1 /* lo */, 0);
+	if (rc < 0)
+		die("Couldn't bring up loopback interface in namespace: %s",
+		    strerror(-rc));
 
 	/* Get or set MAC in target namespace */
 	if (MAC_IS_ZERO(c->mac_guest))
 		nl_link_get_mac(nl_sock_ns, c->pasta_ifi, c->mac_guest);
 	else
-		nl_link_set_mac(nl_sock_ns, c->pasta_ifi, c->mac_guest);
+		rc = nl_link_set_mac(nl_sock_ns, c->pasta_ifi, c->mac_guest);
+	if (rc < 0)
+		die("Couldn't set MAC address in namespace: %s",
+		    strerror(-rc));
 
 	if (c->pasta_conf_ns) {
 		nl_link_up(nl_sock_ns, c->pasta_ifi, c->mtu);
 
 		if (c->ifi4) {
 			if (c->no_copy_addrs) {
-				nl_addr_set(nl_sock_ns, c->pasta_ifi, AF_INET,
-					    &c->ip4.addr, c->ip4.prefix_len);
+				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
+						 AF_INET,
+						 &c->ip4.addr,
+						 c->ip4.prefix_len);
 			} else {
 				nl_addr_dup(nl_sock, c->ifi4,
 					    nl_sock_ns, c->pasta_ifi, AF_INET);
 			}
 
+			if (rc < 0) {
+				die("Couldn't set IPv4 address(es) in namespace: %s",
+				    strerror(-rc));
+			}
+
 			if (c->no_copy_routes) {
-				nl_route_set_def(nl_sock_ns, c->pasta_ifi,
-						 AF_INET, &c->ip4.gw);
+				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
+						      AF_INET, &c->ip4.gw);
 			} else {
 				nl_route_dup(nl_sock, c->ifi4, nl_sock_ns,
 					     c->pasta_ifi, AF_INET);
+			}
+
+			if (rc < 0) {
+				die("Couldn't set IPv4 route(s) in guest: %s",
+				    strerror(-rc));
 			}
 		}
 
 		if (c->ifi6) {
 			if (c->no_copy_addrs) {
-				nl_addr_set(nl_sock_ns, c->pasta_ifi,
-					    AF_INET6, &c->ip6.addr, 64);
+				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
+						 AF_INET6, &c->ip6.addr, 64);
 			} else {
 				nl_addr_dup(nl_sock, c->ifi6,
 					    nl_sock_ns, c->pasta_ifi,
 					    AF_INET6);
 			}
 
+			if (rc < 0) {
+				die("Couldn't set IPv6 address(es) in namespace: %s",
+				    strerror(-rc));
+			}
+
 			if (c->no_copy_routes) {
-				nl_route_set_def(nl_sock_ns, c->pasta_ifi,
-						 AF_INET6, &c->ip6.gw);
+				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
+						      AF_INET6, &c->ip6.gw);
 			} else {
 				nl_route_dup(nl_sock, c->ifi6,
 					     nl_sock_ns, c->pasta_ifi,
 					     AF_INET6);
+			}
+
+			if (rc < 0) {
+				die("Couldn't set IPv6 route(s) in guest: %s",
+				    strerror(-rc));
 			}
 		}
 	}
