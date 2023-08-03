@@ -35,7 +35,14 @@
 #include "log.h"
 #include "netlink.h"
 
-#define NLBUFSIZ	(8192 * sizeof(struct nlmsghdr)) /* See netlink(7) */
+/* Netlink expects a buffer of at least 8kiB or the system page size,
+ * whichever is larger.  32kiB is recommended for more efficient.
+ * Since the largest page size on any remotely common Linux setup is
+ * 64kiB (ppc64), that should cover it.
+ *
+ * https://www.kernel.org/doc/html/next/userspace-api/netlink/intro.html#buffer-sizing
+ */
+#define NLBUFSIZ 65536
 
 /* Socket in init, in target namespace, sequence (just needs to be monotonic) */
 int nl_sock	= -1;
