@@ -671,7 +671,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 	memcpy(&ip4->addr_seen, &ip4->addr, sizeof(ip4->addr_seen));
 
 	if (MAC_IS_ZERO(mac))
-		nl_link(0, ifi, mac, 0, 0);
+		nl_link_get_mac(0, ifi, mac);
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr) ||
 	    MAC_IS_ZERO(mac))
@@ -712,7 +712,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 	memcpy(&ip6->addr_ll_seen, &ip6->addr_ll, sizeof(ip6->addr_ll));
 
 	if (MAC_IS_ZERO(mac))
-		nl_link(0, ifi, mac, 0, 0);
+		nl_link_get_mac(0, ifi, mac);
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr_ll) ||

@@ -486,83 +486,44 @@ next:
 }
 
 /**
- * nl_link() - Get/set link attributes
+ * nl_link_get_mac() - Get link MAC address
  * @ns:		Use netlink socket in namespace
  * @ifi:	Interface index
- * @mac:	MAC address to fill, if passed as zero, to set otherwise
- * @up:		If set, bring up the link
- * @mtu:	If non-zero, set interface MTU
+ * @mac:	Fill with current MAC address
  */
-void nl_link(int ns, unsigned int ifi, void *mac, int up, int mtu)
+void nl_link_get_mac(int ns, unsigned int ifi, void *mac)
 {
-	int change = !MAC_IS_ZERO(mac) || up || mtu;
 	struct req_t {
 		struct nlmsghdr nlh;
 		struct ifinfomsg ifm;
-		struct rtattr rta;
-		union {
-			unsigned char mac[ETH_ALEN];
-			struct {
-				unsigned int mtu;
-			} mtu;
-		} set;
 	} req = {
-		.nlh.nlmsg_type   = change ? RTM_NEWLINK : RTM_GETLINK,
-		.nlh.nlmsg_len    = NLMSG_LENGTH(sizeof(struct ifinfomsg)),
-		.nlh.nlmsg_flags  = NLM_F_REQUEST | (change ? NLM_F_ACK : 0),
+		.nlh.nlmsg_type	  = RTM_GETLINK,
+		.nlh.nlmsg_len	  = sizeof(req),
+		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK,
 		.nlh.nlmsg_seq	  = nl_seq++,
 		.ifm.ifi_family	  = AF_UNSPEC,
 		.ifm.ifi_index	  = ifi,
-		.ifm.ifi_flags	  = up ? IFF_UP : 0,
-		.ifm.ifi_change	  = up ? IFF_UP : 0,
 	};
-	struct ifinfomsg *ifm;
 	struct nlmsghdr *nh;
-	struct rtattr *rta;
 	char buf[NLBUFSIZ];
 	ssize_t n;
-	size_t na;
 
-	if (!MAC_IS_ZERO(mac)) {
-		req.nlh.nlmsg_len = sizeof(req);
-		memcpy(req.set.mac, mac, ETH_ALEN);
-		req.rta.rta_type = IFLA_ADDRESS;
-		req.rta.rta_len = RTA_LENGTH(ETH_ALEN);
-		if (nl_req(ns, buf, &req, req.nlh.nlmsg_len) < 0)
-			return;
-
-		up = 0;
-	}
-
-	if (mtu) {
-		req.nlh.nlmsg_len = offsetof(struct req_t, set.mtu)
-			+ sizeof(req.set.mtu);
-		req.set.mtu.mtu = mtu;
-		req.rta.rta_type = IFLA_MTU;
-		req.rta.rta_len = RTA_LENGTH(sizeof(unsigned int));
-		if (nl_req(ns, buf, &req, req.nlh.nlmsg_len) < 0)
-			return;
-
-		up = 0;
-	}
-
-	if (up && nl_req(ns, buf, &req, req.nlh.nlmsg_len) < 0)
+	n = nl_req(ns, buf, &req, sizeof(req));
+	if (n < 0)
 		return;
 
-	if (change)
-		return;
+	for (nh = (struct nlmsghdr *)buf;
+	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
+	     nh = NLMSG_NEXT(nh, n)) {
+		struct ifinfomsg *ifm = (struct ifinfomsg *)NLMSG_DATA(nh);
+		struct rtattr *rta;
+		size_t na;
 
-	if ((n = nl_req(ns, buf, &req, req.nlh.nlmsg_len)) < 0)
-		return;
-
-	nh = (struct nlmsghdr *)buf;
-	for ( ; NLMSG_OK(nh, n); nh = NLMSG_NEXT(nh, n)) {
 		if (nh->nlmsg_type != RTM_NEWLINK)
-			goto next;
+			continue;
 
-		ifm = (struct ifinfomsg *)NLMSG_DATA(nh);
-
-		for (rta = IFLA_RTA(ifm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
+		for (rta = IFLA_RTA(ifm), na = RTM_PAYLOAD(nh);
+		     RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
 			if (rta->rta_type != IFLA_ADDRESS)
 				continue;
@@ -570,8 +531,70 @@ void nl_link(int ns, unsigned int ifi, void *mac, int up, int mtu)
 			memcpy(mac, RTA_DATA(rta), ETH_ALEN);
 			break;
 		}
-next:
-		if (nh->nlmsg_type == NLMSG_DONE)
-			break;
 	}
+}
+
+/**
+ * nl_link_set_mac() - Set link MAC address
+ * @ns:		Use netlink socket in namespace
+ * @ifi:	Interface index
+ * @mac:	MAC address to set
+ */
+void nl_link_set_mac(int ns, unsigned int ifi, void *mac)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct ifinfomsg ifm;
+		struct rtattr rta;
+		unsigned char mac[ETH_ALEN];
+	} req = {
+		.nlh.nlmsg_type	  = RTM_NEWLINK,
+		.nlh.nlmsg_len	  = sizeof(req),
+		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK,
+		.nlh.nlmsg_seq	  = nl_seq++,
+		.ifm.ifi_family	  = AF_UNSPEC,
+		.ifm.ifi_index	  = ifi,
+		.rta.rta_type	  = IFLA_ADDRESS,
+		.rta.rta_len	  = RTA_LENGTH(ETH_ALEN),
+	};
+	char buf[NLBUFSIZ];
+
+	memcpy(req.mac, mac, ETH_ALEN);
+
+	nl_req(ns, buf, &req, sizeof(req));
+}
+
+/**
+ * nl_link_up() - Bring link up
+ * @ns:		Use netlink socket in namespace
+ * @ifi:	Interface index
+ * @mtu:	If non-zero, set interface MTU
+ */
+void nl_link_up(int ns, unsigned int ifi, int mtu)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct ifinfomsg ifm;
+		struct rtattr rta;
+		unsigned int mtu;
+	} req = {
+		.nlh.nlmsg_type   = RTM_NEWLINK,
+		.nlh.nlmsg_len    = sizeof(req),
+		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK,
+		.nlh.nlmsg_seq	  = nl_seq++,
+		.ifm.ifi_family	  = AF_UNSPEC,
+		.ifm.ifi_index	  = ifi,
+		.ifm.ifi_flags	  = IFF_UP,
+		.ifm.ifi_change	  = IFF_UP,
+		.rta.rta_type	  = IFLA_MTU,
+		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
+		.mtu		  = mtu,
+	};
+	char buf[NLBUFSIZ];
+
+	if (!mtu)
+		/* Shorten request to drop MTU attribute */
+		req.nlh.nlmsg_len = offsetof(struct req_t, rta);
+
+	nl_req(ns, buf, &req, req.nlh.nlmsg_len);
 }

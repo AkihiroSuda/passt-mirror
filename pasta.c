@@ -272,13 +272,19 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
  */
 void pasta_ns_conf(struct ctx *c)
 {
-	nl_link(1, 1 /* lo */, MAC_ZERO, 1, 0);
+	nl_link_up(1, 1 /* lo */, 0);
+
+	/* Get or set MAC in target namespace */
+	if (MAC_IS_ZERO(c->mac_guest))
+		nl_link_get_mac(1, c->pasta_ifi, c->mac_guest);
+	else
+		nl_link_set_mac(1, c->pasta_ifi, c->mac_guest);
 
 	if (c->pasta_conf_ns) {
 		enum nl_op op_routes = c->no_copy_routes ? NL_SET : NL_DUP;
 		enum nl_op op_addrs =  c->no_copy_addrs  ? NL_SET : NL_DUP;
 
-		nl_link(1, c->pasta_ifi, c->mac_guest, 1, c->mtu);
+		nl_link_up(1, c->pasta_ifi, c->mtu);
 
 		if (c->ifi4) {
 			nl_addr(op_addrs, c->ifi4, c->pasta_ifi, AF_INET,
@@ -294,8 +300,6 @@ void pasta_ns_conf(struct ctx *c)
 			nl_route(op_routes, c->ifi6, c->pasta_ifi, AF_INET6,
 				 &c->ip6.gw);
 		}
-	} else {
-		nl_link(1, c->pasta_ifi, c->mac_guest, 0, 0);
 	}
 
 	proto_update_l2_buf(c->mac_guest, NULL, NULL);
