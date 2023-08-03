@@ -6,16 +6,11 @@
 #ifndef NETLINK_H
 #define NETLINK_H
 
-enum nl_op {
-	NL_GET,
-	NL_SET,
-	NL_DUP,
-};
-
 void nl_sock_init(const struct ctx *c, bool ns);
 unsigned int nl_get_ext_if(sa_family_t af);
-void nl_route(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
-	      sa_family_t af, void *gw);
+void nl_route_get_def(unsigned int ifi, sa_family_t af, void *gw);
+void nl_route_set_def(unsigned int ifi, sa_family_t af, void *gw);
+void nl_route_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af);
 void nl_addr_get(unsigned int ifi, sa_family_t af, void *addr,
 		 int *prefix_len, void *addr_l);
 void nl_addr_set(unsigned int ifi, sa_family_t af, void *addr, int prefix_len);

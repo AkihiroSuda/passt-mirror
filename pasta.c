@@ -281,8 +281,6 @@ void pasta_ns_conf(struct ctx *c)
 		nl_link_set_mac(1, c->pasta_ifi, c->mac_guest);
 
 	if (c->pasta_conf_ns) {
-		enum nl_op op_routes = c->no_copy_routes ? NL_SET : NL_DUP;
-
 		nl_link_up(1, c->pasta_ifi, c->mtu);
 
 		if (c->ifi4) {
@@ -293,8 +291,11 @@ void pasta_ns_conf(struct ctx *c)
 				nl_addr_dup(c->ifi4, c->pasta_ifi, AF_INET);
 			}
 
-			nl_route(op_routes, c->ifi4, c->pasta_ifi, AF_INET,
-				 &c->ip4.gw);
+			if (c->no_copy_routes)
+				nl_route_set_def(c->pasta_ifi, AF_INET,
+						 &c->ip4.gw);
+			else
+				nl_route_dup(c->ifi4, c->pasta_ifi, AF_INET);
 		}
 
 		if (c->ifi6) {
@@ -305,8 +306,11 @@ void pasta_ns_conf(struct ctx *c)
 				nl_addr_dup(c->ifi6, c->pasta_ifi, AF_INET6);
 			}
 
-			nl_route(op_routes, c->ifi6, c->pasta_ifi, AF_INET6,
-				 &c->ip6.gw);
+			if (c->no_copy_routes)
+				nl_route_set_def(c->pasta_ifi, AF_INET6,
+						 &c->ip6.gw);
+			else
+				nl_route_dup(c->ifi6, c->pasta_ifi, AF_INET6);
 		}
 	}
 

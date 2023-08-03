@@ -185,15 +185,71 @@ unsigned int nl_get_ext_if(sa_family_t af)
 }
 
 /**
- * nl_route() - Get/set/copy routes for given interface and address family
- * @op:		Requested operation
- * @ifi:	Interface index in outer network namespace
- * @ifi_ns:	Interface index in target namespace for NL_SET, NL_DUP
+ * nl_route_get_def() - Get default route for given interface and address family
+ * @ifi:	Interface index
  * @af:		Address family
- * @gw:		Default gateway to fill on NL_GET, to set on NL_SET
+ * @gw:		Default gateway to fill on NL_GET
  */
-void nl_route(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
-	      sa_family_t af, void *gw)
+void nl_route_get_def(unsigned int ifi, sa_family_t af, void *gw)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct rtmsg rtm;
+		struct rtattr rta;
+		unsigned int ifi;
+	} req = {
+		.nlh.nlmsg_type	  = RTM_GETROUTE,
+		.nlh.nlmsg_len	  = sizeof(req),
+		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_DUMP,
+		.nlh.nlmsg_seq	  = nl_seq++,
+
+		.rtm.rtm_family	  = af,
+		.rtm.rtm_table	  = RT_TABLE_MAIN,
+		.rtm.rtm_scope	  = RT_SCOPE_UNIVERSE,
+		.rtm.rtm_type	  = RTN_UNICAST,
+
+		.rta.rta_type	  = RTA_OIF,
+		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
+		.ifi		  = ifi,
+	};
+	struct nlmsghdr *nh;
+	char buf[NLBUFSIZ];
+	ssize_t n;
+
+	if ((n = nl_req(0, buf, &req, req.nlh.nlmsg_len)) < 0)
+		return;
+
+	for (nh = (struct nlmsghdr *)buf;
+	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
+	     nh = NLMSG_NEXT(nh, n)) {
+		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
+		struct rtattr *rta;
+		size_t na;
+
+		if (nh->nlmsg_type != RTM_NEWROUTE)
+			continue;
+
+		if (rtm->rtm_dst_len)
+			continue;
+
+		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
+		     rta = RTA_NEXT(rta, na)) {
+			if (rta->rta_type != RTA_GATEWAY)
+				continue;
+
+			memcpy(gw, RTA_DATA(rta), RTA_PAYLOAD(rta));
+			return;
+		}
+	}
+}
+
+/**
+ * nl_route_set_def() - Set default route for given interface and address family
+ * @ifi:	Interface index in target namespace
+ * @af:		Address family
+ * @gw:		Default gateway to set
+ */
+void nl_route_set_def(unsigned int ifi, sa_family_t af, void *gw)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -215,8 +271,69 @@ void nl_route(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
 			} r4;
 		} set;
 	} req = {
-		.nlh.nlmsg_type	  = op == NL_SET ? RTM_NEWROUTE : RTM_GETROUTE,
-		.nlh.nlmsg_flags  = NLM_F_REQUEST,
+		.nlh.nlmsg_type	  = RTM_NEWROUTE,
+		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK |
+				    NLM_F_CREATE | NLM_F_EXCL,
+		.nlh.nlmsg_seq	  = nl_seq++,
+
+		.rtm.rtm_family	  = af,
+		.rtm.rtm_table	  = RT_TABLE_MAIN,
+		.rtm.rtm_scope	  = RT_SCOPE_UNIVERSE,
+		.rtm.rtm_type	  = RTN_UNICAST,
+		.rtm.rtm_protocol = RTPROT_BOOT,
+
+		.rta.rta_type	  = RTA_OIF,
+		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
+		.ifi		  = ifi,
+	};
+	char buf[NLBUFSIZ];
+
+	if (af == AF_INET6) {
+		size_t rta_len = RTA_LENGTH(sizeof(req.set.r6.d));
+
+		req.nlh.nlmsg_len = offsetof(struct req_t, set.r6)
+			+ sizeof(req.set.r6);
+
+		req.set.r6.rta_dst.rta_type = RTA_DST;
+		req.set.r6.rta_dst.rta_len = rta_len;
+
+		memcpy(&req.set.r6.a, gw, sizeof(req.set.r6.a));
+		req.set.r6.rta_gw.rta_type = RTA_GATEWAY;
+		req.set.r6.rta_gw.rta_len = rta_len;
+	} else {
+		size_t rta_len = RTA_LENGTH(sizeof(req.set.r4.d));
+
+		req.nlh.nlmsg_len = offsetof(struct req_t, set.r4)
+			+ sizeof(req.set.r4);
+
+		req.set.r4.rta_dst.rta_type = RTA_DST;
+		req.set.r4.rta_dst.rta_len = rta_len;
+
+		req.set.r4.a = *(uint32_t *)gw;
+		req.set.r4.rta_gw.rta_type = RTA_GATEWAY;
+		req.set.r4.rta_gw.rta_len = rta_len;
+	}
+
+	nl_req(1, buf, &req, req.nlh.nlmsg_len);
+}
+
+/**
+ * nl_route_dup() - Copy routes for given interface and address family
+ * @ifi:	Interface index in outer network namespace
+ * @ifi_ns:	Interface index in target namespace for NL_SET, NL_DUP
+ * @af:		Address family
+ */
+void nl_route_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct rtmsg rtm;
+		struct rtattr rta;
+		unsigned int ifi;
+	} req = {
+		.nlh.nlmsg_type	  = RTM_GETROUTE,
+		.nlh.nlmsg_len	  = sizeof(req),
+		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_DUMP,
 		.nlh.nlmsg_seq	  = nl_seq++,
 
 		.rtm.rtm_family	  = af,
@@ -226,111 +343,53 @@ void nl_route(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
 
 		.rta.rta_type	  = RTA_OIF,
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
-		.ifi		  = op == NL_SET ? ifi_ns : ifi,
+		.ifi		  = ifi,
 	};
+	char buf[NLBUFSIZ], resp[NLBUFSIZ];
 	unsigned dup_routes = 0;
 	ssize_t n, nlmsgs_size;
 	struct nlmsghdr *nh;
-	struct rtattr *rta;
-	char buf[NLBUFSIZ];
-	struct rtmsg *rtm;
-	size_t na;
+	unsigned i;
 
-	if (op == NL_SET) {
-		if (af == AF_INET6) {
-			size_t rta_len = RTA_LENGTH(sizeof(req.set.r6.d));
-
-			req.nlh.nlmsg_len = offsetof(struct req_t, set.r6)
-				+ sizeof(req.set.r6);
-
-			req.set.r6.rta_dst.rta_type = RTA_DST;
-			req.set.r6.rta_dst.rta_len = rta_len;
-
-			memcpy(&req.set.r6.a, gw, sizeof(req.set.r6.a));
-			req.set.r6.rta_gw.rta_type = RTA_GATEWAY;
-			req.set.r6.rta_gw.rta_len = rta_len;
-		} else {
-			size_t rta_len = RTA_LENGTH(sizeof(req.set.r4.d));
-
-			req.nlh.nlmsg_len = offsetof(struct req_t, set.r4)
-				+ sizeof(req.set.r4);
-
-			req.set.r4.rta_dst.rta_type = RTA_DST;
-			req.set.r4.rta_dst.rta_len = rta_len;
-
-			req.set.r4.a = *(uint32_t *)gw;
-			req.set.r4.rta_gw.rta_type = RTA_GATEWAY;
-			req.set.r4.rta_gw.rta_len = rta_len;
-		}
-
-		req.rtm.rtm_protocol = RTPROT_BOOT;
-		req.nlh.nlmsg_flags |= NLM_F_ACK | NLM_F_EXCL | NLM_F_CREATE;
-	} else {
-		req.nlh.nlmsg_len = offsetof(struct req_t, set.r6);
-		req.nlh.nlmsg_flags |= NLM_F_DUMP;
-	}
-
-	if ((n = nl_req(op == NL_SET, buf, &req, req.nlh.nlmsg_len)) < 0)
+	if ((n = nl_req(0, buf, &req, req.nlh.nlmsg_len)) < 0)
 		return;
 
-	if (op == NL_SET)
-		return;
-
-	nh = (struct nlmsghdr *)buf;
 	nlmsgs_size = n;
 
-	for ( ; NLMSG_OK(nh, n); nh = NLMSG_NEXT(nh, n)) {
+	for (nh = (struct nlmsghdr *)buf;
+	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
+	     nh = NLMSG_NEXT(nh, n)) {
+		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
+		struct rtattr *rta;
+		size_t na;
+
 		if (nh->nlmsg_type != RTM_NEWROUTE)
-			goto next;
-
-		if (op == NL_DUP) {
-			nh->nlmsg_seq = nl_seq++;
-			nh->nlmsg_pid = 0;
-			nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
-			nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK |
-					   NLM_F_CREATE;
-			dup_routes++;
-		}
-
-		rtm = (struct rtmsg *)NLMSG_DATA(nh);
-		if (op == NL_GET && rtm->rtm_dst_len)
 			continue;
+
+		nh->nlmsg_seq = nl_seq++;
+		nh->nlmsg_pid = 0;
+		nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
+		nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK |
+			NLM_F_CREATE;
+		dup_routes++;
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			if (op == NL_GET) {
-				if (rta->rta_type != RTA_GATEWAY)
-					continue;
-
-				memcpy(gw, RTA_DATA(rta), RTA_PAYLOAD(rta));
-				return;
-			}
-
-			if (op == NL_DUP && rta->rta_type == RTA_OIF)
+			if (rta->rta_type == RTA_OIF)
 				*(unsigned int *)RTA_DATA(rta) = ifi_ns;
 		}
-
-next:
-		if (nh->nlmsg_type == NLMSG_DONE)
-			break;
 	}
 
-	if (op == NL_DUP) {
-		char resp[NLBUFSIZ];
-		unsigned i;
-
-		nh = (struct nlmsghdr *)buf;
-		/* Routes might have dependencies between each other, and the
-		 * kernel processes RTM_NEWROUTE messages sequentially. For n
-		 * valid routes, we might need to send up to n requests to get
-		 * all of them inserted. Routes that have been already inserted
-		 * won't cause the whole request to fail, so we can simply
-		 * repeat the whole request. This approach avoids the need to
-		 * calculate dependencies: let the kernel do that.
-		 */
-		for (i = 0; i < dup_routes; i++)
-			nl_req(1, resp, nh, nlmsgs_size);
-	}
+	nh = (struct nlmsghdr *)buf;
+	/* Routes might have dependencies between each other, and the kernel
+	 * processes RTM_NEWROUTE messages sequentially. For n valid routes, we
+	 * might need to send up to n requests to get all of them inserted.
+	 * Routes that have been already inserted won't cause the whole request
+	 * to fail, so we can simply repeat the whole request. This approach
+	 * avoids the need to calculate dependencies: let the kernel do that.
+	 */
+	for (i = 0; i < dup_routes; i++)
+		nl_req(1, resp, nh, nlmsgs_size);
 }
 
 /**
