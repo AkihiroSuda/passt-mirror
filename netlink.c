@@ -149,6 +149,47 @@ static ssize_t nl_req(int s, char *buf, void *req,
 }
 
 /**
+ * nl_do() - Send netlink "do" request, and wait for acknowledgement
+ * @s:		Netlink socket
+ * @req:	Request (will fill netlink header)
+ * @type:	Request type
+ * @flags:	Extra request flags (NLM_F_REQUEST and NLM_F_ACK assumed)
+ * @len:	Request length
+ *
+ * Return: 0 on success, negative error code on error
+ */
+static int nl_do(int s, void *req, uint16_t type, uint16_t flags, ssize_t len)
+{
+	struct nlmsghdr *nh;
+	char buf[NLBUFSIZ];
+	uint16_t seq;
+	ssize_t n;
+
+	n = nl_req(s, buf, req, type, flags, len);
+	seq = ((struct nlmsghdr *)req)->nlmsg_seq;
+
+	for (nh = (struct nlmsghdr *)buf;
+	     NLMSG_OK(nh, n); nh = NLMSG_NEXT(nh, n)) {
+		struct nlmsgerr *errmsg;
+
+		if (nh->nlmsg_seq != seq)
+			die("netlink: Unexpected response sequence number");
+
+		switch (nh->nlmsg_type) {
+		case NLMSG_DONE:
+			return 0;
+		case NLMSG_ERROR:
+			errmsg = (struct nlmsgerr *)NLMSG_DATA(nh);
+			return errmsg->error;
+		default:
+			warn("netlink: Unexpected response message");
+		}
+	}
+
+	die("netlink: Missing acknowledgement of request");
+}
+
+/**
  * nl_get_ext_if() - Get interface index supporting IP version being probed
  * @s:	Netlink socket
  * @af:	Address family (AF_INET or AF_INET6) to look for connectivity
@@ -289,7 +330,6 @@ void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
 		.ifi		  = ifi,
 	};
-	char buf[NLBUFSIZ];
 	ssize_t len;
 
 	if (af == AF_INET6) {
@@ -316,7 +356,7 @@ void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		req.set.r4.rta_gw.rta_len = rta_len;
 	}
 
-	nl_req(s, buf, &req, RTM_NEWROUTE, NLM_F_CREATE | NLM_F_EXCL, len);
+	nl_do(s, &req, RTM_NEWROUTE, NLM_F_CREATE | NLM_F_EXCL, len);
 }
 
 /**
@@ -385,12 +425,11 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
 		     nh = NLMSG_NEXT(nh, n)) {
 			uint16_t flags = nh->nlmsg_flags;
-			char resp[NLBUFSIZ];
 
 			if (nh->nlmsg_type != RTM_NEWROUTE)
 				continue;
 
-			nl_req(s_dst, resp, nh, RTM_NEWROUTE,
+			nl_do(s_dst, nh, RTM_NEWROUTE,
 			       (flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
 			       nh->nlmsg_len);
 		}
@@ -489,7 +528,6 @@ void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 		.ifa.ifa_prefixlen = prefix_len,
 		.ifa.ifa_scope	   = RT_SCOPE_UNIVERSE,
 	};
-	char buf[NLBUFSIZ];
 	ssize_t len;
 
 	if (af == AF_INET6) {
@@ -518,7 +556,7 @@ void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 		req.set.a4.rta_a.rta_type = IFA_ADDRESS;
 	}
 
-	nl_req(s, buf, &req, RTM_NEWADDR, NLM_F_CREATE | NLM_F_EXCL, len);
+	nl_do(s, &req, RTM_NEWADDR, NLM_F_CREATE | NLM_F_EXCL, len);
 }
 
 /**
@@ -550,7 +588,6 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
 	     nh = NLMSG_NEXT(nh, n)) {
 		struct ifaddrmsg *ifa;
-		char resp[NLBUFSIZ];
 		struct rtattr *rta;
 		size_t na;
 
@@ -571,7 +608,7 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 				rta->rta_type = IFA_UNSPEC;
 		}
 
-		nl_req(s_dst, resp, nh, RTM_NEWADDR,
+		nl_do(s_dst, nh, RTM_NEWADDR,
 		       (nh->nlmsg_flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
 		       nh->nlmsg_len);
 	}
@@ -639,11 +676,10 @@ void nl_link_set_mac(int s, unsigned int ifi, void *mac)
 		.rta.rta_type	  = IFLA_ADDRESS,
 		.rta.rta_len	  = RTA_LENGTH(ETH_ALEN),
 	};
-	char buf[NLBUFSIZ];
 
 	memcpy(req.mac, mac, ETH_ALEN);
 
-	nl_req(s, buf, &req, RTM_NEWLINK, 0, sizeof(req));
+	nl_do(s, &req, RTM_NEWLINK, 0, sizeof(req));
 }
 
 /**
@@ -669,11 +705,10 @@ void nl_link_up(int s, unsigned int ifi, int mtu)
 		.mtu		  = mtu,
 	};
 	ssize_t len = sizeof(req);
-	char buf[NLBUFSIZ];
 
 	if (!mtu)
 		/* Shorten request to drop MTU attribute */
 		len = offsetof(struct req_t, rta);
 
-	nl_req(s, buf, &req, RTM_NEWLINK, 0, len);
+	nl_do(s, &req, RTM_NEWLINK, 0, len);
 }
