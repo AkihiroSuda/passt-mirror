@@ -351,18 +351,16 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
 		.ifi		  = ifi_src,
 	};
-	char buf[NLBUFSIZ], resp[NLBUFSIZ];
 	unsigned dup_routes = 0;
 	ssize_t n, nlmsgs_size;
 	struct nlmsghdr *nh;
+	char buf[NLBUFSIZ];
 	unsigned i;
 
-	if ((n = nl_req(s_src, buf, &req, req.nlh.nlmsg_len)) < 0)
+	if ((nlmsgs_size = nl_req(s_src, buf, &req, req.nlh.nlmsg_len)) < 0)
 		return;
 
-	nlmsgs_size = n;
-
-	for (nh = (struct nlmsghdr *)buf;
+	for (nh = (struct nlmsghdr *)buf, n = nlmsgs_size;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
 	     nh = NLMSG_NEXT(nh, n)) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
@@ -372,7 +370,6 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		if (nh->nlmsg_type != RTM_NEWROUTE)
 			continue;
 
-		nh->nlmsg_seq = nl_seq++;
 		nh->nlmsg_pid = 0;
 		nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
 		nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK |
@@ -386,16 +383,26 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		}
 	}
 
-	nh = (struct nlmsghdr *)buf;
 	/* Routes might have dependencies between each other, and the kernel
-	 * processes RTM_NEWROUTE messages sequentially. For n valid routes, we
-	 * might need to send up to n requests to get all of them inserted.
-	 * Routes that have been already inserted won't cause the whole request
-	 * to fail, so we can simply repeat the whole request. This approach
-	 * avoids the need to calculate dependencies: let the kernel do that.
+	 * processes RTM_NEWROUTE messages sequentially. For n routes, we might
+	 * need to send the requests up to n times to get all of them inserted.
+	 * Routes that have been already inserted will return -EEXIST, but we
+	 * can safely ignore that and repeat the requests. This avoids the need
+	 * to calculate dependencies: let the kernel do that.
 	 */
-	for (i = 0; i < dup_routes; i++)
-		nl_req(s_dst, resp, nh, nlmsgs_size);
+	for (i = 0; i < dup_routes; i++) {
+		for (nh = (struct nlmsghdr *)buf, n = nlmsgs_size;
+		     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
+		     nh = NLMSG_NEXT(nh, n)) {
+			char resp[NLBUFSIZ];
+
+			if (nh->nlmsg_type != RTM_NEWROUTE)
+				continue;
+
+			nh->nlmsg_seq = nl_seq++;
+			nl_req(s_dst, resp, nh, nh->nlmsg_len);
+		}
+	}
 }
 
 /**
@@ -559,19 +566,18 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 		.ifa.ifa_index     = ifi_src,
 		.ifa.ifa_prefixlen = 0,
 	};
-	char buf[NLBUFSIZ], resp[NLBUFSIZ];
-	ssize_t n, nlmsgs_size;
+	char buf[NLBUFSIZ];
 	struct nlmsghdr *nh;
+	ssize_t n;
 
 	if ((n = nl_req(s_src, buf, &req, sizeof(req))) < 0)
 		return;
-
-	nlmsgs_size = n;
 
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
 	     nh = NLMSG_NEXT(nh, n)) {
 		struct ifaddrmsg *ifa;
+		char resp[NLBUFSIZ];
 		struct rtattr *rta;
 		size_t na;
 
@@ -586,10 +592,8 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 		ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 
 		if (ifa->ifa_scope == RT_SCOPE_LINK ||
-		    ifa->ifa_index != ifi_src) {
-			ifa->ifa_family = AF_UNSPEC;
+		    ifa->ifa_index != ifi_src)
 			continue;
-		}
 
 		ifa->ifa_index = ifi_dst;
 
@@ -598,9 +602,9 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 			if (rta->rta_type == IFA_LABEL)
 				rta->rta_type = IFA_UNSPEC;
 		}
-	}
 
-	nl_req(s_dst, resp, buf, nlmsgs_size);
+		nl_req(s_dst, resp, nh, nh->nlmsg_len);
+	}
 }
 
 /**
