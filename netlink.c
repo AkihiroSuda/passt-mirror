@@ -103,9 +103,9 @@ fail:
  * @req:	Request with netlink header
  * @len:	Request length
  *
- * Return: received length on success, negative error code on failure
+ * Return: received length on success, terminates on error
  */
-static int nl_req(int s, char *buf, const void *req, ssize_t len)
+static ssize_t nl_req(int s, char *buf, const void *req, ssize_t len)
 {
 	char flush[NLBUFSIZ];
 	int done = 0;
@@ -124,11 +124,17 @@ static int nl_req(int s, char *buf, const void *req, ssize_t len)
 		}
 	}
 
-	if ((send(s, req, len, 0) < len) ||
-	    (len = recv(s, buf, NLBUFSIZ, 0)) < 0)
-		return -errno;
+	n = send(s, req, len, 0);
+	if (n < 0)
+		die("netlink: Failed to send(): %s", strerror(errno));
+	else if (n < len)
+		die("netlink: Short send (%lu of %lu bytes)", n, len);
 
-	return len;
+	n = recv(s, buf, NLBUFSIZ, 0);
+	if (n < 0)
+		die("netlink: Failed to recv(): %s", strerror(errno));
+
+	return n;
 }
 
 /**
@@ -158,8 +164,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	ssize_t n;
 	size_t na;
 
-	if ((n = nl_req(s, buf, &req, sizeof(req))) < 0)
-		return 0;
+	n = nl_req(s, buf, &req, sizeof(req));
 
 	nh = (struct nlmsghdr *)buf;
 
@@ -218,8 +223,7 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	if ((n = nl_req(s, buf, &req, req.nlh.nlmsg_len)) < 0)
-		return;
+	n = nl_req(s, buf, &req, req.nlh.nlmsg_len);
 
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -357,8 +361,7 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 	char buf[NLBUFSIZ];
 	unsigned i;
 
-	if ((nlmsgs_size = nl_req(s_src, buf, &req, req.nlh.nlmsg_len)) < 0)
-		return;
+	nlmsgs_size = nl_req(s_src, buf, &req, req.nlh.nlmsg_len);
 
 	for (nh = (struct nlmsghdr *)buf, n = nlmsgs_size;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -433,8 +436,7 @@ void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	if ((n = nl_req(s, buf, &req, req.nlh.nlmsg_len)) < 0)
-		return;
+	n = nl_req(s, buf, &req, req.nlh.nlmsg_len);
 
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -570,8 +572,7 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 	struct nlmsghdr *nh;
 	ssize_t n;
 
-	if ((n = nl_req(s_src, buf, &req, sizeof(req))) < 0)
-		return;
+	n = nl_req(s_src, buf, &req, sizeof(req));
 
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -631,9 +632,6 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 	ssize_t n;
 
 	n = nl_req(s, buf, &req, sizeof(req));
-	if (n < 0)
-		return;
-
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
 	     nh = NLMSG_NEXT(nh, n)) {
