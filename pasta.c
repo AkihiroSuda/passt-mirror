@@ -282,21 +282,29 @@ void pasta_ns_conf(struct ctx *c)
 
 	if (c->pasta_conf_ns) {
 		enum nl_op op_routes = c->no_copy_routes ? NL_SET : NL_DUP;
-		enum nl_op op_addrs =  c->no_copy_addrs  ? NL_SET : NL_DUP;
 
 		nl_link_up(1, c->pasta_ifi, c->mtu);
 
 		if (c->ifi4) {
-			nl_addr(op_addrs, c->ifi4, c->pasta_ifi, AF_INET,
-				&c->ip4.addr, &c->ip4.prefix_len, NULL);
+			if (c->no_copy_addrs) {
+				nl_addr_set(c->pasta_ifi, AF_INET,
+					    &c->ip4.addr, c->ip4.prefix_len);
+			} else {
+				nl_addr_dup(c->ifi4, c->pasta_ifi, AF_INET);
+			}
+
 			nl_route(op_routes, c->ifi4, c->pasta_ifi, AF_INET,
 				 &c->ip4.gw);
 		}
 
 		if (c->ifi6) {
-			int prefix_len = 64;
-			nl_addr(op_addrs, c->ifi6, c->pasta_ifi, AF_INET6,
-				&c->ip6.addr, &prefix_len, NULL);
+			if (c->no_copy_addrs) {
+				nl_addr_set(c->pasta_ifi, AF_INET6,
+					    &c->ip6.addr, 64);
+			} else {
+				nl_addr_dup(c->ifi6, c->pasta_ifi, AF_INET6);
+			}
+
 			nl_route(op_routes, c->ifi6, c->pasta_ifi, AF_INET6,
 				 &c->ip6.gw);
 		}

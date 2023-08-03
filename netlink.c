@@ -334,17 +334,76 @@ next:
 }
 
 /**
- * nl_addr() - Get/set/copy IP addresses for given interface and address family
- * @op:		Requested operation
+ * nl_addr_get() - Get IP address for given interface and address family
  * @ifi:	Interface index in outer network namespace
- * @ifi_ns:	Interface index in target namespace for NL_SET, NL_DUP
  * @af:		Address family
- * @addr:	Global address to fill on NL_GET, to set on NL_SET
- * @prefix_len:	Mask or prefix length, set or fetched (for IPv4)
- * @addr_l:	Link-scoped address to fill on NL_GET
+ * @addr:	Global address to fill
+ * @prefix_len:	Mask or prefix length, to fill (for IPv4)
+ * @addr_l:	Link-scoped address to fill (for IPv6)
  */
-void nl_addr(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
-	     sa_family_t af, void *addr, int *prefix_len, void *addr_l)
+void nl_addr_get(unsigned int ifi, sa_family_t af, void *addr,
+		 int *prefix_len, void *addr_l)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct ifaddrmsg ifa;
+	} req = {
+		.nlh.nlmsg_type    = RTM_GETADDR,
+		.nlh.nlmsg_flags   = NLM_F_REQUEST | NLM_F_ACK | NLM_F_DUMP,
+		.nlh.nlmsg_len     = sizeof(req),
+		.nlh.nlmsg_seq     = nl_seq++,
+
+		.ifa.ifa_family    = af,
+		.ifa.ifa_index     = ifi,
+	};
+	struct nlmsghdr *nh;
+	char buf[NLBUFSIZ];
+	ssize_t n;
+
+	if ((n = nl_req(0, buf, &req, req.nlh.nlmsg_len)) < 0)
+		return;
+
+	for (nh = (struct nlmsghdr *)buf;
+	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
+	     nh = NLMSG_NEXT(nh, n)) {
+		struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
+		struct rtattr *rta;
+		size_t na;
+
+		if (nh->nlmsg_type != RTM_NEWADDR)
+			continue;
+
+		if (ifa->ifa_index != ifi)
+			continue;
+
+		for (rta = IFA_RTA(ifa), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
+		     rta = RTA_NEXT(rta, na)) {
+			if (rta->rta_type != IFA_ADDRESS)
+				continue;
+
+			if (af == AF_INET) {
+				memcpy(addr, RTA_DATA(rta), RTA_PAYLOAD(rta));
+				*prefix_len = ifa->ifa_prefixlen;
+			} else if (af == AF_INET6 && addr &&
+				   ifa->ifa_scope == RT_SCOPE_UNIVERSE) {
+				memcpy(addr, RTA_DATA(rta), RTA_PAYLOAD(rta));
+			}
+
+			if (addr_l &&
+			    af == AF_INET6 && ifa->ifa_scope == RT_SCOPE_LINK)
+				memcpy(addr_l, RTA_DATA(rta), RTA_PAYLOAD(rta));
+		}
+	}
+}
+
+/**
+ * nl_add_set() - Set IP addresses for given interface and address family
+ * @ifi:	Interface index
+ * @af:		Address family
+ * @addr:	Global address to set
+ * @prefix_len:	Mask or prefix length to set
+ */
+void nl_addr_set(unsigned int ifi, sa_family_t af, void *addr, int prefix_len)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -364,125 +423,112 @@ void nl_addr(enum nl_op op, unsigned int ifi, unsigned int ifi_ns,
 			} a6;
 		} set;
 	} req = {
-		.nlh.nlmsg_type    = op == NL_SET ? RTM_NEWADDR : RTM_GETADDR,
-		.nlh.nlmsg_flags   = NLM_F_REQUEST,
+		.nlh.nlmsg_type    = RTM_NEWADDR,
+		.nlh.nlmsg_flags   = NLM_F_REQUEST | NLM_F_ACK |
+				     NLM_F_CREATE | NLM_F_EXCL,
 		.nlh.nlmsg_len     = NLMSG_LENGTH(sizeof(struct ifaddrmsg)),
 		.nlh.nlmsg_seq     = nl_seq++,
 
 		.ifa.ifa_family    = af,
-		.ifa.ifa_index     = op == NL_SET ? ifi_ns : ifi,
-		.ifa.ifa_prefixlen = op == NL_SET ? *prefix_len : 0,
+		.ifa.ifa_index     = ifi,
+		.ifa.ifa_prefixlen = prefix_len,
+		.ifa.ifa_scope	   = RT_SCOPE_UNIVERSE,
 	};
-	ssize_t n, nlmsgs_size;
-	struct ifaddrmsg *ifa;
-	struct nlmsghdr *nh;
-	struct rtattr *rta;
 	char buf[NLBUFSIZ];
-	size_t na;
 
-	if (op == NL_SET) {
-		if (af == AF_INET6) {
-			size_t rta_len = RTA_LENGTH(sizeof(req.set.a6.l));
+	if (af == AF_INET6) {
+		size_t rta_len = RTA_LENGTH(sizeof(req.set.a6.l));
 
-			/* By default, strictly speaking, it's duplicated */
-			req.ifa.ifa_flags = IFA_F_NODAD;
+		/* By default, strictly speaking, it's duplicated */
+		req.ifa.ifa_flags = IFA_F_NODAD;
 
-			req.nlh.nlmsg_len = offsetof(struct req_t, set.a6)
-				+ sizeof(req.set.a6);
+		req.nlh.nlmsg_len = offsetof(struct req_t, set.a6)
+			+ sizeof(req.set.a6);
 
-			memcpy(&req.set.a6.l, addr, sizeof(req.set.a6.l));
-			req.set.a6.rta_l.rta_len = rta_len;
-			req.set.a4.rta_l.rta_type = IFA_LOCAL;
-			memcpy(&req.set.a6.a, addr, sizeof(req.set.a6.a));
-			req.set.a6.rta_a.rta_len = rta_len;
-			req.set.a6.rta_a.rta_type = IFA_ADDRESS;
-		} else {
-			size_t rta_len = RTA_LENGTH(sizeof(req.set.a4.l));
-
-			req.nlh.nlmsg_len = offsetof(struct req_t, set.a4)
-				+ sizeof(req.set.a4);
-
-			req.set.a4.l = req.set.a4.a = *(uint32_t *)addr;
-			req.set.a4.rta_l.rta_len = rta_len;
-			req.set.a4.rta_l.rta_type = IFA_LOCAL;
-			req.set.a4.rta_a.rta_len = rta_len;
-			req.set.a4.rta_a.rta_type = IFA_ADDRESS;
-		}
-
-		req.ifa.ifa_scope = RT_SCOPE_UNIVERSE;
-		req.nlh.nlmsg_flags |= NLM_F_CREATE | NLM_F_ACK | NLM_F_EXCL;
+		memcpy(&req.set.a6.l, addr, sizeof(req.set.a6.l));
+		req.set.a6.rta_l.rta_len = rta_len;
+		req.set.a4.rta_l.rta_type = IFA_LOCAL;
+		memcpy(&req.set.a6.a, addr, sizeof(req.set.a6.a));
+		req.set.a6.rta_a.rta_len = rta_len;
+		req.set.a6.rta_a.rta_type = IFA_ADDRESS;
 	} else {
-		req.nlh.nlmsg_flags |= NLM_F_DUMP;
+		size_t rta_len = RTA_LENGTH(sizeof(req.set.a4.l));
+
+		req.nlh.nlmsg_len = offsetof(struct req_t, set.a4)
+			+ sizeof(req.set.a4);
+
+		req.set.a4.l = req.set.a4.a = *(uint32_t *)addr;
+		req.set.a4.rta_l.rta_len = rta_len;
+		req.set.a4.rta_l.rta_type = IFA_LOCAL;
+		req.set.a4.rta_a.rta_len = rta_len;
+		req.set.a4.rta_a.rta_type = IFA_ADDRESS;
 	}
 
-	if ((n = nl_req(op == NL_SET, buf, &req, req.nlh.nlmsg_len)) < 0)
+	nl_req(1, buf, &req, req.nlh.nlmsg_len);
+}
+
+/**
+ * nl_addr_dup() - Copy IP addresses for given interface and address family
+ * @ifi:	Interface index in outer network namespace
+ * @ifi_ns:	Interface index in target namespace
+ * @af:		Address family
+ */
+void nl_addr_dup(unsigned int ifi, unsigned int ifi_ns, sa_family_t af)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct ifaddrmsg ifa;
+	} req = {
+		.nlh.nlmsg_type    = RTM_GETADDR,
+		.nlh.nlmsg_flags   = NLM_F_REQUEST | NLM_F_DUMP,
+		.nlh.nlmsg_len     = sizeof(req),
+		.nlh.nlmsg_seq     = nl_seq++,
+
+		.ifa.ifa_family    = af,
+		.ifa.ifa_index     = ifi,
+		.ifa.ifa_prefixlen = 0,
+	};
+	char buf[NLBUFSIZ], resp[NLBUFSIZ];
+	ssize_t n, nlmsgs_size;
+	struct nlmsghdr *nh;
+
+	if ((n = nl_req(0, buf, &req, sizeof(req))) < 0)
 		return;
 
-	if (op == NL_SET)
-		return;
-
-	nh = (struct nlmsghdr *)buf;
 	nlmsgs_size = n;
 
-	for ( ; NLMSG_OK(nh, n); nh = NLMSG_NEXT(nh, n)) {
-		if (nh->nlmsg_type != RTM_NEWADDR)
-			goto next;
+	for (nh = (struct nlmsghdr *)buf;
+	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
+	     nh = NLMSG_NEXT(nh, n)) {
+		struct ifaddrmsg *ifa;
+		struct rtattr *rta;
+		size_t na;
 
-		if (op == NL_DUP) {
-			nh->nlmsg_seq = nl_seq++;
-			nh->nlmsg_pid = 0;
-			nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
-			nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK |
-					   NLM_F_CREATE;
-		}
+		if (nh->nlmsg_type != RTM_NEWADDR)
+			continue;
+
+		nh->nlmsg_seq = nl_seq++;
+		nh->nlmsg_pid = 0;
+		nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
+		nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE;
 
 		ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 
-		if (op == NL_DUP && (ifa->ifa_scope == RT_SCOPE_LINK ||
-				     ifa->ifa_index != ifi)) {
+		if (ifa->ifa_scope == RT_SCOPE_LINK || ifa->ifa_index != ifi) {
 			ifa->ifa_family = AF_UNSPEC;
-			goto next;
+			continue;
 		}
 
-		if (ifa->ifa_index != ifi)
-			goto next;
-
-		if (op == NL_DUP)
-			ifa->ifa_index = ifi_ns;
+		ifa->ifa_index = ifi_ns;
 
 		for (rta = IFA_RTA(ifa), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			if (op == NL_DUP && rta->rta_type == IFA_LABEL)
+			if (rta->rta_type == IFA_LABEL)
 				rta->rta_type = IFA_UNSPEC;
-
-			if (op == NL_DUP || rta->rta_type != IFA_ADDRESS)
-				continue;
-
-			if (af == AF_INET && addr && !*(uint32_t *)addr) {
-				memcpy(addr, RTA_DATA(rta), RTA_PAYLOAD(rta));
-				*prefix_len = ifa->ifa_prefixlen;
-			} else if (af == AF_INET6 && addr &&
-				 ifa->ifa_scope == RT_SCOPE_UNIVERSE &&
-				 IN6_IS_ADDR_UNSPECIFIED(addr)) {
-				memcpy(addr, RTA_DATA(rta), RTA_PAYLOAD(rta));
-			}
-
-			if (addr_l &&
-			    af == AF_INET6 && ifa->ifa_scope == RT_SCOPE_LINK &&
-			    IN6_IS_ADDR_UNSPECIFIED(addr_l))
-				memcpy(addr_l, RTA_DATA(rta), RTA_PAYLOAD(rta));
 		}
-next:
-		if (nh->nlmsg_type == NLMSG_DONE)
-			break;
 	}
 
-	if (op == NL_DUP) {
-		char resp[NLBUFSIZ];
-
-		nh = (struct nlmsghdr *)buf;
-		nl_req(1, resp, nh, nlmsgs_size);
-	}
+	nl_req(1, resp, buf, nlmsgs_size);
 }
 
 /**
