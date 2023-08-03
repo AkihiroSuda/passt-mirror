@@ -116,23 +116,8 @@ fail:
 static uint16_t nl_send(int s, void *req, uint16_t type,
 		       uint16_t flags, ssize_t len)
 {
-	char flush[NLBUFSIZ];
 	struct nlmsghdr *nh;
-	int done = 0;
 	ssize_t n;
-
-	while (!done && (n = recv(s, flush, sizeof(flush), MSG_DONTWAIT)) > 0) {
-		size_t nm = n;
-
-		for (nh = (struct nlmsghdr *)flush;
-		     NLMSG_OK(nh, nm); nh = NLMSG_NEXT(nh, nm)) {
-			if (nh->nlmsg_type == NLMSG_DONE ||
-			    nh->nlmsg_type == NLMSG_ERROR) {
-				done = 1;
-				break;
-			}
-		}
-	}
 
 	nh = (struct nlmsghdr *)req;
 	nh->nlmsg_type = type;
@@ -269,6 +254,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 		.rtm.rtm_type	 = RTN_UNICAST,
 		.rtm.rtm_family	 = af,
 	};
+	unsigned int ifi = 0;
 	struct nlmsghdr *nh;
 	struct rtattr *rta;
 	char buf[NLBUFSIZ];
@@ -280,23 +266,19 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWROUTE) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
 
-		if (rtm->rtm_dst_len || rtm->rtm_family != af)
+		if (ifi || rtm->rtm_dst_len || rtm->rtm_family != af)
 			continue;
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			unsigned int ifi;
-
 			if (rta->rta_type != RTA_OIF)
 				continue;
 
 			ifi = *(unsigned int *)RTA_DATA(rta);
-
-			return ifi;
 		}
 	}
 
-	return 0;
+	return ifi;
 }
 
 /**
@@ -324,6 +306,7 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		.ifi		  = ifi,
 	};
 	struct nlmsghdr *nh;
+	bool found = false;
 	char buf[NLBUFSIZ];
 	ssize_t status;
 	uint16_t seq;
@@ -334,7 +317,7 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		struct rtattr *rta;
 		size_t na;
 
-		if (rtm->rtm_dst_len)
+		if (found || rtm->rtm_dst_len)
 			continue;
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
@@ -343,7 +326,7 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 				continue;
 
 			memcpy(gw, RTA_DATA(rta), RTA_PAYLOAD(rta));
-			return;
+			found = true;
 		}
 	}
 }
@@ -474,6 +457,22 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		     rta = RTA_NEXT(rta, na)) {
 			if (rta->rta_type == RTA_OIF)
 				*(unsigned int *)RTA_DATA(rta) = ifi_dst;
+		}
+	}
+
+	if (!NLMSG_OK(nh, status) || status > 0) {
+		/* Process any remaining datagrams in a different
+		 * buffer so we don't overwrite the first one.
+		 */
+		char tail[NLBUFSIZ];
+		unsigned extra = 0;
+
+		nl_foreach_oftype(nh, status, s_src, tail, seq, RTM_NEWROUTE)
+			extra++;
+
+		if (extra) {
+			err("netlink: Too many routes to duplicate");
+			return;
 		}
 	}
 
@@ -706,7 +705,6 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 				continue;
 
 			memcpy(mac, RTA_DATA(rta), ETH_ALEN);
-			break;
 		}
 	}
 }
