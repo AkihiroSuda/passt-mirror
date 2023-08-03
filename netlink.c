@@ -97,25 +97,29 @@ fail:
 }
 
 /**
- * nl_req() - Send netlink request and read response
+ * nl_req() - Prepare and send netlink request, read response
  * @s:		Netlink socket
  * @buf:	Buffer for response (at least NLBUFSIZ long)
- * @req:	Request with netlink header
+ * @req:	Request (will fill netlink header)
+ * @type:	Request type
+ * @flags:	Extra request flags (NLM_F_REQUEST and NLM_F_ACK assumed)
  * @len:	Request length
  *
  * Return: received length on success, terminates on error
  */
-static ssize_t nl_req(int s, char *buf, const void *req, ssize_t len)
+static ssize_t nl_req(int s, char *buf, void *req,
+		      uint16_t type, uint16_t flags, ssize_t len)
 {
 	char flush[NLBUFSIZ];
+	struct nlmsghdr *nh;
 	int done = 0;
 	ssize_t n;
 
 	while (!done && (n = recv(s, flush, sizeof(flush), MSG_DONTWAIT)) > 0) {
-		struct nlmsghdr *nh = (struct nlmsghdr *)flush;
 		size_t nm = n;
 
-		for ( ; NLMSG_OK(nh, nm); nh = NLMSG_NEXT(nh, nm)) {
+		for (nh = (struct nlmsghdr *)flush;
+		     NLMSG_OK(nh, nm); nh = NLMSG_NEXT(nh, nm)) {
 			if (nh->nlmsg_type == NLMSG_DONE ||
 			    nh->nlmsg_type == NLMSG_ERROR) {
 				done = 1;
@@ -123,6 +127,13 @@ static ssize_t nl_req(int s, char *buf, const void *req, ssize_t len)
 			}
 		}
 	}
+
+	nh = (struct nlmsghdr *)req;
+	nh->nlmsg_type = type;
+	nh->nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK | flags;
+	nh->nlmsg_len = len;
+	nh->nlmsg_seq = nl_seq++;
+	nh->nlmsg_pid = 0;
 
 	n = send(s, req, len, 0);
 	if (n < 0)
@@ -148,11 +159,6 @@ static ssize_t nl_req(int s, char *buf, const void *req, ssize_t len)
 unsigned int nl_get_ext_if(int s, sa_family_t af)
 {
 	struct { struct nlmsghdr nlh; struct rtmsg rtm; } req = {
-		.nlh.nlmsg_type	 = RTM_GETROUTE,
-		.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP,
-		.nlh.nlmsg_len	 = NLMSG_LENGTH(sizeof(struct rtmsg)),
-		.nlh.nlmsg_seq	 = nl_seq++,
-
 		.rtm.rtm_table	 = RT_TABLE_MAIN,
 		.rtm.rtm_scope	 = RT_SCOPE_UNIVERSE,
 		.rtm.rtm_type	 = RTN_UNICAST,
@@ -164,7 +170,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	ssize_t n;
 	size_t na;
 
-	n = nl_req(s, buf, &req, sizeof(req));
+	n = nl_req(s, buf, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 
 	nh = (struct nlmsghdr *)buf;
 
@@ -205,11 +211,6 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		struct rtattr rta;
 		unsigned int ifi;
 	} req = {
-		.nlh.nlmsg_type	  = RTM_GETROUTE,
-		.nlh.nlmsg_len	  = sizeof(req),
-		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_DUMP,
-		.nlh.nlmsg_seq	  = nl_seq++,
-
 		.rtm.rtm_family	  = af,
 		.rtm.rtm_table	  = RT_TABLE_MAIN,
 		.rtm.rtm_scope	  = RT_SCOPE_UNIVERSE,
@@ -223,7 +224,7 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	n = nl_req(s, buf, &req, req.nlh.nlmsg_len);
+	n = nl_req(s, buf, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -278,11 +279,6 @@ void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 			} r4;
 		} set;
 	} req = {
-		.nlh.nlmsg_type	  = RTM_NEWROUTE,
-		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK |
-				    NLM_F_CREATE | NLM_F_EXCL,
-		.nlh.nlmsg_seq	  = nl_seq++,
-
 		.rtm.rtm_family	  = af,
 		.rtm.rtm_table	  = RT_TABLE_MAIN,
 		.rtm.rtm_scope	  = RT_SCOPE_UNIVERSE,
@@ -294,12 +290,12 @@ void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		.ifi		  = ifi,
 	};
 	char buf[NLBUFSIZ];
+	ssize_t len;
 
 	if (af == AF_INET6) {
 		size_t rta_len = RTA_LENGTH(sizeof(req.set.r6.d));
 
-		req.nlh.nlmsg_len = offsetof(struct req_t, set.r6)
-			+ sizeof(req.set.r6);
+		len = offsetof(struct req_t, set.r6) + sizeof(req.set.r6);
 
 		req.set.r6.rta_dst.rta_type = RTA_DST;
 		req.set.r6.rta_dst.rta_len = rta_len;
@@ -310,8 +306,7 @@ void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 	} else {
 		size_t rta_len = RTA_LENGTH(sizeof(req.set.r4.d));
 
-		req.nlh.nlmsg_len = offsetof(struct req_t, set.r4)
-			+ sizeof(req.set.r4);
+		len = offsetof(struct req_t, set.r4) + sizeof(req.set.r4);
 
 		req.set.r4.rta_dst.rta_type = RTA_DST;
 		req.set.r4.rta_dst.rta_len = rta_len;
@@ -321,7 +316,7 @@ void nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 		req.set.r4.rta_gw.rta_len = rta_len;
 	}
 
-	nl_req(s, buf, &req, req.nlh.nlmsg_len);
+	nl_req(s, buf, &req, RTM_NEWROUTE, NLM_F_CREATE | NLM_F_EXCL, len);
 }
 
 /**
@@ -341,11 +336,6 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		struct rtattr rta;
 		unsigned int ifi;
 	} req = {
-		.nlh.nlmsg_type	  = RTM_GETROUTE,
-		.nlh.nlmsg_len	  = sizeof(req),
-		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_DUMP,
-		.nlh.nlmsg_seq	  = nl_seq++,
-
 		.rtm.rtm_family	  = af,
 		.rtm.rtm_table	  = RT_TABLE_MAIN,
 		.rtm.rtm_scope	  = RT_SCOPE_UNIVERSE,
@@ -361,7 +351,8 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 	char buf[NLBUFSIZ];
 	unsigned i;
 
-	nlmsgs_size = nl_req(s_src, buf, &req, req.nlh.nlmsg_len);
+	nlmsgs_size = nl_req(s_src, buf, &req,
+			     RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 
 	for (nh = (struct nlmsghdr *)buf, n = nlmsgs_size;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -373,10 +364,6 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		if (nh->nlmsg_type != RTM_NEWROUTE)
 			continue;
 
-		nh->nlmsg_pid = 0;
-		nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
-		nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK |
-			NLM_F_CREATE;
 		dup_routes++;
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
@@ -397,13 +384,15 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		for (nh = (struct nlmsghdr *)buf, n = nlmsgs_size;
 		     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
 		     nh = NLMSG_NEXT(nh, n)) {
+			uint16_t flags = nh->nlmsg_flags;
 			char resp[NLBUFSIZ];
 
 			if (nh->nlmsg_type != RTM_NEWROUTE)
 				continue;
 
-			nh->nlmsg_seq = nl_seq++;
-			nl_req(s_dst, resp, nh, nh->nlmsg_len);
+			nl_req(s_dst, resp, nh, RTM_NEWROUTE,
+			       (flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
+			       nh->nlmsg_len);
 		}
 	}
 }
@@ -424,11 +413,6 @@ void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 		struct nlmsghdr nlh;
 		struct ifaddrmsg ifa;
 	} req = {
-		.nlh.nlmsg_type    = RTM_GETADDR,
-		.nlh.nlmsg_flags   = NLM_F_REQUEST | NLM_F_ACK | NLM_F_DUMP,
-		.nlh.nlmsg_len     = sizeof(req),
-		.nlh.nlmsg_seq     = nl_seq++,
-
 		.ifa.ifa_family    = af,
 		.ifa.ifa_index     = ifi,
 	};
@@ -436,7 +420,7 @@ void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	n = nl_req(s, buf, &req, req.nlh.nlmsg_len);
+	n = nl_req(s, buf, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
 
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -500,18 +484,13 @@ void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 			} a6;
 		} set;
 	} req = {
-		.nlh.nlmsg_type    = RTM_NEWADDR,
-		.nlh.nlmsg_flags   = NLM_F_REQUEST | NLM_F_ACK |
-				     NLM_F_CREATE | NLM_F_EXCL,
-		.nlh.nlmsg_len     = NLMSG_LENGTH(sizeof(struct ifaddrmsg)),
-		.nlh.nlmsg_seq     = nl_seq++,
-
 		.ifa.ifa_family    = af,
 		.ifa.ifa_index     = ifi,
 		.ifa.ifa_prefixlen = prefix_len,
 		.ifa.ifa_scope	   = RT_SCOPE_UNIVERSE,
 	};
 	char buf[NLBUFSIZ];
+	ssize_t len;
 
 	if (af == AF_INET6) {
 		size_t rta_len = RTA_LENGTH(sizeof(req.set.a6.l));
@@ -519,8 +498,7 @@ void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 		/* By default, strictly speaking, it's duplicated */
 		req.ifa.ifa_flags = IFA_F_NODAD;
 
-		req.nlh.nlmsg_len = offsetof(struct req_t, set.a6)
-			+ sizeof(req.set.a6);
+		len = offsetof(struct req_t, set.a6) + sizeof(req.set.a6);
 
 		memcpy(&req.set.a6.l, addr, sizeof(req.set.a6.l));
 		req.set.a6.rta_l.rta_len = rta_len;
@@ -531,8 +509,7 @@ void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 	} else {
 		size_t rta_len = RTA_LENGTH(sizeof(req.set.a4.l));
 
-		req.nlh.nlmsg_len = offsetof(struct req_t, set.a4)
-			+ sizeof(req.set.a4);
+		len = offsetof(struct req_t, set.a4) + sizeof(req.set.a4);
 
 		memcpy(&req.set.a4.l, addr, sizeof(req.set.a4.l));
 		req.set.a4.rta_l.rta_len = rta_len;
@@ -541,7 +518,7 @@ void nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 		req.set.a4.rta_a.rta_type = IFA_ADDRESS;
 	}
 
-	nl_req(s, buf, &req, req.nlh.nlmsg_len);
+	nl_req(s, buf, &req, RTM_NEWADDR, NLM_F_CREATE | NLM_F_EXCL, len);
 }
 
 /**
@@ -559,11 +536,6 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 		struct nlmsghdr nlh;
 		struct ifaddrmsg ifa;
 	} req = {
-		.nlh.nlmsg_type    = RTM_GETADDR,
-		.nlh.nlmsg_flags   = NLM_F_REQUEST | NLM_F_DUMP,
-		.nlh.nlmsg_len     = sizeof(req),
-		.nlh.nlmsg_seq     = nl_seq++,
-
 		.ifa.ifa_family    = af,
 		.ifa.ifa_index     = ifi_src,
 		.ifa.ifa_prefixlen = 0,
@@ -572,7 +544,7 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 	struct nlmsghdr *nh;
 	ssize_t n;
 
-	n = nl_req(s_src, buf, &req, sizeof(req));
+	n = nl_req(s_src, buf, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
 
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
@@ -584,11 +556,6 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 
 		if (nh->nlmsg_type != RTM_NEWADDR)
 			continue;
-
-		nh->nlmsg_seq = nl_seq++;
-		nh->nlmsg_pid = 0;
-		nh->nlmsg_flags &= ~NLM_F_DUMP_FILTERED;
-		nh->nlmsg_flags |= NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE;
 
 		ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 
@@ -604,7 +571,9 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 				rta->rta_type = IFA_UNSPEC;
 		}
 
-		nl_req(s_dst, resp, nh, nh->nlmsg_len);
+		nl_req(s_dst, resp, nh, RTM_NEWADDR,
+		       (nh->nlmsg_flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
+		       nh->nlmsg_len);
 	}
 }
 
@@ -620,10 +589,6 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 		struct nlmsghdr nlh;
 		struct ifinfomsg ifm;
 	} req = {
-		.nlh.nlmsg_type	  = RTM_GETLINK,
-		.nlh.nlmsg_len	  = sizeof(req),
-		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK,
-		.nlh.nlmsg_seq	  = nl_seq++,
 		.ifm.ifi_family	  = AF_UNSPEC,
 		.ifm.ifi_index	  = ifi,
 	};
@@ -631,7 +596,7 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 	char buf[NLBUFSIZ];
 	ssize_t n;
 
-	n = nl_req(s, buf, &req, sizeof(req));
+	n = nl_req(s, buf, &req, RTM_GETLINK, 0, sizeof(req));
 	for (nh = (struct nlmsghdr *)buf;
 	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
 	     nh = NLMSG_NEXT(nh, n)) {
@@ -669,10 +634,6 @@ void nl_link_set_mac(int s, unsigned int ifi, void *mac)
 		struct rtattr rta;
 		unsigned char mac[ETH_ALEN];
 	} req = {
-		.nlh.nlmsg_type	  = RTM_NEWLINK,
-		.nlh.nlmsg_len	  = sizeof(req),
-		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK,
-		.nlh.nlmsg_seq	  = nl_seq++,
 		.ifm.ifi_family	  = AF_UNSPEC,
 		.ifm.ifi_index	  = ifi,
 		.rta.rta_type	  = IFLA_ADDRESS,
@@ -682,7 +643,7 @@ void nl_link_set_mac(int s, unsigned int ifi, void *mac)
 
 	memcpy(req.mac, mac, ETH_ALEN);
 
-	nl_req(s, buf, &req, sizeof(req));
+	nl_req(s, buf, &req, RTM_NEWLINK, 0, sizeof(req));
 }
 
 /**
@@ -699,10 +660,6 @@ void nl_link_up(int s, unsigned int ifi, int mtu)
 		struct rtattr rta;
 		unsigned int mtu;
 	} req = {
-		.nlh.nlmsg_type   = RTM_NEWLINK,
-		.nlh.nlmsg_len    = sizeof(req),
-		.nlh.nlmsg_flags  = NLM_F_REQUEST | NLM_F_ACK,
-		.nlh.nlmsg_seq	  = nl_seq++,
 		.ifm.ifi_family	  = AF_UNSPEC,
 		.ifm.ifi_index	  = ifi,
 		.ifm.ifi_flags	  = IFF_UP,
@@ -711,11 +668,12 @@ void nl_link_up(int s, unsigned int ifi, int mtu)
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
 		.mtu		  = mtu,
 	};
+	ssize_t len = sizeof(req);
 	char buf[NLBUFSIZ];
 
 	if (!mtu)
 		/* Shorten request to drop MTU attribute */
-		req.nlh.nlmsg_len = offsetof(struct req_t, rta);
+		len = offsetof(struct req_t, rta);
 
-	nl_req(s, buf, &req, req.nlh.nlmsg_len);
+	nl_req(s, buf, &req, RTM_NEWLINK, 0, len);
 }
