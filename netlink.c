@@ -210,16 +210,24 @@ static struct nlmsghdr *nl_next(int s, char *buf, struct nlmsghdr *nh, ssize_t *
 
 /**
  * nl_foreach - 'for' type macro to step through netlink response messages
+ * nl_foreach_oftype - as above, but only messages of expected type
  * @nh:		Steps through each response header (struct nlmsghdr *)
  * @status:	When loop exits indicates if there was an error (ssize_t)
  * @s:		Netlink socket
  * @buf:	Buffer for responses (at least NLBUFSIZ long)
  * @seq:	Sequence number of request we're getting responses for
-  */
+ * @type:	Type of netlink message to process
+ */
 #define nl_foreach(nh, status, s, buf, seq)				\
 	for ((nh) = nl_next((s), (buf), NULL, &(status));		\
 	     ((status) = nl_status((nh), (status), (seq))) > 0;		\
 	     (nh) = nl_next((s), (buf), (nh), &(status)))
+
+#define nl_foreach_oftype(nh, status, s, buf, seq, type)		\
+	nl_foreach((nh), (status), (s), (buf), (seq))			\
+		if ((nh)->nlmsg_type != (type)) {			\
+			warn("netlink: Unexpected message type");	\
+		} else
 
 /**
  * nl_do() - Send netlink "do" request, and wait for acknowledgement
@@ -269,7 +277,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	size_t na;
 
 	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
-	nl_foreach(nh, status, s, buf, seq) {
+	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWROUTE) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
 
 		if (rtm->rtm_dst_len || rtm->rtm_family != af)
@@ -321,13 +329,10 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 	uint16_t seq;
 
 	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
-	nl_foreach(nh, status, s, buf, seq) {
+	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWROUTE) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
-
-		if (nh->nlmsg_type != RTM_NEWROUTE)
-			continue;
 
 		if (rtm->rtm_dst_len)
 			continue;
@@ -518,13 +523,10 @@ void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 	uint16_t seq;
 
 	seq = nl_send(s, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
-	nl_foreach(nh, status, s, buf, seq) {
+	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWADDR) {
 		struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
-
-		if (nh->nlmsg_type != RTM_NEWADDR)
-			continue;
 
 		if (ifa->ifa_index != ifi)
 			continue;
@@ -639,7 +641,7 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 	uint16_t seq;
 
 	seq = nl_send(s_src, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
-	nl_foreach(nh, status, s_src, buf, seq) {
+	nl_foreach_oftype(nh, status, s_src, buf, seq, RTM_NEWADDR) {
 		struct ifaddrmsg *ifa;
 		struct rtattr *rta;
 		size_t na;
@@ -688,13 +690,10 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 	uint16_t seq;
 
 	seq = nl_send(s, &req, RTM_GETLINK, 0, sizeof(req));
-	nl_foreach(nh, status, s, buf, seq) {
+	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWLINK) {
 		struct ifinfomsg *ifm = (struct ifinfomsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
-
-		if (nh->nlmsg_type != RTM_NEWLINK)
-			continue;
 
 		for (rta = IFLA_RTA(ifm), na = RTM_PAYLOAD(nh);
 		     RTA_OK(rta, na);
