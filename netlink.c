@@ -265,9 +265,9 @@ void nl_route_set_def(unsigned int ifi, sa_family_t af, void *gw)
 			} r6;
 			struct {
 				struct rtattr rta_dst;
-				uint32_t d;
+				struct in_addr d;
 				struct rtattr rta_gw;
-				uint32_t a;
+				struct in_addr a;
 			} r4;
 		} set;
 	} req = {
@@ -309,7 +309,7 @@ void nl_route_set_def(unsigned int ifi, sa_family_t af, void *gw)
 		req.set.r4.rta_dst.rta_type = RTA_DST;
 		req.set.r4.rta_dst.rta_len = rta_len;
 
-		req.set.r4.a = *(uint32_t *)gw;
+		memcpy(&req.set.r4.a, gw, sizeof(req.set.r4.a));
 		req.set.r4.rta_gw.rta_type = RTA_GATEWAY;
 		req.set.r4.rta_gw.rta_len = rta_len;
 	}
@@ -470,9 +470,9 @@ void nl_addr_set(unsigned int ifi, sa_family_t af, void *addr, int prefix_len)
 		union {
 			struct {
 				struct rtattr rta_l;
-				uint32_t l;
+				struct in_addr l;
 				struct rtattr rta_a;
-				uint32_t a;
+				struct in_addr a;
 			} a4;
 			struct {
 				struct rtattr rta_l;
@@ -516,7 +516,7 @@ void nl_addr_set(unsigned int ifi, sa_family_t af, void *addr, int prefix_len)
 		req.nlh.nlmsg_len = offsetof(struct req_t, set.a4)
 			+ sizeof(req.set.a4);
 
-		req.set.a4.l = req.set.a4.a = *(uint32_t *)addr;
+		memcpy(&req.set.a4.l, addr, sizeof(req.set.a4.l));
 		req.set.a4.rta_l.rta_len = rta_len;
 		req.set.a4.rta_l.rta_type = IFA_LOCAL;
 		req.set.a4.rta_a.rta_len = rta_len;
