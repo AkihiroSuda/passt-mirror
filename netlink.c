@@ -104,18 +104,17 @@ fail:
 }
 
 /**
- * nl_req() - Prepare and send netlink request, read response
+ * nl_send() - Prepare and send netlink request
  * @s:		Netlink socket
- * @buf:	Buffer for response (at least NLBUFSIZ long)
  * @req:	Request (will fill netlink header)
  * @type:	Request type
  * @flags:	Extra request flags (NLM_F_REQUEST and NLM_F_ACK assumed)
  * @len:	Request length
  *
- * Return: received length on success, terminates on error
+ * Return: sequence number of request on success, terminates on error
  */
-static ssize_t nl_req(int s, char *buf, void *req,
-		      uint16_t type, uint16_t flags, ssize_t len)
+static uint16_t nl_send(int s, void *req, uint16_t type,
+		       uint16_t flags, ssize_t len)
 {
 	char flush[NLBUFSIZ];
 	struct nlmsghdr *nh;
@@ -148,12 +147,79 @@ static ssize_t nl_req(int s, char *buf, void *req,
 	else if (n < len)
 		die("netlink: Short send (%lu of %lu bytes)", n, len);
 
-	n = recv(s, buf, NLBUFSIZ, 0);
-	if (n < 0)
-		die("netlink: Failed to recv(): %s", strerror(errno));
+	return nh->nlmsg_seq;
+}
+
+/**
+ * nl_status() - Check status given by a netlink response
+ * @nh:		Netlink response header
+ * @n:		Remaining space in response buffer from @nh
+ * @seq:	Request sequence number we expect a response to
+ *
+ * Return: 0 if @nh indicated successful completion,
+ *         < 0, negative error code if @nh indicated failure
+ *         > 0 @n if there are more responses to request @seq
+ *     terminates if sequence numbers are out of sync
+ */
+static int nl_status(const struct nlmsghdr *nh, ssize_t n, uint16_t seq)
+{
+	ASSERT(NLMSG_OK(nh, n));
+
+	if (nh->nlmsg_seq != seq)
+		die("netlink: Unexpected sequence number (%hu != %hu)",
+		    nh->nlmsg_seq, seq);
+
+	if (nh->nlmsg_type == NLMSG_DONE) {
+		return 0;
+	}
+	if (nh->nlmsg_type == NLMSG_ERROR) {
+		struct nlmsgerr *errmsg = (struct nlmsgerr *)NLMSG_DATA(nh);
+		return errmsg->error;
+	}
 
 	return n;
 }
+
+/**
+ * nl_next() - Get next netlink response message, recv()ing if necessary
+ * @s:		Netlink socket
+ * @buf:	Buffer for responses (at least NLBUFSIZ long)
+ * @nh:		Previous message, or NULL if there are none
+ * @n:		Variable with remaining unread bytes in buffer (updated)
+ *
+ * Return: pointer to next unread netlink response message (may block)
+ */
+static struct nlmsghdr *nl_next(int s, char *buf, struct nlmsghdr *nh, ssize_t *n)
+{
+	if (nh) {
+		nh = NLMSG_NEXT(nh, *n);
+		if (NLMSG_OK(nh, *n))
+			return nh;
+	}
+
+	*n = recv(s, buf, NLBUFSIZ, 0);
+	if (*n < 0)
+		die("netlink: Failed to recv(): %s", strerror(errno));
+
+	nh = (struct nlmsghdr *)buf;
+	if (!NLMSG_OK(nh, *n))
+		die("netlink: Response datagram with no message");
+
+	return nh;
+}
+
+/**
+ * nl_foreach - 'for' type macro to step through netlink response messages
+ * @nh:		Steps through each response header (struct nlmsghdr *)
+ * @status:	When loop exits indicates if there was an error (ssize_t)
+ * @s:		Netlink socket
+ * @buf:	Buffer for responses (at least NLBUFSIZ long)
+ * @seq:	Sequence number of request we're getting responses for
+  */
+#define nl_foreach(nh, status, s, buf, seq)				\
+	for ((nh) = nl_next((s), (buf), NULL, &(status));		\
+	     ((status) = nl_status((nh), (status), (seq))) > 0;		\
+	     (nh) = nl_next((s), (buf), (nh), &(status)))
 
 /**
  * nl_do() - Send netlink "do" request, and wait for acknowledgement
@@ -169,31 +235,14 @@ static int nl_do(int s, void *req, uint16_t type, uint16_t flags, ssize_t len)
 {
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
+	ssize_t status;
 	uint16_t seq;
-	ssize_t n;
 
-	n = nl_req(s, buf, req, type, flags, len);
-	seq = ((struct nlmsghdr *)req)->nlmsg_seq;
+	seq = nl_send(s, req, type, flags, len);
+	nl_foreach(nh, status, s, buf, seq)
+		warn("netlink: Unexpected response message");
 
-	for (nh = (struct nlmsghdr *)buf;
-	     NLMSG_OK(nh, n); nh = NLMSG_NEXT(nh, n)) {
-		struct nlmsgerr *errmsg;
-
-		if (nh->nlmsg_seq != seq)
-			die("netlink: Unexpected response sequence number");
-
-		switch (nh->nlmsg_type) {
-		case NLMSG_DONE:
-			return 0;
-		case NLMSG_ERROR:
-			errmsg = (struct nlmsgerr *)NLMSG_DATA(nh);
-			return errmsg->error;
-		default:
-			warn("netlink: Unexpected response message");
-		}
-	}
-
-	die("netlink: Missing acknowledgement of request");
+	return status;
 }
 
 /**
@@ -215,14 +264,12 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	struct nlmsghdr *nh;
 	struct rtattr *rta;
 	char buf[NLBUFSIZ];
-	ssize_t n;
+	ssize_t status;
+	uint16_t seq;
 	size_t na;
 
-	n = nl_req(s, buf, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
-
-	nh = (struct nlmsghdr *)buf;
-
-	for ( ; NLMSG_OK(nh, n); nh = NLMSG_NEXT(nh, n)) {
+	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
+	nl_foreach(nh, status, s, buf, seq) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
 
 		if (rtm->rtm_dst_len || rtm->rtm_family != af)
@@ -270,13 +317,11 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 	};
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
-	ssize_t n;
+	ssize_t status;
+	uint16_t seq;
 
-	n = nl_req(s, buf, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
-
-	for (nh = (struct nlmsghdr *)buf;
-	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
-	     nh = NLMSG_NEXT(nh, n)) {
+	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
+	nl_foreach(nh, status, s, buf, seq) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
@@ -392,18 +437,23 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
 		.ifi		  = ifi_src,
 	};
+	ssize_t nlmsgs_size, status;
 	unsigned dup_routes = 0;
-	ssize_t n, nlmsgs_size;
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
+	uint16_t seq;
 	unsigned i;
 
-	nlmsgs_size = nl_req(s_src, buf, &req,
-			     RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
+	seq = nl_send(s_src, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 
-	for (nh = (struct nlmsghdr *)buf, n = nlmsgs_size;
-	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
-	     nh = NLMSG_NEXT(nh, n)) {
+	/* nl_foreach() will step through multiple response datagrams,
+	 * which we don't want here because we need to have all the
+	 * routes in the buffer at once.
+	 */
+	nh = nl_next(s_src, buf, NULL, &nlmsgs_size);
+	for (status = nlmsgs_size;
+	     NLMSG_OK(nh, status) && (status = nl_status(nh, status, seq)) > 0;
+	     nh = NLMSG_NEXT(nh, status)) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
@@ -428,9 +478,9 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 	 * to calculate dependencies: let the kernel do that.
 	 */
 	for (i = 0; i < dup_routes; i++) {
-		for (nh = (struct nlmsghdr *)buf, n = nlmsgs_size;
-		     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
-		     nh = NLMSG_NEXT(nh, n)) {
+		for (nh = (struct nlmsghdr *)buf, status = nlmsgs_size;
+		     NLMSG_OK(nh, status);
+		     nh = NLMSG_NEXT(nh, status)) {
 			uint16_t flags = nh->nlmsg_flags;
 
 			if (nh->nlmsg_type != RTM_NEWROUTE)
@@ -464,13 +514,11 @@ void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 	};
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
-	ssize_t n;
+	ssize_t status;
+	uint16_t seq;
 
-	n = nl_req(s, buf, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
-
-	for (nh = (struct nlmsghdr *)buf;
-	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
-	     nh = NLMSG_NEXT(nh, n)) {
+	seq = nl_send(s, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
+	nl_foreach(nh, status, s, buf, seq) {
 		struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
@@ -587,13 +635,11 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 	};
 	char buf[NLBUFSIZ];
 	struct nlmsghdr *nh;
-	ssize_t n;
+	ssize_t status;
+	uint16_t seq;
 
-	n = nl_req(s_src, buf, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
-
-	for (nh = (struct nlmsghdr *)buf;
-	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
-	     nh = NLMSG_NEXT(nh, n)) {
+	seq = nl_send(s_src, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
+	nl_foreach(nh, status, s_src, buf, seq) {
 		struct ifaddrmsg *ifa;
 		struct rtattr *rta;
 		size_t na;
@@ -638,12 +684,11 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 	};
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
-	ssize_t n;
+	ssize_t status;
+	uint16_t seq;
 
-	n = nl_req(s, buf, &req, RTM_GETLINK, 0, sizeof(req));
-	for (nh = (struct nlmsghdr *)buf;
-	     NLMSG_OK(nh, n) && nh->nlmsg_type != NLMSG_DONE;
-	     nh = NLMSG_NEXT(nh, n)) {
+	seq = nl_send(s, &req, RTM_GETLINK, 0, sizeof(req));
+	nl_foreach(nh, status, s, buf, seq) {
 		struct ifinfomsg *ifm = (struct ifinfomsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
