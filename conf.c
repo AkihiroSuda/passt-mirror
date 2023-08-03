@@ -648,12 +648,24 @@ static unsigned int conf_ip4(unsigned int ifi,
 		return 0;
 	}
 
-	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->gw))
-		nl_route_get_def(nl_sock, ifi, AF_INET, &ip4->gw);
+	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->gw)) {
+		int rc = nl_route_get_def(nl_sock, ifi, AF_INET, &ip4->gw);
+		if (rc < 0) {
+			err("Couldn't discover IPv4 gateway address: %s",
+			    strerror(-rc));
+			return 0;
+		}
+	}
 
-	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr))
-		nl_addr_get(nl_sock, ifi, AF_INET,
-			    &ip4->addr, &ip4->prefix_len, NULL);
+	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr)) {
+		int rc = nl_addr_get(nl_sock, ifi, AF_INET,
+				     &ip4->addr, &ip4->prefix_len, NULL);
+		if (rc < 0) {
+			err("Couldn't discover IPv4 address: %s",
+			    strerror(-rc));
+			return 0;
+		}
+	}
 
 	if (!ip4->prefix_len) {
 		in_addr_t addr = ntohl(ip4->addr.s_addr);
@@ -669,8 +681,15 @@ static unsigned int conf_ip4(unsigned int ifi,
 
 	memcpy(&ip4->addr_seen, &ip4->addr, sizeof(ip4->addr_seen));
 
-	if (MAC_IS_ZERO(mac))
-		nl_link_get_mac(nl_sock, ifi, mac);
+	if (MAC_IS_ZERO(mac)) {
+		int rc = nl_link_get_mac(nl_sock, ifi, mac);
+		if (rc < 0) {
+			char ifname[IFNAMSIZ];
+			err("Couldn't discover MAC for %s: %s",
+			    if_indextoname(ifi, ifname), strerror(-rc));
+			return 0;
+		}
+	}
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr) ||
 	    MAC_IS_ZERO(mac))
@@ -691,6 +710,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 			     struct ip6_ctx *ip6, unsigned char *mac)
 {
 	int prefix_len = 0;
+	int rc;
 
 	if (!ifi)
 		ifi = nl_get_ext_if(nl_sock, AF_INET6);
@@ -700,18 +720,35 @@ static unsigned int conf_ip6(unsigned int ifi,
 		return 0;
 	}
 
-	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->gw))
-		nl_route_get_def(nl_sock, ifi, AF_INET6, &ip6->gw);
+	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->gw)) {
+		rc = nl_route_get_def(nl_sock, ifi, AF_INET6, &ip6->gw);
+		if (rc < 0) {
+			err("Couldn't discover IPv6 gateway address: %s",
+			    strerror(-rc));
+			return 0;
+		}
+	}
 
-	nl_addr_get(nl_sock, ifi, AF_INET6,
-		    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ? &ip6->addr : NULL,
-		    &prefix_len, &ip6->addr_ll);
+	rc = nl_addr_get(nl_sock, ifi, AF_INET6,
+			 IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ? &ip6->addr : NULL,
+			 &prefix_len, &ip6->addr_ll);
+	if (rc < 0) {
+		err("Couldn't discover IPv6 address: %s", strerror(-rc));
+		return 0;
+	}
 
 	memcpy(&ip6->addr_seen, &ip6->addr, sizeof(ip6->addr));
 	memcpy(&ip6->addr_ll_seen, &ip6->addr_ll, sizeof(ip6->addr_ll));
 
-	if (MAC_IS_ZERO(mac))
-		nl_link_get_mac(0, ifi, mac);
+	if (MAC_IS_ZERO(mac)) {
+		rc = nl_link_get_mac(nl_sock, ifi, mac);
+		if (rc < 0) {
+			char ifname[IFNAMSIZ];
+			err("Couldn't discover MAC for %s: %s",
+			    if_indextoname(ifi, ifname), strerror(-rc));
+			return 0;
+		}
+	}
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr_ll) ||

@@ -277,6 +277,8 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 			ifi = *(unsigned int *)RTA_DATA(rta);
 		}
 	}
+	if (status < 0)
+		warn("netlink: RTM_GETROUTE failed: %s", strerror(-status));
 
 	return ifi;
 }
@@ -287,8 +289,10 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
  * @ifi:	Interface index
  * @af:		Address family
  * @gw:		Default gateway to fill on NL_GET
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
+int nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -329,6 +333,7 @@ void nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 			found = true;
 		}
 	}
+	return status;
 }
 
 /**
@@ -507,9 +512,11 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
  * @addr:	Global address to fill
  * @prefix_len:	Mask or prefix length, to fill (for IPv4)
  * @addr_l:	Link-scoped address to fill (for IPv6)
+ *
+ * Return: 9 on success, negative error code on failure
  */
-void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
-		 void *addr, int *prefix_len, void *addr_l)
+int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
+		void *addr, int *prefix_len, void *addr_l)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -550,6 +557,7 @@ void nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 				memcpy(addr_l, RTA_DATA(rta), RTA_PAYLOAD(rta));
 		}
 	}
+	return status;
 }
 
 /**
@@ -677,8 +685,10 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
  * @s:		Netlink socket
  * @ifi:	Interface index
  * @mac:	Fill with current MAC address
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_link_get_mac(int s, unsigned int ifi, void *mac)
+int nl_link_get_mac(int s, unsigned int ifi, void *mac)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -707,6 +717,7 @@ void nl_link_get_mac(int s, unsigned int ifi, void *mac)
 			memcpy(mac, RTA_DATA(rta), ETH_ALEN);
 		}
 	}
+	return status;
 }
 
 /**
