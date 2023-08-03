@@ -413,9 +413,11 @@ int nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
  * @s_dst:	Netlink socket in destination namespace
  * @ifi_dst:	Interface index in destination namespace
  * @af:		Address family
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_route_dup(int s_src, unsigned int ifi_src,
-		  int s_dst, unsigned int ifi_dst, sa_family_t af)
+int nl_route_dup(int s_src, unsigned int ifi_src,
+		 int s_dst, unsigned int ifi_dst, sa_family_t af)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -477,9 +479,11 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 
 		if (extra) {
 			err("netlink: Too many routes to duplicate");
-			return;
+			return -E2BIG;
 		}
 	}
+	if (status < 0)
+		return status;
 
 	/* Routes might have dependencies between each other, and the kernel
 	 * processes RTM_NEWROUTE messages sequentially. For n routes, we might
@@ -493,15 +497,20 @@ void nl_route_dup(int s_src, unsigned int ifi_src,
 		     NLMSG_OK(nh, status);
 		     nh = NLMSG_NEXT(nh, status)) {
 			uint16_t flags = nh->nlmsg_flags;
+			int rc;
 
 			if (nh->nlmsg_type != RTM_NEWROUTE)
 				continue;
 
-			nl_do(s_dst, nh, RTM_NEWROUTE,
-			       (flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
-			       nh->nlmsg_len);
+			rc = nl_do(s_dst, nh, RTM_NEWROUTE,
+				   (flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
+				   nh->nlmsg_len);
+			if (rc < 0 && rc != -ENETUNREACH && rc != -EEXIST)
+				return rc;
 		}
 	}
+
+	return 0;
 }
 
 /**
@@ -634,9 +643,11 @@ int nl_addr_set(int s, unsigned int ifi, sa_family_t af,
  * @s_dst:	Netlink socket in destination network namespace
  * @ifi_dst:	Interface index in destination namespace
  * @af:		Address family
+ *
+ * Return: 0 on success, negative error code on failure
  */
-void nl_addr_dup(int s_src, unsigned int ifi_src,
-		 int s_dst, unsigned int ifi_dst, sa_family_t af)
+int nl_addr_dup(int s_src, unsigned int ifi_src,
+		int s_dst, unsigned int ifi_dst, sa_family_t af)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -650,6 +661,7 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 	struct nlmsghdr *nh;
 	ssize_t status;
 	uint16_t seq;
+	int rc = 0;
 
 	seq = nl_send(s_src, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
 	nl_foreach_oftype(nh, status, s_src, buf, seq, RTM_NEWADDR) {
@@ -662,7 +674,7 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 
 		ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 
-		if (ifa->ifa_scope == RT_SCOPE_LINK ||
+		if (rc < 0 || ifa->ifa_scope == RT_SCOPE_LINK ||
 		    ifa->ifa_index != ifi_src)
 			continue;
 
@@ -674,10 +686,14 @@ void nl_addr_dup(int s_src, unsigned int ifi_src,
 				rta->rta_type = IFA_UNSPEC;
 		}
 
-		nl_do(s_dst, nh, RTM_NEWADDR,
-		       (nh->nlmsg_flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
-		       nh->nlmsg_len);
+		rc = nl_do(s_dst, nh, RTM_NEWADDR,
+			   (nh->nlmsg_flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
+			   nh->nlmsg_len);
 	}
+	if (status < 0)
+		return status;
+
+	return rc;
 }
 
 /**

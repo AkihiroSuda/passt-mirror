@@ -298,8 +298,9 @@ void pasta_ns_conf(struct ctx *c)
 						 &c->ip4.addr,
 						 c->ip4.prefix_len);
 			} else {
-				nl_addr_dup(nl_sock, c->ifi4,
-					    nl_sock_ns, c->pasta_ifi, AF_INET);
+				rc = nl_addr_dup(nl_sock, c->ifi4,
+						 nl_sock_ns, c->pasta_ifi,
+						 AF_INET);
 			}
 
 			if (rc < 0) {
@@ -311,8 +312,8 @@ void pasta_ns_conf(struct ctx *c)
 				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
 						      AF_INET, &c->ip4.gw);
 			} else {
-				nl_route_dup(nl_sock, c->ifi4, nl_sock_ns,
-					     c->pasta_ifi, AF_INET);
+				rc = nl_route_dup(nl_sock, c->ifi4, nl_sock_ns,
+						  c->pasta_ifi, AF_INET);
 			}
 
 			if (rc < 0) {
@@ -326,9 +327,9 @@ void pasta_ns_conf(struct ctx *c)
 				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
 						 AF_INET6, &c->ip6.addr, 64);
 			} else {
-				nl_addr_dup(nl_sock, c->ifi6,
-					    nl_sock_ns, c->pasta_ifi,
-					    AF_INET6);
+				rc = nl_addr_dup(nl_sock, c->ifi6,
+						 nl_sock_ns, c->pasta_ifi,
+						 AF_INET6);
 			}
 
 			if (rc < 0) {
@@ -340,9 +341,9 @@ void pasta_ns_conf(struct ctx *c)
 				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
 						      AF_INET6, &c->ip6.gw);
 			} else {
-				nl_route_dup(nl_sock, c->ifi6,
-					     nl_sock_ns, c->pasta_ifi,
-					     AF_INET6);
+				rc = nl_route_dup(nl_sock, c->ifi6,
+						  nl_sock_ns, c->pasta_ifi,
+						  AF_INET6);
 			}
 
 			if (rc < 0) {
