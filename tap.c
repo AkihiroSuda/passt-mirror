@@ -678,7 +678,7 @@ resume:
 		seq->daddr.s_addr	= iph->daddr;			\
 	} while (0)
 
-		if (seq && L4_MATCH(iph, uh, seq) && seq->p.count < TAP_SEQS)
+		if (seq && L4_MATCH(iph, uh, seq) && seq->p.count < UIO_MAXIOV)
 			goto append;
 
 		if (seq_count == TAP_SEQS)
@@ -686,7 +686,7 @@ resume:
 
 		for (seq = tap4_l4 + seq_count - 1; seq >= tap4_l4; seq--) {
 			if (L4_MATCH(iph, uh, seq)) {
-				if (seq->p.count >= TAP_SEQS)
+				if (seq->p.count >= UIO_MAXIOV)
 					seq = NULL;
 				break;
 			}
@@ -840,7 +840,7 @@ resume:
 	} while (0)
 
 		if (seq && L4_MATCH(ip6h, proto, uh, seq) &&
-		    seq->p.count < TAP_SEQS)
+		    seq->p.count < UIO_MAXIOV)
 			goto append;
 
 		if (seq_count == TAP_SEQS)
@@ -848,7 +848,7 @@ resume:
 
 		for (seq = tap6_l4 + seq_count - 1; seq >= tap6_l4; seq--) {
 			if (L4_MATCH(ip6h, proto, uh, seq)) {
-				if (seq->p.count >= TAP_SEQS)
+				if (seq->p.count >= UIO_MAXIOV)
 					seq = NULL;
 				break;
 			}
@@ -1232,8 +1232,8 @@ void tap_sock_init(struct ctx *c)
 	pool_tap6_storage = PACKET_INIT(pool_tap6, TAP_MSGS, pkt_buf, sz);
 
 	for (i = 0; i < TAP_SEQS; i++) {
-		tap4_l4[i].p = PACKET_INIT(pool_l4, TAP_SEQS, pkt_buf, sz);
-		tap6_l4[i].p = PACKET_INIT(pool_l4, TAP_SEQS, pkt_buf, sz);
+		tap4_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, pkt_buf, sz);
+		tap6_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, pkt_buf, sz);
 	}
 
 	if (c->fd_tap != -1) {
