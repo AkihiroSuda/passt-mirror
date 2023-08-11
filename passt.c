@@ -60,6 +60,8 @@ char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
 	[EPOLL_TYPE_UDP]	= "UDP socket",
 	[EPOLL_TYPE_ICMP]	= "ICMP socket",
 	[EPOLL_TYPE_ICMPV6]	= "ICMPv6 socket",
+	[EPOLL_TYPE_NSQUIT]	= "namespace inotify",
+	[EPOLL_TYPE_TAP]	= "tap device",
 };
 
 /**
@@ -328,12 +330,11 @@ loop:
 
 	for (i = 0; i < nfds; i++) {
 		union epoll_ref ref = *((union epoll_ref *)&events[i].data.u64);
-		int fd = events[i].data.fd;
 
-		if (fd == c.fd_tap || fd == c.fd_tap_listen)
-			tap_handler(&c, fd, events[i].events, &now);
-		else if (fd == quit_fd)
-			pasta_netns_quit_handler(&c, fd);
+		if (ref.type == EPOLL_TYPE_TAP)
+			tap_handler(&c, ref.fd, events[i].events, &now);
+		else if (ref.type == EPOLL_TYPE_NSQUIT)
+			pasta_netns_quit_handler(&c, quit_fd);
 		else
 			sock_handler(&c, ref, events[i].events, &now);
 	}

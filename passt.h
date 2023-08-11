@@ -55,8 +55,12 @@ enum epoll_type {
 	EPOLL_TYPE_ICMP,
 	/* ICMPv6 sockets */
 	EPOLL_TYPE_ICMPV6,
+	/* inotify fd watching for end of netns (pasta) */
+	EPOLL_TYPE_NSQUIT,
+	/* tap char device, or qemu socket fd */
+	EPOLL_TYPE_TAP,
 
-	EPOLL_TYPE_MAX = EPOLL_TYPE_ICMPV6,
+	EPOLL_TYPE_MAX = EPOLL_TYPE_TAP,
 };
 
 /**

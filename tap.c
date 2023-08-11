@@ -1071,6 +1071,7 @@ restart:
 static void tap_sock_unix_init(struct ctx *c)
 {
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
 	struct epoll_event ev = { 0 };
 	struct sockaddr_un addr = {
 		.sun_family = AF_UNIX,
@@ -1123,8 +1124,9 @@ static void tap_sock_unix_init(struct ctx *c)
 
 	listen(fd, 0);
 
-	ev.data.fd = c->fd_tap_listen = fd;
+	ref.fd = c->fd_tap_listen = fd;
 	ev.events = EPOLLIN | EPOLLET;
+	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap_listen, &ev);
 
 	info("You can now start qemu (>= 7.2, with commit 13c6be96618c):");
@@ -1141,6 +1143,7 @@ static void tap_sock_unix_init(struct ctx *c)
  */
 static void tap_sock_unix_new(struct ctx *c, uint32_t events)
 {
+	union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
 	struct epoll_event ev = { 0 };
 	int v = INT_MAX / 2;
 	struct ucred ucred;
@@ -1180,8 +1183,9 @@ static void tap_sock_unix_new(struct ctx *c, uint32_t events)
 	    setsockopt(c->fd_tap, SOL_SOCKET, SO_SNDBUF, &v, sizeof(v)))
 		trace("tap: failed to set SO_SNDBUF to %i", v);
 
-	ev.data.fd = c->fd_tap;
+	ref.fd = c->fd_tap;
 	ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
 }
 
@@ -1226,6 +1230,7 @@ static int tap_ns_tun(void *arg)
  */
 static void tap_sock_tun_init(struct ctx *c)
 {
+	union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
 	struct epoll_event ev = { 0 };
 
 	NS_CALL(tap_ns_tun, c);
@@ -1234,8 +1239,9 @@ static void tap_sock_tun_init(struct ctx *c)
 
 	pasta_ns_conf(c);
 
-	ev.data.fd = c->fd_tap;
+	ref.fd = c->fd_tap;
 	ev.events = EPOLLIN | EPOLLRDHUP;
+	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
 }
 
@@ -1257,11 +1263,13 @@ void tap_sock_init(struct ctx *c)
 	}
 
 	if (c->fd_tap != -1) { /* Passed as --fd */
+		union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
 		struct epoll_event ev = { 0 };
 		ASSERT(c->one_off);
 
-		ev.data.fd = c->fd_tap;
+		ref.fd = c->fd_tap;
 		ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+		ev.data.u64 = ref.u64;
 		epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
 		return;
 	}

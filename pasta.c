@@ -365,7 +365,10 @@ void pasta_ns_conf(struct ctx *c)
 int pasta_netns_quit_init(struct ctx *c)
 {
 	int flags = O_NONBLOCK | O_CLOEXEC;
-	struct epoll_event ev = { .events = EPOLLIN };
+	union epoll_ref ref = { .type = EPOLL_TYPE_NSQUIT };
+	struct epoll_event ev = {
+		.events = EPOLLIN
+	};
 	int inotify_fd;
 
 	if (c->mode != MODE_PASTA || c->no_netns_quit || !*c->netns_base)
@@ -381,7 +384,8 @@ int pasta_netns_quit_init(struct ctx *c)
 		return -1;
 	}
 
-	ev.data.fd = inotify_fd;
+	ref.fd = inotify_fd;
+	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, inotify_fd, &ev);
 
 	return inotify_fd;
