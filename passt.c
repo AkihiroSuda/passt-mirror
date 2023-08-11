@@ -325,8 +325,7 @@ loop:
 				tcp_sock_handler(&c, ref, eventmask, &now);
 			break;
 		case EPOLL_TYPE_UDP:
-			if (!c.no_udp)
-				udp_sock_handler(&c, ref, eventmask, &now);
+			udp_sock_handler(&c, ref, eventmask, &now);
 			break;
 		case EPOLL_TYPE_ICMP:
 			icmp_sock_handler(&c, ref);

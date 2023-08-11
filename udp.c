@@ -756,7 +756,7 @@ void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
 	struct mmsghdr *mmh_recv;
 	int i, m;
 
-	if (!(events & EPOLLIN))
+	if (c->no_udp || !(events & EPOLLIN))
 		return;
 
 	if (v6) {
