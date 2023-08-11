@@ -303,7 +303,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 		for (i = xrange.first; i <= xrange.last; i++) {
 			if (bitmap_isset(exclude, i))
-				goto overlap;
+				die("Overlapping excluded ranges %s", optarg);
 
 			bitmap_set(exclude, i);
 		}
@@ -370,7 +370,8 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 		for (i = orig_range.first; i <= orig_range.last; i++) {
 			if (bitmap_isset(fwd->map, i))
-				goto overlap;
+				warn(
+"Altering mapping of already mapped port number: %s", optarg);
 
 			if (bitmap_isset(exclude, i))
 				continue;
@@ -406,8 +407,6 @@ enfile:
 	die("Can't open enough sockets for port specifier: %s", optarg);
 bad:
 	die("Invalid port specifier %s", optarg);
-overlap:
-	die("Overlapping port specifier %s", optarg);
 mode_conflict:
 	die("Port forwarding mode '%s' conflicts with previous mode", optarg);
 bind_fail:
