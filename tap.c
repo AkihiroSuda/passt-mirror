@@ -982,14 +982,17 @@ next:
 /**
  * tap_handler_pasta() - Packet handler for tuntap file descriptor
  * @c:		Execution context
+ * @events:	epoll events
  * @now:	Current timestamp
- *
- * Return: -ECONNRESET on receive error, 0 otherwise
  */
-static int tap_handler_pasta(struct ctx *c, const struct timespec *now)
+static void tap_handler_pasta(struct ctx *c, uint32_t events,
+			      const struct timespec *now)
 {
 	ssize_t n, len;
 	int ret;
+
+	if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
+		die("Disconnect event on /dev/net/tun device, exiting");
 
 redo:
 	n = 0;
@@ -1037,15 +1040,12 @@ restart:
 	tap6_handler(c, pool_tap6, now);
 
 	if (len > 0 || ret == EAGAIN)
-		return 0;
+		return;
 
 	if (n == TAP_BUF_BYTES)
 		goto redo;
 
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
-	close(c->fd_tap);
-
-	return -ECONNRESET;
+	die("Error on tap device, exiting");
 }
 
 /**
@@ -1269,9 +1269,6 @@ static void tap_sock_reset(struct ctx *c)
 		exit(EXIT_SUCCESS);
 	}
 
-	if (c->mode == MODE_PASTA)
-		die("Error on tap device, exiting");
-
 	/* Close the connected socket, wait for a new connection */
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
 	close(c->fd_tap);
@@ -1293,8 +1290,11 @@ void tap_handler(struct ctx *c, int fd, uint32_t events,
 		return;
 	}
 
-	if ((c->mode == MODE_PASST && tap_handler_passt(c, now)) ||
-	    (c->mode == MODE_PASTA && tap_handler_pasta(c, now)) ||
-	    (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)))
-		tap_sock_reset(c);
+	if (c->mode == MODE_PASST) {
+		if (tap_handler_passt(c, now) ||
+		    (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)))
+			tap_sock_reset(c);
+	} else if (c->mode == MODE_PASTA) {
+		tap_handler_pasta(c, events, now);
+	}
 }
