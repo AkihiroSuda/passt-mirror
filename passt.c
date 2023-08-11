@@ -64,6 +64,7 @@ char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
 	[EPOLL_TYPE_ICMPV6]	= "ICMPv6 socket",
 	[EPOLL_TYPE_NSQUIT]	= "namespace inotify",
 	[EPOLL_TYPE_TAP]	= "tap device",
+	[EPOLL_TYPE_TAP_LISTEN]	= "listening qemu socket",
 };
 
 /**
@@ -317,7 +318,10 @@ loop:
 
 		switch (ref.type) {
 		case EPOLL_TYPE_TAP:
-			tap_handler(&c, ref.fd, events[i].events, &now);
+			tap_handler(&c, events[i].events, &now);
+			break;
+		case EPOLL_TYPE_TAP_LISTEN:
+			tap_listen_handler(&c, eventmask);
 			break;
 		case EPOLL_TYPE_NSQUIT:
 			pasta_netns_quit_handler(&c, quit_fd);

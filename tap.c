@@ -1071,7 +1071,7 @@ restart:
 static void tap_sock_unix_init(struct ctx *c)
 {
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
+	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_LISTEN };
 	struct epoll_event ev = { 0 };
 	struct sockaddr_un addr = {
 		.sun_family = AF_UNIX,
@@ -1137,11 +1137,11 @@ static void tap_sock_unix_init(struct ctx *c)
 }
 
 /**
- * tap_sock_unix_new() - Handle new connection on listening socket
+ * tap_listen_handler() - Handle new connection on listening socket
  * @c:		Execution context
  * @events:	epoll events
  */
-static void tap_sock_unix_new(struct ctx *c, uint32_t events)
+void tap_listen_handler(struct ctx *c, uint32_t events)
 {
 	union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
 	struct epoll_event ev = { 0 };
@@ -1285,18 +1285,11 @@ void tap_sock_init(struct ctx *c)
 /**
  * tap_handler() - Packet handler for AF_UNIX or tuntap file descriptor
  * @c:		Execution context
- * @fd:		File descriptor where event occurred
  * @events:	epoll events
  * @now:	Current timestamp, can be NULL on EPOLLERR
  */
-void tap_handler(struct ctx *c, int fd, uint32_t events,
-		 const struct timespec *now)
+void tap_handler(struct ctx *c, uint32_t events, const struct timespec *now)
 {
-	if (fd == c->fd_tap_listen) {
-		tap_sock_unix_new(c, events);
-		return;
-	}
-
 	if (c->mode == MODE_PASST)
 		tap_handler_passt(c, events, now);
 	else if (c->mode == MODE_PASTA)
