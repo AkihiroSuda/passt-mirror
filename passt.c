@@ -65,29 +65,6 @@ char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
 };
 
 /**
- * sock_handler() - Event handler for L4 sockets
- * @c:		Execution context
- * @ref:	epoll reference
- * @events:	epoll events
- * @now:	Current timestamp
- */
-static void sock_handler(struct ctx *c, union epoll_ref ref,
-			 uint32_t events, const struct timespec *now)
-{
-	trace("%s: packet from %s %i (events: 0x%08x)",
-	      c->mode == MODE_PASST ? "passt" : "pasta",
-	      EPOLL_TYPE_STR(ref.type), ref.fd, events);
-
-	if (!c->no_tcp && ref.type == EPOLL_TYPE_TCP)
-		tcp_sock_handler(c, ref, events, now);
-	else if (!c->no_udp && ref.type == EPOLL_TYPE_UDP)
-		udp_sock_handler(c, ref, events, now);
-	else if (!c->no_icmp &&
-		 (ref.type == EPOLL_TYPE_ICMP || ref.type == EPOLL_TYPE_ICMPV6))
-		icmp_sock_handler(c, ref, events, now);
-}
-
-/**
  * post_handler() - Run periodic and deferred tasks for L4 protocol handlers
  * @c:		Execution context
  * @now:	Current timestamp
@@ -330,13 +307,36 @@ loop:
 
 	for (i = 0; i < nfds; i++) {
 		union epoll_ref ref = *((union epoll_ref *)&events[i].data.u64);
+		uint32_t eventmask = events[i].events;
 
-		if (ref.type == EPOLL_TYPE_TAP)
+		trace("%s: epoll event on %s %i (events: 0x%08x)",
+		      c.mode == MODE_PASST ? "passt" : "pasta",
+		      EPOLL_TYPE_STR(ref.type), ref.fd, eventmask);
+
+		switch (ref.type) {
+		case EPOLL_TYPE_TAP:
 			tap_handler(&c, ref.fd, events[i].events, &now);
-		else if (ref.type == EPOLL_TYPE_NSQUIT)
+			break;
+		case EPOLL_TYPE_NSQUIT:
 			pasta_netns_quit_handler(&c, quit_fd);
-		else
-			sock_handler(&c, ref, events[i].events, &now);
+			break;
+		case EPOLL_TYPE_TCP:
+			if (!c.no_tcp)
+				tcp_sock_handler(&c, ref, eventmask, &now);
+			break;
+		case EPOLL_TYPE_UDP:
+			if (!c.no_udp)
+				udp_sock_handler(&c, ref, eventmask, &now);
+			break;
+		case EPOLL_TYPE_ICMP:
+		case EPOLL_TYPE_ICMPV6:
+			if (!c.no_icmp)
+				icmp_sock_handler(&c, ref, eventmask, &now);
+			break;
+		default:
+			/* Can't happen */
+			ASSERT(0);
+		}
 	}
 
 	post_handler(&c, &now);
