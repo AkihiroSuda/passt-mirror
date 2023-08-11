@@ -663,9 +663,8 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	conn->c.in_epoll = true;
 
 	if (conn->timer != -1) {
-		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP,
+		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP_TIMER,
 					  .fd = conn->sock,
-					  .tcp.timer = 1,
 					  .tcp.index = CONN_IDX(conn) };
 		struct epoll_event ev_t = { .data.u64 = ref_t.u64,
 					    .events = EPOLLIN | EPOLLET };
@@ -692,9 +691,8 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		return;
 
 	if (conn->timer == -1) {
-		union epoll_ref ref = { .type = EPOLL_TYPE_TCP,
+		union epoll_ref ref = { .type = EPOLL_TYPE_TCP_TIMER,
 					.fd = conn->sock,
-					.tcp.timer = 1,
 					.tcp.index = CONN_IDX(conn) };
 		struct epoll_event ev = { .data.u64 = ref.u64,
 					  .events = EPOLLIN | EPOLLET };
@@ -2813,12 +2811,12 @@ static void tcp_conn_from_sock(struct ctx *c, union epoll_ref ref,
  *
  * #syscalls timerfd_gettime
  */
-static void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
+void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 {
 	struct tcp_tap_conn *conn = conn_at_idx(ref.tcp.index);
 	struct itimerspec check_armed = { { 0 }, { 0 } };
 
-	if (!conn)
+	if (c->no_tcp || !conn)
 		return;
 
 	/* We don't reset timers on ~ACK_FROM_TAP_DUE, ~ACK_TO_TAP_DUE. If the
@@ -2934,11 +2932,6 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
 		      const struct timespec *now)
 {
 	union tcp_conn *conn;
-
-	if (ref.tcp.timer) {
-		tcp_timer_handler(c, ref);
-		return;
-	}
 
 	if (ref.tcp.listen) {
 		tcp_conn_from_sock(c, ref, now);

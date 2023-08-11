@@ -57,6 +57,7 @@ char pkt_buf[PKT_BUF_BYTES]	__attribute__ ((aligned(PAGE_SIZE)));
 
 char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
 	[EPOLL_TYPE_TCP]	= "TCP socket",
+	[EPOLL_TYPE_TCP_TIMER]	= "TCP timer",
 	[EPOLL_TYPE_UDP]	= "UDP socket",
 	[EPOLL_TYPE_ICMP]	= "ICMP socket",
 	[EPOLL_TYPE_ICMPV6]	= "ICMPv6 socket",
@@ -323,6 +324,9 @@ loop:
 		case EPOLL_TYPE_TCP:
 			if (!c.no_tcp)
 				tcp_sock_handler(&c, ref, eventmask, &now);
+			break;
+		case EPOLL_TYPE_TCP_TIMER:
+			tcp_timer_handler(&c, ref);
 			break;
 		case EPOLL_TYPE_UDP:
 			udp_sock_handler(&c, ref, eventmask, &now);

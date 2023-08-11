@@ -47,8 +47,10 @@ union epoll_ref;
 enum epoll_type {
 	/* Special value to indicate an invalid type */
 	EPOLL_TYPE_NONE = 0,
-	/* Sockets and timerfds for TCP handling */
+	/* TCP sockets */
 	EPOLL_TYPE_TCP,
+	/* timerfds used for TCP timers */
+	EPOLL_TYPE_TCP_TIMER,
 	/* UDP sockets */
 	EPOLL_TYPE_UDP,
 	/* IPv4 ICMP sockets */
