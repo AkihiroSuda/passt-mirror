@@ -42,9 +42,27 @@ union epoll_ref;
 #include "udp.h"
 
 /**
- * union epoll_ref - Breakdown of reference for epoll socket bookkeeping
- * @proto:	IP protocol number
- * @s:		Socket number (implies 2^24-1 limit on number of descriptors)
+ * enum epoll_type - Different types of fds we poll over
+ */
+enum epoll_type {
+	/* Special value to indicate an invalid type */
+	EPOLL_TYPE_NONE = 0,
+	/* Sockets and timerfds for TCP handling */
+	EPOLL_TYPE_TCP,
+	/* UDP sockets */
+	EPOLL_TYPE_UDP,
+	/* IPv4 ICMP sockets */
+	EPOLL_TYPE_ICMP,
+	/* ICMPv6 sockets */
+	EPOLL_TYPE_ICMPV6,
+
+	EPOLL_TYPE_MAX = EPOLL_TYPE_ICMPV6,
+};
+
+/**
+ * union epoll_ref - Breakdown of reference for epoll fd bookkeeping
+ * @type:	Type of fd (tells us what to do with events)
+ * @fd:		File descriptor number (implies < 2^24 total descriptors)
  * @tcp:	TCP-specific reference part
  * @udp:	UDP-specific reference part
  * @icmp:	ICMP-specific reference part
@@ -53,10 +71,10 @@ union epoll_ref;
  */
 union epoll_ref {
 	struct {
-		int32_t		proto:8,
-#define SOCKET_REF_BITS		24
-#define SOCKET_MAX		MAX_FROM_BITS(SOCKET_REF_BITS)
-				s:SOCKET_REF_BITS;
+		enum epoll_type type:8;
+#define FD_REF_BITS		24
+#define FD_REF_MAX		MAX_FROM_BITS(FD_REF_BITS)
+		int32_t		fd:FD_REF_BITS;
 		union {
 			union tcp_epoll_ref tcp;
 			union udp_epoll_ref udp;
@@ -78,10 +96,10 @@ static_assert(sizeof(union epoll_ref) <= sizeof(union epoll_data),
 #define PKT_BUF_BYTES		MAX(TAP_BUF_BYTES, 0)
 extern char pkt_buf		[PKT_BUF_BYTES];
 
-extern char *ip_proto_str[];
-#define IP_PROTO_STR(n)							\
-	(((uint8_t)(n) <= IPPROTO_SCTP && ip_proto_str[(n)]) ?		\
-			  ip_proto_str[(n)] : "?")
+extern char *epoll_type_str[];
+#define EPOLL_TYPE_STR(n)						\
+	(((uint8_t)(n) <= EPOLL_TYPE_MAX && epoll_type_str[(n)]) ?	\
+	                                    epoll_type_str[(n)] : "?")
 
 #include <resolv.h>	/* For MAXNS below */
 

@@ -102,7 +102,7 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data)
 {
-	union epoll_ref ref = { .proto = proto, .data = data };
+	union epoll_ref ref = { .data = data };
 	struct sockaddr_in addr4 = {
 		.sin_family = AF_INET,
 		.sin_port = htons(port),
@@ -118,9 +118,22 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 	int fd, sl, y = 1, ret;
 	struct epoll_event ev;
 
-	if (proto != IPPROTO_TCP && proto != IPPROTO_UDP &&
-	    proto != IPPROTO_ICMP && proto != IPPROTO_ICMPV6)
+	switch (proto) {
+	case IPPROTO_TCP:
+		ref.type = EPOLL_TYPE_TCP;
+		break;
+	case IPPROTO_UDP:
+		ref.type = EPOLL_TYPE_UDP;
+		break;
+	case IPPROTO_ICMP:
+		ref.type = EPOLL_TYPE_ICMP;
+		break;
+	case IPPROTO_ICMPV6:
+		ref.type = EPOLL_TYPE_ICMPV6;
+		break;
+	default:
 		return -EPFNOSUPPORT;	/* Not implemented. */
+	}
 
 	if (af == AF_UNSPEC) {
 		if (!DUAL_STACK_SOCKETS || bind_addr)
@@ -140,12 +153,12 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 		return ret;
 	}
 
-	if (fd > SOCKET_MAX) {
+	if (fd > FD_REF_MAX) {
 		close(fd);
 		return -EBADF;
 	}
 
-	ref.s = fd;
+	ref.fd = fd;
 
 	if (af == AF_INET) {
 		if (bind_addr)
@@ -188,8 +201,8 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 			       ifname, strlen(ifname))) {
 			ret = -errno;
-			warn("Can't bind socket for %s port %u to %s, closing",
-			     ip_proto_str[proto], port, ifname);
+			warn("Can't bind %s socket for port %u to %s, closing",
+			     EPOLL_TYPE_STR(proto), port, ifname);
 			close(fd);
 			return ret;
 		}

@@ -643,7 +643,7 @@ static void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int m = conn->c.in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref = { .proto = IPPROTO_TCP, .s = conn->sock,
+	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
 				.tcp.index = CONN_IDX(conn) };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
@@ -663,8 +663,8 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	conn->c.in_epoll = true;
 
 	if (conn->timer != -1) {
-		union epoll_ref ref_t = { .proto = IPPROTO_TCP,
-					  .s = conn->sock,
+		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP,
+					  .fd = conn->sock,
 					  .tcp.timer = 1,
 					  .tcp.index = CONN_IDX(conn) };
 		struct epoll_event ev_t = { .data.u64 = ref_t.u64,
@@ -692,8 +692,8 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		return;
 
 	if (conn->timer == -1) {
-		union epoll_ref ref = { .proto = IPPROTO_TCP,
-					.s = conn->sock,
+		union epoll_ref ref = { .type = EPOLL_TYPE_TCP,
+					.fd = conn->sock,
 					.tcp.timer = 1,
 					.tcp.index = CONN_IDX(conn) };
 		struct epoll_event ev = { .data.u64 = ref.u64,
@@ -701,7 +701,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		int fd;
 
 		fd = timerfd_create(CLOCK_MONOTONIC, 0);
-		if (fd == -1 || fd > SOCKET_MAX) {
+		if (fd == -1 || fd > FD_REF_MAX) {
 			debug("TCP: failed to get timer: %s", strerror(errno));
 			if (fd > -1)
 				close(fd);
@@ -1908,7 +1908,7 @@ int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
 
 	s = socket(af, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
 
-	if (s > SOCKET_MAX) {
+	if (s > FD_REF_MAX) {
 		close(s);
 		return -EIO;
 	}
@@ -2791,7 +2791,7 @@ static void tcp_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	 * https://github.com/llvm/llvm-project/issues/58992
 	 */
 	memset(&sa, 0, sizeof(struct sockaddr_in6));
-	s = accept4(ref.s, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
+	s = accept4(ref.fd, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
 		return;
 
@@ -2948,7 +2948,7 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
 	conn = tc + ref.tcp.index;
 
 	if (conn->c.spliced)
-		tcp_splice_sock_handler(c, &conn->splice, ref.s, events);
+		tcp_splice_sock_handler(c, &conn->splice, ref.fd, events);
 	else
 		tcp_tap_sock_handler(c, &conn->tap, events);
 }
@@ -2999,7 +2999,7 @@ static int tcp_sock_init_af(const struct ctx *c, int af, in_port_t port,
 int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
 		  const char *ifname, in_port_t port)
 {
-	int r4 = SOCKET_MAX + 1, r6 = SOCKET_MAX + 1;
+	int r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	if (af == AF_UNSPEC && c->ifi4 && c->ifi6)
 		/* Attempt to get a dual stack socket */
@@ -3013,7 +3013,7 @@ int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
 	if ((af == AF_INET6 || af == AF_UNSPEC) && c->ifi6)
 		r6 = tcp_sock_init_af(c, AF_INET6, port, addr, ifname);
 
-	if (IN_INTERVAL(0, SOCKET_MAX, r4) || IN_INTERVAL(0, SOCKET_MAX, r6))
+	if (IN_INTERVAL(0, FD_REF_MAX, r4) || IN_INTERVAL(0, FD_REF_MAX, r6))
 		return 0;
 
 	return r4 < 0 ? r4 : r6;

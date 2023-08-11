@@ -79,7 +79,7 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref,
 	(void)events;
 	(void)now;
 
-	n = recvfrom(ref.s, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
+	n = recvfrom(ref.fd, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
 	if (n < 0)
 		return;
 
@@ -182,7 +182,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 				    bind_if, id, iref.u32);
 			if (s < 0)
 				goto fail_sock;
-			if (s > SOCKET_MAX) {
+			if (s > FD_REF_MAX) {
 				close(s);
 				return 1;
 			}
@@ -236,7 +236,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 				    bind_if, id, iref.u32);
 			if (s < 0)
 				goto fail_sock;
-			if (s > SOCKET_MAX) {
+			if (s > FD_REF_MAX) {
 				close(s);
 				return 1;
 			}

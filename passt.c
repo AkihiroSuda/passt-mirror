@@ -55,12 +55,11 @@
 
 char pkt_buf[PKT_BUF_BYTES]	__attribute__ ((aligned(PAGE_SIZE)));
 
-char *ip_proto_str[IPPROTO_SCTP + 1] = {
-	[IPPROTO_ICMP]		= "ICMP",
-	[IPPROTO_TCP]		= "TCP",
-	[IPPROTO_UDP]		= "UDP",
-	[IPPROTO_ICMPV6]	= "ICMPV6",
-	[IPPROTO_SCTP]		= "SCTP",
+char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
+	[EPOLL_TYPE_TCP]	= "TCP socket",
+	[EPOLL_TYPE_UDP]	= "UDP socket",
+	[EPOLL_TYPE_ICMP]	= "ICMP socket",
+	[EPOLL_TYPE_ICMPV6]	= "ICMPv6 socket",
 };
 
 /**
@@ -73,16 +72,16 @@ char *ip_proto_str[IPPROTO_SCTP + 1] = {
 static void sock_handler(struct ctx *c, union epoll_ref ref,
 			 uint32_t events, const struct timespec *now)
 {
-	trace("%s: %s packet from socket %i (events: 0x%08x)",
+	trace("%s: packet from %s %i (events: 0x%08x)",
 	      c->mode == MODE_PASST ? "passt" : "pasta",
-	      IP_PROTO_STR(ref.proto), ref.s, events);
+	      EPOLL_TYPE_STR(ref.type), ref.fd, events);
 
-	if (!c->no_tcp && ref.proto == IPPROTO_TCP)
-		tcp_sock_handler( c, ref, events, now);
-	else if (!c->no_udp && ref.proto == IPPROTO_UDP)
-		udp_sock_handler( c, ref, events, now);
+	if (!c->no_tcp && ref.type == EPOLL_TYPE_TCP)
+		tcp_sock_handler(c, ref, events, now);
+	else if (!c->no_udp && ref.type == EPOLL_TYPE_UDP)
+		udp_sock_handler(c, ref, events, now);
 	else if (!c->no_icmp &&
-		 (ref.proto == IPPROTO_ICMP || ref.proto == IPPROTO_ICMPV6))
+		 (ref.type == EPOLL_TYPE_ICMP || ref.type == EPOLL_TYPE_ICMPV6))
 		icmp_sock_handler(c, ref, events, now);
 }
 

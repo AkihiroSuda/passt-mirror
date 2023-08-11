@@ -62,7 +62,7 @@ struct tcp_tap_conn {
 	unsigned int	ws_to_tap	:TCP_WS_BITS;
 
 
-	int		sock		:SOCKET_REF_BITS;
+	int		sock		:FD_REF_BITS;
 
 	uint8_t		events;
 #define CLOSED			0
@@ -80,7 +80,7 @@ struct tcp_tap_conn {
 	(SOCK_ACCEPTED | TAP_SYN_RCVD | ESTABLISHED)
 
 
-	int		timer		:SOCKET_REF_BITS;
+	int		timer		:FD_REF_BITS;
 
 	uint8_t		flags;
 #define STALLED			BIT(0)

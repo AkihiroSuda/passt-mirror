@@ -388,9 +388,9 @@ static void udp_sock6_iov_init(const struct ctx *c)
 int udp_splice_new(const struct ctx *c, int v6, in_port_t src, bool ns)
 {
 	struct epoll_event ev = { .events = EPOLLIN | EPOLLRDHUP | EPOLLHUP };
-	union epoll_ref ref = { .proto = IPPROTO_UDP,
+	union epoll_ref ref = { .type = EPOLL_TYPE_UDP,
 				.udp = { .splice = true, .ns = ns,
-					     .v6 = v6, .port = src }
+					 .v6 = v6, .port = src }
 			      };
 	struct udp_splice_port *sp;
 	int act, s;
@@ -406,7 +406,7 @@ int udp_splice_new(const struct ctx *c, int v6, in_port_t src, bool ns)
 	s = socket(v6 ? AF_INET6 : AF_INET, SOCK_DGRAM | SOCK_NONBLOCK,
 		   IPPROTO_UDP);
 
-	if (s > SOCKET_MAX) {
+	if (s > FD_REF_MAX) {
 		close(s);
 		return -EIO;
 	}
@@ -414,7 +414,7 @@ int udp_splice_new(const struct ctx *c, int v6, in_port_t src, bool ns)
 	if (s < 0)
 		return s;
 
-	ref.s = s;
+	ref.fd = s;
 
 	if (v6) {
 		struct sockaddr_in6 addr6 = {
@@ -767,7 +767,7 @@ void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
 		udp4_localname.sin_port = htons(dstport);
 	}
 
-	n = recvmmsg(ref.s, mmh_recv, n, 0, NULL);
+	n = recvmmsg(ref.fd, mmh_recv, n, 0, NULL);
 	if (n <= 0)
 		return;
 
@@ -980,7 +980,7 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port)
 {
 	union udp_epoll_ref uref = { .u32 = 0 };
-	int s, r4 = SOCKET_MAX + 1, r6 = SOCKET_MAX + 1;
+	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	if (ns) {
 		uref.port = (in_port_t)(port + c->udp.fwd_out.f.delta[port]);
@@ -1030,7 +1030,7 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		}
 	}
 
-	if (IN_INTERVAL(0, SOCKET_MAX, r4) || IN_INTERVAL(0, SOCKET_MAX, r6))
+	if (IN_INTERVAL(0, FD_REF_MAX, r4) || IN_INTERVAL(0, FD_REF_MAX, r6))
 		return 0;
 
 	return r4 < 0 ? r4 : r6;

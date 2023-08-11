@@ -173,9 +173,9 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 				struct tcp_splice_conn *conn)
 {
 	int m = conn->c.in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref_a = { .proto = IPPROTO_TCP, .s = conn->a,
+	union epoll_ref ref_a = { .type = EPOLL_TYPE_TCP, .fd = conn->a,
 				  .tcp.index = CONN_IDX(conn) };
-	union epoll_ref ref_b = { .proto = IPPROTO_TCP, .s = conn->b,
+	union epoll_ref ref_b = { .type = EPOLL_TYPE_TCP, .fd = conn->b,
 				  .tcp.index = CONN_IDX(conn) };
 	struct epoll_event ev_a = { .data.u64 = ref_a.u64 };
 	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
