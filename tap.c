@@ -1108,7 +1108,7 @@ static void tap_sock_unix_init(struct ctx *c)
 	listen(fd, 0);
 
 	ev.data.fd = c->fd_tap_listen = fd;
-	ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+	ev.events = EPOLLIN | EPOLLET;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap_listen, &ev);
 
 	info("You can now start qemu (>= 7.2, with commit 13c6be96618c):");
@@ -1121,13 +1121,17 @@ static void tap_sock_unix_init(struct ctx *c)
 /**
  * tap_sock_unix_new() - Handle new connection on listening socket
  * @c:		Execution context
+ * @events:	epoll events
  */
-static void tap_sock_unix_new(struct ctx *c)
+static void tap_sock_unix_new(struct ctx *c, uint32_t events)
 {
 	struct epoll_event ev = { 0 };
 	int v = INT_MAX / 2;
 	struct ucred ucred;
 	socklen_t len;
+
+	if (events != EPOLLIN)
+		die("Error on listening Unix socket, exiting");
 
 	len = sizeof(ucred);
 
@@ -1284,8 +1288,8 @@ static void tap_sock_reset(struct ctx *c)
 void tap_handler(struct ctx *c, int fd, uint32_t events,
 		 const struct timespec *now)
 {
-	if (fd == c->fd_tap_listen && events == EPOLLIN) {
-		tap_sock_unix_new(c);
+	if (fd == c->fd_tap_listen) {
+		tap_sock_unix_new(c, events);
 		return;
 	}
 
