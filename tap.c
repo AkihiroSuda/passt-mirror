@@ -1236,19 +1236,14 @@ void tap_sock_init(struct ctx *c)
 		tap6_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, pkt_buf, sz);
 	}
 
-	if (c->fd_tap != -1) {
-		if (c->one_off) {	/* Passed as --fd */
-			struct epoll_event ev = { 0 };
+	if (c->fd_tap != -1) { /* Passed as --fd */
+		struct epoll_event ev = { 0 };
+		ASSERT(c->one_off);
 
-			ev.data.fd = c->fd_tap;
-			ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-			epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
-			return;
-		}
-
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
-		close(c->fd_tap);
-		c->fd_tap = -1;
+		ev.data.fd = c->fd_tap;
+		ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+		epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
+		return;
 	}
 
 	if (c->mode == MODE_PASST) {
@@ -1257,6 +1252,26 @@ void tap_sock_init(struct ctx *c)
 	} else {
 		tap_sock_tun_init(c);
 	}
+}
+
+/**
+ * tap_sock_reset() - Handle closing or failure of connect AF_UNIX socket
+ * @c:		Execution context
+ */
+static void tap_sock_reset(struct ctx *c)
+{
+	if (c->one_off) {
+		info("Client closed connection, exiting");
+		exit(EXIT_SUCCESS);
+	}
+
+	if (c->mode == MODE_PASTA)
+		die("Error on tap device, exiting");
+
+	/* Close the connected socket, wait for a new connection */
+	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
+	close(c->fd_tap);
+	c->fd_tap = -1;
 }
 
 /**
@@ -1276,15 +1291,6 @@ void tap_handler(struct ctx *c, int fd, uint32_t events,
 
 	if ((c->mode == MODE_PASST && tap_handler_passt(c, now)) ||
 	    (c->mode == MODE_PASTA && tap_handler_pasta(c, now)) ||
-	    (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))) {
-		if (c->one_off) {
-			info("Client closed connection, exiting");
-			exit(EXIT_SUCCESS);
-		}
-
-		if (c->mode == MODE_PASTA)
-			die("Error on tap device, exiting");
-
-		tap_sock_init(c);
-	}
+	    (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)))
+		tap_sock_reset(c);
 }
