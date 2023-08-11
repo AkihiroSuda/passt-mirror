@@ -892,17 +892,39 @@ append:
 }
 
 /**
+ * tap_sock_reset() - Handle closing or failure of connect AF_UNIX socket
+ * @c:		Execution context
+ */
+static void tap_sock_reset(struct ctx *c)
+{
+	if (c->one_off) {
+		info("Client closed connection, exiting");
+		exit(EXIT_SUCCESS);
+	}
+
+	/* Close the connected socket, wait for a new connection */
+	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
+	close(c->fd_tap);
+	c->fd_tap = -1;
+}
+
+/**
  * tap_handler_passt() - Packet handler for AF_UNIX file descriptor
  * @c:		Execution context
+ * @events:	epoll events
  * @now:	Current timestamp
- *
- * Return: -ECONNRESET on receive error, 0 otherwise
  */
-static int tap_handler_passt(struct ctx *c, const struct timespec *now)
+static void tap_handler_passt(struct ctx *c, uint32_t events,
+			      const struct timespec *now)
 {
 	struct ethhdr *eh;
 	ssize_t n, rem;
 	char *p;
+
+	if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+		tap_sock_reset(c);
+		return;
+	}
 
 redo:
 	p = pkt_buf;
@@ -913,13 +935,9 @@ redo:
 
 	n = recv(c->fd_tap, p, TAP_BUF_FILL, MSG_DONTWAIT);
 	if (n < 0) {
-		if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
-			return 0;
-
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
-		close(c->fd_tap);
-
-		return -ECONNRESET;
+		if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)
+			tap_sock_reset(c);
+		return;
 	}
 
 	while (n > (ssize_t)sizeof(uint32_t)) {
@@ -934,7 +952,7 @@ redo:
 		if (len > n) {
 			rem = recv(c->fd_tap, p + n, len - n, 0);
 			if ((n += rem) != len)
-				return 0;
+				return;
 		}
 
 		/* Complete the partial read above before discarding a malformed
@@ -975,8 +993,6 @@ next:
 	/* We can't use EPOLLET otherwise. */
 	if (rem)
 		goto redo;
-
-	return 0;
 }
 
 /**
@@ -1259,23 +1275,6 @@ void tap_sock_init(struct ctx *c)
 }
 
 /**
- * tap_sock_reset() - Handle closing or failure of connect AF_UNIX socket
- * @c:		Execution context
- */
-static void tap_sock_reset(struct ctx *c)
-{
-	if (c->one_off) {
-		info("Client closed connection, exiting");
-		exit(EXIT_SUCCESS);
-	}
-
-	/* Close the connected socket, wait for a new connection */
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
-	close(c->fd_tap);
-	c->fd_tap = -1;
-}
-
-/**
  * tap_handler() - Packet handler for AF_UNIX or tuntap file descriptor
  * @c:		Execution context
  * @fd:		File descriptor where event occurred
@@ -1290,11 +1289,8 @@ void tap_handler(struct ctx *c, int fd, uint32_t events,
 		return;
 	}
 
-	if (c->mode == MODE_PASST) {
-		if (tap_handler_passt(c, now) ||
-		    (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)))
-			tap_sock_reset(c);
-	} else if (c->mode == MODE_PASTA) {
+	if (c->mode == MODE_PASST)
+		tap_handler_passt(c, events, now);
+	else if (c->mode == MODE_PASTA)
 		tap_handler_pasta(c, events, now);
-	}
 }
