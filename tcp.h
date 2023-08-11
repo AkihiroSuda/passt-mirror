@@ -14,8 +14,9 @@
 struct ctx;
 
 void tcp_timer_handler(struct ctx *c, union epoll_ref ref);
-void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
-		      const struct timespec *now);
+void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
+			const struct timespec *now);
+void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events);
 int tcp_tap_handler(struct ctx *c, int af, const void *addr,
 		    const struct pool *p, const struct timespec *now);
 int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
@@ -30,16 +31,24 @@ void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
 
 /**
  * union tcp_epoll_ref - epoll reference portion for TCP connections
- * @listen:		Set if this file descriptor is a listening socket
- * @outbound:		Listening socket maps to outbound, spliced connection
- * @index:		Index of connection in table, or port for bound sockets
+ * @index:		Index of connection in table
  * @u32:		Opaque u32 value of reference
  */
 union tcp_epoll_ref {
+	uint32_t index:20;
+	uint32_t u32;
+};
+
+/**
+ * union tcp_listen_epoll_ref - epoll reference portion for TCP listening
+ * @port:	Port number we're forwarding *to* (listening port plus delta)
+ * @ns:		True if listening within the pasta namespace
+ * @u32:	Opaque u32 value of reference
+ */
+union tcp_listen_epoll_ref {
 	struct {
-		uint32_t	listen:1,
-				outbound:1,
-				index:20;
+		in_port_t	port;
+		bool		ns;
 	};
 	uint32_t u32;
 };

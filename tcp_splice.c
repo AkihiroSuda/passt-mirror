@@ -486,7 +486,7 @@ static void tcp_splice_dir(struct tcp_splice_conn *conn, int ref_sock,
  * Return: true if able to create a spliced connection, false otherwise
  * #syscalls:pasta setsockopt
  */
-bool tcp_splice_conn_from_sock(struct ctx *c, union epoll_ref ref,
+bool tcp_splice_conn_from_sock(struct ctx *c, union tcp_listen_epoll_ref ref,
 			       struct tcp_splice_conn *conn, int s,
 			       const struct sockaddr *sa)
 {
@@ -516,7 +516,7 @@ bool tcp_splice_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	c->tcp.splice_conn_count++;
 	conn->a = s;
 
-	if (tcp_splice_new(c, conn, ref.tcp.index, ref.tcp.outbound))
+	if (tcp_splice_new(c, conn, ref.port, ref.ns))
 		conn_flag(c, conn, CLOSING);
 
 	return true;

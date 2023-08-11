@@ -120,7 +120,7 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 
 	switch (proto) {
 	case IPPROTO_TCP:
-		ref.type = EPOLL_TYPE_TCP;
+		ref.type = EPOLL_TYPE_TCP_LISTEN;
 		break;
 	case IPPROTO_UDP:
 		ref.type = EPOLL_TYPE_UDP;

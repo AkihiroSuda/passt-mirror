@@ -2735,7 +2735,8 @@ static void tcp_snat_inbound(const struct ctx *c, union inany_addr *addr)
  * @sa:		Peer socket address (from accept())
  * @now:	Current timestamp
  */
-static void tcp_tap_conn_from_sock(struct ctx *c, union epoll_ref ref,
+static void tcp_tap_conn_from_sock(struct ctx *c,
+				   union tcp_listen_epoll_ref ref,
 				   struct tcp_tap_conn *conn, int s,
 				   struct sockaddr *sa,
 				   const struct timespec *now)
@@ -2747,7 +2748,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	conn_event(c, conn, SOCK_ACCEPTED);
 
 	inany_from_sockaddr(&conn->addr, &conn->sock_port, sa);
-	conn->tap_port = ref.tcp.index;
+	conn->tap_port = ref.port;
 
 	tcp_snat_inbound(c, &conn->addr);
 
@@ -2765,22 +2766,20 @@ static void tcp_tap_conn_from_sock(struct ctx *c, union epoll_ref ref,
 }
 
 /**
- * tcp_conn_from_sock() - Handle new connection request from listening socket
+ * tcp_listen_handler() - Handle new connection request from listening socket
  * @c:		Execution context
  * @ref:	epoll reference of listening socket
  * @now:	Current timestamp
  */
-static void tcp_conn_from_sock(struct ctx *c, union epoll_ref ref,
-			       const struct timespec *now)
+void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
+			const struct timespec *now)
 {
 	struct sockaddr_storage sa;
 	union tcp_conn *conn;
 	socklen_t sl;
 	int s;
 
-	ASSERT(ref.tcp.listen);
-
-	if (c->tcp.conn_count >= TCP_MAX_CONNS)
+	if (c->no_tcp || c->tcp.conn_count >= TCP_MAX_CONNS)
 		return;
 
 	sl = sizeof(sa);
@@ -2796,11 +2795,11 @@ static void tcp_conn_from_sock(struct ctx *c, union epoll_ref ref,
 	conn = tc + c->tcp.conn_count++;
 
 	if (c->mode == MODE_PASTA &&
-	    tcp_splice_conn_from_sock(c, ref, &conn->splice,
+	    tcp_splice_conn_from_sock(c, ref.tcp_listen, &conn->splice,
 				      s, (struct sockaddr *)&sa))
 		return;
 
-	tcp_tap_conn_from_sock(c, ref, &conn->tap, s,
+	tcp_tap_conn_from_sock(c, ref.tcp_listen, &conn->tap, s,
 			       (struct sockaddr *)&sa, now);
 }
 
@@ -2926,19 +2925,10 @@ static void tcp_tap_sock_handler(struct ctx *c, struct tcp_tap_conn *conn,
  * @c:		Execution context
  * @ref:	epoll reference
  * @events:	epoll events bitmap
- * @now:	Current timestamp
  */
-void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
-		      const struct timespec *now)
+void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
-	union tcp_conn *conn;
-
-	if (ref.tcp.listen) {
-		tcp_conn_from_sock(c, ref, now);
-		return;
-	}
-
-	conn = tc + ref.tcp.index;
+	union tcp_conn *conn = tc + ref.tcp.index;
 
 	if (conn->c.spliced)
 		tcp_splice_sock_handler(c, &conn->splice, ref.fd, events);
@@ -2959,8 +2949,9 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
 static int tcp_sock_init_af(const struct ctx *c, int af, in_port_t port,
 			    const struct in_addr *addr, const char *ifname)
 {
-	in_port_t idx = port + c->tcp.fwd_in.delta[port];
-	union tcp_epoll_ref tref = { .listen = 1, .index = idx };
+	union tcp_listen_epoll_ref tref = {
+		.port = port + c->tcp.fwd_in.delta[port],
+	};
 	int s;
 
 	s = sock_l4(c, af, IPPROTO_TCP, addr, ifname, port, tref.u32);
@@ -3019,9 +3010,10 @@ int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
  */
 static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 {
-	in_port_t idx = port + c->tcp.fwd_out.delta[port];
-	union tcp_epoll_ref tref = { .listen = 1, .outbound = 1,
-				     .index = idx };
+	union tcp_listen_epoll_ref tref = {
+		.port = port + c->tcp.fwd_out.delta[port],
+		.ns = true,
+	};
 	struct in_addr loopback = { htonl(INADDR_LOOPBACK) };
 	int s;
 
@@ -3044,9 +3036,10 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
  */
 static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
 {
-	in_port_t idx = port + c->tcp.fwd_out.delta[port];
-	union tcp_epoll_ref tref = { .listen = 1, .outbound = 1,
-				     .index = idx };
+	union tcp_listen_epoll_ref tref = {
+		.port = port + c->tcp.fwd_out.delta[port],
+		.ns = true,
+	};
 	int s;
 
 	ASSERT(c->mode == MODE_PASTA);

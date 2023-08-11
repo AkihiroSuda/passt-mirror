@@ -47,8 +47,10 @@ union epoll_ref;
 enum epoll_type {
 	/* Special value to indicate an invalid type */
 	EPOLL_TYPE_NONE = 0,
-	/* TCP sockets */
+	/* Connected TCP sockets */
 	EPOLL_TYPE_TCP,
+	/* Listening TCP sockets */
+	EPOLL_TYPE_TCP_LISTEN,
 	/* timerfds used for TCP timers */
 	EPOLL_TYPE_TCP_TIMER,
 	/* UDP sockets */
@@ -69,7 +71,8 @@ enum epoll_type {
  * union epoll_ref - Breakdown of reference for epoll fd bookkeeping
  * @type:	Type of fd (tells us what to do with events)
  * @fd:		File descriptor number (implies < 2^24 total descriptors)
- * @tcp:	TCP-specific reference part
+ * @tcp:	TCP-specific reference part (connected sockets)
+ * @tcp_listen:	TCP-specific reference part (listening sockets)
  * @udp:	UDP-specific reference part
  * @icmp:	ICMP-specific reference part
  * @data:	Data handled by protocol handlers
@@ -83,6 +86,7 @@ union epoll_ref {
 		int32_t		fd:FD_REF_BITS;
 		union {
 			union tcp_epoll_ref tcp;
+			union tcp_listen_epoll_ref tcp_listen;
 			union udp_epoll_ref udp;
 			union icmp_epoll_ref icmp;
 			uint32_t data;
