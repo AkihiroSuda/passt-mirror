@@ -60,78 +60,94 @@ static struct icmp_id_sock icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
 static uint8_t icmp_act[IP_VERSIONS][DIV_ROUND_UP(ICMP_NUM_IDS, 8)];
 
 /**
- * icmp_sock_handler() - Handle new data from socket
+ * icmp_sock_handler() - Handle new data from IPv4 ICMP socket
  * @c:		Execution context
  * @ref:	epoll reference
- * @events:	epoll events bitmap
- * @now:	Current timestamp, unused
  */
-void icmp_sock_handler(const struct ctx *c, union epoll_ref ref,
-		       uint32_t events, const struct timespec *now)
+void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 {
-	union icmp_epoll_ref *iref = &ref.icmp;
-	struct sockaddr_storage sr;
-	socklen_t sl = sizeof(sr);
 	char buf[USHRT_MAX];
+	struct icmphdr *ih = (struct icmphdr *)buf;
+	struct sockaddr_in sr;
+	socklen_t sl = sizeof(sr);
 	uint16_t seq, id;
 	ssize_t n;
 
-	(void)events;
-	(void)now;
+	if (c->no_icmp)
+		return;
+
+	/* FIXME: Workaround clang-tidy not realizing that recvfrom()
+	 * writes the socket address.  See
+	 * https://github.com/llvm/llvm-project/issues/58992
+	 */
+	memset(&sr, 0, sizeof(sr));
+	n = recvfrom(ref.fd, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
+	if (n < 0)
+		return;
+
+	id = ntohs(ih->un.echo.id);
+	seq = ntohs(ih->un.echo.sequence);
+
+	if (id != ref.icmp.id)
+		ih->un.echo.id = htons(ref.icmp.id);
+
+	if (c->mode == MODE_PASTA) {
+		if (icmp_id_map[V4][id].seq == seq)
+			return;
+
+		icmp_id_map[V4][id].seq = seq;
+	}
+
+	debug("ICMP: echo %s to tap, ID: %i, seq: %i",
+	      (ih->type == ICMP_ECHO) ? "request" : "reply", id, seq);
+
+	tap_icmp4_send(c, sr.sin_addr, tap_ip4_daddr(c), buf, n);
+}
+
+/**
+ * icmpv6_sock_handler() - Handle new data from ICMPv6 socket
+ * @c:		Execution context
+ * @ref:	epoll reference
+ */
+void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref)
+{
+	char buf[USHRT_MAX];
+	struct icmp6hdr *ih = (struct icmp6hdr *)buf;
+	struct sockaddr_in6 sr;
+	socklen_t sl = sizeof(sr);
+	uint16_t seq, id;
+	ssize_t n;
+
+	if (c->no_icmp)
+		return;
 
 	n = recvfrom(ref.fd, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
 	if (n < 0)
 		return;
 
-	if (iref->v6) {
-		struct sockaddr_in6 *sr6 = (struct sockaddr_in6 *)&sr;
-		struct icmp6hdr *ih = (struct icmp6hdr *)buf;
+	id = ntohs(ih->icmp6_identifier);
+	seq = ntohs(ih->icmp6_sequence);
 
-		id = ntohs(ih->icmp6_identifier);
-		seq = ntohs(ih->icmp6_sequence);
+	/* If bind() fails e.g. because of a broken SELinux policy,
+	 * this might happen. Fix up the identifier to match the sent
+	 * one.
+	 */
+	if (id != ref.icmp.id)
+		ih->icmp6_identifier = htons(ref.icmp.id);
 
-		/* If bind() fails e.g. because of a broken SELinux policy, this
-		 * might happen. Fix up the identifier to match the sent one.
-		 */
-		if (id != iref->id)
-			ih->icmp6_identifier = htons(iref->id);
+	/* In PASTA mode, we'll get any reply we send, discard them. */
+	if (c->mode == MODE_PASTA) {
+		if (icmp_id_map[V6][id].seq == seq)
+			return;
 
-		/* In PASTA mode, we'll get any reply we send, discard them. */
-		if (c->mode == MODE_PASTA) {
-			if (icmp_id_map[V6][id].seq == seq)
-				return;
-
-			icmp_id_map[V6][id].seq = seq;
-		}
-
-		debug("ICMPv6: echo %s to tap, ID: %i, seq: %i",
-		      (ih->icmp6_type == 128) ? "request" : "reply", id, seq);
-
-		tap_icmp6_send(c, &sr6->sin6_addr,
-			       tap_ip6_daddr(c, &sr6->sin6_addr), buf, n);
-	} else {
-		struct sockaddr_in *sr4 = (struct sockaddr_in *)&sr;
-		struct icmphdr *ih = (struct icmphdr *)buf;
-
-		id = ntohs(ih->un.echo.id);
-		seq = ntohs(ih->un.echo.sequence);
-
-		if (id != iref->id)
-			ih->un.echo.id = htons(iref->id);
-
-		if (c->mode == MODE_PASTA) {
-
-			if (icmp_id_map[V4][id].seq == seq)
-				return;
-
-			icmp_id_map[V4][id].seq = seq;
-		}
-
-		debug("ICMP: echo %s to tap, ID: %i, seq: %i",
-		      (ih->type == ICMP_ECHO) ? "request" : "reply", id, seq);
-
-		tap_icmp4_send(c, sr4->sin_addr, tap_ip4_daddr(c), buf, n);
+		icmp_id_map[V6][id].seq = seq;
 	}
+
+	debug("ICMPv6: echo %s to tap, ID: %i, seq: %i",
+	      (ih->icmp6_type == 128) ? "request" : "reply", id, seq);
+
+	tap_icmp6_send(c, &sr.sin6_addr,
+		       tap_ip6_daddr(c, &sr.sin6_addr), buf, n);
 }
 
 /**
@@ -150,11 +166,11 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 	size_t plen;
 
 	if (af == AF_INET) {
-		union icmp_epoll_ref iref = { .v6 = 0 };
 		struct sockaddr_in sa = {
 			.sin_family = AF_INET,
 			.sin_addr = { .s_addr = htonl(INADDR_ANY) },
 		};
+		union icmp_epoll_ref iref;
 		struct icmphdr *ih;
 		int id, s;
 
@@ -204,12 +220,12 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 			      id, ntohs(ih->un.echo.sequence));
 		}
 	} else if (af == AF_INET6) {
-		union icmp_epoll_ref iref = { .v6 = 1 };
 		struct sockaddr_in6 sa = {
 			.sin6_family = AF_INET6,
 			.sin6_addr = IN6ADDR_ANY_INIT,
 			.sin6_scope_id = c->ifi6,
 		};
+		union icmp_epoll_ref iref;
 		struct icmp6hdr *ih;
 		int id, s;
 

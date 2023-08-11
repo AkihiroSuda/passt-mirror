@@ -10,8 +10,8 @@
 
 struct ctx;
 
-void icmp_sock_handler(const struct ctx *c, union epoll_ref ref,
-		       uint32_t events, const struct timespec *now);
+void icmp_sock_handler(const struct ctx *c, union epoll_ref ref);
+void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref);
 int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 		     const struct pool *p, const struct timespec *now);
 void icmp_timer(const struct ctx *c, const struct timespec *ts);
@@ -24,10 +24,7 @@ void icmp_init(void);
  * @id:			Associated echo identifier, needed if bind() fails
  */
 union icmp_epoll_ref {
-	struct {
-		uint32_t	v6:1,
-				id:16;
-	};
+	uint16_t id;
 	uint32_t u32;
 };
 
