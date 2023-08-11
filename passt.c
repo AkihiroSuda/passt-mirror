@@ -63,7 +63,8 @@ char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
 	[EPOLL_TYPE_ICMP]	= "ICMP socket",
 	[EPOLL_TYPE_ICMPV6]	= "ICMPv6 socket",
 	[EPOLL_TYPE_NSQUIT]	= "namespace inotify",
-	[EPOLL_TYPE_TAP]	= "tap device",
+	[EPOLL_TYPE_TAP_PASTA]	= "/dev/net/tun device",
+	[EPOLL_TYPE_TAP_PASST]	= "connected qemu socket",
 	[EPOLL_TYPE_TAP_LISTEN]	= "listening qemu socket",
 };
 
@@ -317,8 +318,11 @@ loop:
 		      EPOLL_TYPE_STR(ref.type), ref.fd, eventmask);
 
 		switch (ref.type) {
-		case EPOLL_TYPE_TAP:
-			tap_handler(&c, events[i].events, &now);
+		case EPOLL_TYPE_TAP_PASTA:
+			tap_handler_pasta(&c, eventmask, &now);
+			break;
+		case EPOLL_TYPE_TAP_PASST:
+			tap_handler_passt(&c, eventmask, &now);
 			break;
 		case EPOLL_TYPE_TAP_LISTEN:
 			tap_listen_handler(&c, eventmask);

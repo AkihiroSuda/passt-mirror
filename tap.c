@@ -914,8 +914,8 @@ static void tap_sock_reset(struct ctx *c)
  * @events:	epoll events
  * @now:	Current timestamp
  */
-static void tap_handler_passt(struct ctx *c, uint32_t events,
-			      const struct timespec *now)
+void tap_handler_passt(struct ctx *c, uint32_t events,
+		       const struct timespec *now)
 {
 	struct ethhdr *eh;
 	ssize_t n, rem;
@@ -996,13 +996,13 @@ next:
 }
 
 /**
- * tap_handler_pasta() - Packet handler for tuntap file descriptor
+ * tap_handler_pasta() - Packet handler for /dev/net/tun file descriptor
  * @c:		Execution context
  * @events:	epoll events
  * @now:	Current timestamp
  */
-static void tap_handler_pasta(struct ctx *c, uint32_t events,
-			      const struct timespec *now)
+void tap_handler_pasta(struct ctx *c, uint32_t events,
+		       const struct timespec *now)
 {
 	ssize_t n, len;
 	int ret;
@@ -1143,7 +1143,7 @@ static void tap_sock_unix_init(struct ctx *c)
  */
 void tap_listen_handler(struct ctx *c, uint32_t events)
 {
-	union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
+	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_PASST };
 	struct epoll_event ev = { 0 };
 	int v = INT_MAX / 2;
 	struct ucred ucred;
@@ -1225,12 +1225,12 @@ static int tap_ns_tun(void *arg)
 }
 
 /**
- * tap_sock_init_tun() - Set up tuntap file descriptor
+ * tap_sock_tun_init() - Set up /dev/net/tun file descriptor
  * @c:		Execution context
  */
 static void tap_sock_tun_init(struct ctx *c)
 {
-	union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
+	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_PASTA };
 	struct epoll_event ev = { 0 };
 
 	NS_CALL(tap_ns_tun, c);
@@ -1263,11 +1263,16 @@ void tap_sock_init(struct ctx *c)
 	}
 
 	if (c->fd_tap != -1) { /* Passed as --fd */
-		union epoll_ref ref = { .type = EPOLL_TYPE_TAP };
 		struct epoll_event ev = { 0 };
-		ASSERT(c->one_off);
+		union epoll_ref ref;
 
+		ASSERT(c->one_off);
 		ref.fd = c->fd_tap;
+		if (c->mode == MODE_PASST)
+			ref.type = EPOLL_TYPE_TAP_PASST;
+		else
+			ref.type = EPOLL_TYPE_TAP_PASTA;
+
 		ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
 		ev.data.u64 = ref.u64;
 		epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
@@ -1280,18 +1285,4 @@ void tap_sock_init(struct ctx *c)
 	} else {
 		tap_sock_tun_init(c);
 	}
-}
-
-/**
- * tap_handler() - Packet handler for AF_UNIX or tuntap file descriptor
- * @c:		Execution context
- * @events:	epoll events
- * @now:	Current timestamp, can be NULL on EPOLLERR
- */
-void tap_handler(struct ctx *c, uint32_t events, const struct timespec *now)
-{
-	if (c->mode == MODE_PASST)
-		tap_handler_passt(c, events, now);
-	else if (c->mode == MODE_PASTA)
-		tap_handler_pasta(c, events, now);
 }

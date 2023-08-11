@@ -61,8 +61,10 @@ enum epoll_type {
 	EPOLL_TYPE_ICMPV6,
 	/* inotify fd watching for end of netns (pasta) */
 	EPOLL_TYPE_NSQUIT,
-	/* tap char device, or connected qemu socket fd */
-	EPOLL_TYPE_TAP,
+	/* tuntap character device */
+	EPOLL_TYPE_TAP_PASTA,
+	/* socket connected to qemu  */
+	EPOLL_TYPE_TAP_PASST,
 	/* socket listening for qemu socket connections */
 	EPOLL_TYPE_TAP_LISTEN,
 

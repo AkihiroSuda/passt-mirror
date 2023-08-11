@@ -77,7 +77,10 @@ void tap_send_frames(struct ctx *c, const struct iovec *iov, size_t n);
 void tap_update_mac(struct tap_hdr *taph,
 		    const unsigned char *eth_d, const unsigned char *eth_s);
 void tap_listen_handler(struct ctx *c, uint32_t events);
-void tap_handler(struct ctx *c, uint32_t events, const struct timespec *now);
+void tap_handler_pasta(struct ctx *c, uint32_t events,
+		       const struct timespec *now);
+void tap_handler_passt(struct ctx *c, uint32_t events,
+		       const struct timespec *now);
 void tap_sock_init(struct ctx *c);
 
 #endif /* TAP_H */
