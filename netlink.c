@@ -679,7 +679,9 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 
 		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			if (rta->rta_type == IFA_LABEL)
+			/* Strip label and expiry (cacheinfo) information */
+			if (rta->rta_type == IFA_LABEL ||
+			    rta->rta_type == IFA_CACHEINFO)
 				rta->rta_type = IFA_UNSPEC;
 		}
 
