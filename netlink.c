@@ -548,7 +548,7 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 		if (ifa->ifa_index != ifi)
 			continue;
 
-		for (rta = IFA_RTA(ifa), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
+		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
 			if (rta->rta_type != IFA_ADDRESS)
 				continue;
@@ -677,7 +677,7 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 
 		ifa->ifa_index = ifi_dst;
 
-		for (rta = IFA_RTA(ifa), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
+		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
 			if (rta->rta_type == IFA_LABEL)
 				rta->rta_type = IFA_UNSPEC;
