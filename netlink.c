@@ -669,9 +669,6 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 		struct rtattr *rta;
 		size_t na;
 
-		if (nh->nlmsg_type != RTM_NEWADDR)
-			continue;
-
 		ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 
 		if (rc < 0 || ifa->ifa_scope == RT_SCOPE_LINK ||
