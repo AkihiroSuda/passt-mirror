@@ -54,10 +54,17 @@ This package adds SELinux enforcement to passt(1) and pasta(1).
 %make_build VERSION="%{version}-%{release}.%{_arch}"
 
 %install
+
 %make_install DESTDIR=%{buildroot} prefix=%{_prefix} bindir=%{_bindir} mandir=%{_mandir} docdir=%{_docdir}/%{name}
+# The Makefile creates symbolic links for pasta, but we need hard links for
+# SELinux file contexts to work as intended. Same with pasta.avx2 if present.
+ln -f %{buildroot}%{_bindir}/passt %{buildroot}%{_bindir}/pasta
 %ifarch x86_64
+ln -f %{buildroot}%{_bindir}/passt.avx2 %{buildroot}%{_bindir}/pasta.avx2
+
 ln -sr %{buildroot}%{_mandir}/man1/passt.1 %{buildroot}%{_mandir}/man1/passt.avx2.1
 ln -sr %{buildroot}%{_mandir}/man1/pasta.1 %{buildroot}%{_mandir}/man1/pasta.avx2.1
+install -p -m 755 %{buildroot}%{_bindir}/passt.avx2 %{buildroot}%{_bindir}/pasta.avx2
 %endif
 
 pushd contrib/selinux
