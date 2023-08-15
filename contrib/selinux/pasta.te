@@ -79,6 +79,7 @@ require {
 	type shell_exec_t;
 	type init_t;
 
+	class capability { sys_tty_config setuid setgid };
 	class cap_userns { setpcap sys_admin sys_ptrace net_bind_service net_admin };
 	class user_namespace create;
 }
@@ -103,9 +104,12 @@ allow unconfined_t pasta_t : process transition ;
 
 init_daemon_domain(pasta_t, pasta_exec_t)
 
-allow pasta_t self:capability { setpcap net_bind_service sys_tty_config dac_read_search net_admin sys_resource };
+allow pasta_t self:capability { setpcap net_bind_service sys_tty_config dac_read_search net_admin sys_resource setuid setgid };
 allow pasta_t self:cap_userns { setpcap sys_admin sys_ptrace net_admin net_bind_service };
 allow pasta_t self:user_namespace create;
+
+allow pasta_t passwd_file_t:file read_file_perms;
+sssd_search_lib(pasta_t)
 
 allow pasta_t bin_t:file { execute execute_no_trans map };
 allow pasta_t nsfs_t:file { open read };
@@ -162,7 +166,7 @@ allow pasta_t unconfined_t:dir search;
 allow pasta_t unconfined_t:file read;
 allow pasta_t unconfined_t:lnk_file read;
 allow pasta_t passwd_file_t:file { getattr open read };
-allow pasta_t self:process setpgid;
+allow pasta_t self:process { setpgid setcap };
 allow pasta_t shell_exec_t:file { execute execute_no_trans map };
 
 allow pasta_t sssd_var_lib_t:dir search;

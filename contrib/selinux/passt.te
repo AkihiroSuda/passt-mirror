@@ -47,9 +47,11 @@ require {
 	type port_t;
 	type http_port_t;
 
+	type passwd_file_t;
+
 	class netlink_route_socket { bind create nlmsg_read };
 
-	class capability sys_tty_config;
+	class capability { sys_tty_config setuid setgid };
 	class cap_userns { setpcap sys_admin sys_ptrace };
 	class user_namespace create;
 }
@@ -89,9 +91,12 @@ logging_send_syslog_msg(passt_t)
 allow syslogd_t self:cap_userns sys_ptrace;
 
 allow passt_t self:process setcap;
-allow passt_t self:capability { sys_tty_config setpcap net_bind_service };
+allow passt_t self:capability { sys_tty_config setpcap net_bind_service setuid setgid};
 allow passt_t self:cap_userns { setpcap sys_admin sys_ptrace };
 allow passt_t self:user_namespace create;
+
+allow passt_t passwd_file_t:file read_file_perms;
+sssd_search_lib(passt_t)
 
 allow passt_t proc_net_t:file read;
 allow passt_t net_conf_t:file { open read };
