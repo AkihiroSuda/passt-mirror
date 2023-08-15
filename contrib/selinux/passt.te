@@ -51,6 +51,7 @@ require {
 
 	class capability sys_tty_config;
 	class cap_userns { setpcap sys_admin sys_ptrace };
+	class user_namespace create;
 }
 
 type passt_t;
@@ -90,6 +91,7 @@ allow syslogd_t self:cap_userns sys_ptrace;
 allow passt_t self:process setcap;
 allow passt_t self:capability { sys_tty_config setpcap net_bind_service };
 allow passt_t self:cap_userns { setpcap sys_admin sys_ptrace };
+allow passt_t self:user_namespace create;
 
 allow passt_t proc_net_t:file read;
 allow passt_t net_conf_t:file { open read };

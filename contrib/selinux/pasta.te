@@ -80,6 +80,7 @@ require {
 	type init_t;
 
 	class cap_userns { setpcap sys_admin sys_ptrace net_bind_service net_admin };
+	class user_namespace create;
 }
 
 type pasta_t;
@@ -104,6 +105,7 @@ init_daemon_domain(pasta_t, pasta_exec_t)
 
 allow pasta_t self:capability { setpcap net_bind_service sys_tty_config dac_read_search net_admin sys_resource };
 allow pasta_t self:cap_userns { setpcap sys_admin sys_ptrace net_admin net_bind_service };
+allow pasta_t self:user_namespace create;
 
 allow pasta_t bin_t:file { execute execute_no_trans map };
 allow pasta_t nsfs_t:file { open read };
