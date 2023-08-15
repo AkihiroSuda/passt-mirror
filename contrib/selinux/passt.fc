@@ -8,5 +8,6 @@
 # Copyright (c) 2022 Red Hat GmbH
 # Author: Stefano Brivio <sbrivio@redhat.com>
 
-/usr/bin/passt(\.*)?		system_u:object_r:passt_exec_t:s0
+/usr/bin/passt			system_u:object_r:passt_exec_t:s0
+/usr/bin/passt.avx2		system_u:object_r:passt_exec_t:s0
 /tmp/passt\.pcap		system_u:object_r:passt_log_t:s0
