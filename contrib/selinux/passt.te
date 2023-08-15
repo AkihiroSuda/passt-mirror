@@ -103,6 +103,7 @@ allow passt_t net_conf_t:file { open read };
 allow passt_t net_conf_t:lnk_file read;
 allow passt_t tmp_t:sock_file { create unlink write };
 allow passt_t self:netlink_route_socket { bind create nlmsg_read read write setopt };
+kernel_search_network_sysctl(passt_t)
 
 corenet_tcp_bind_all_nodes(passt_t)
 corenet_udp_bind_all_nodes(passt_t)
