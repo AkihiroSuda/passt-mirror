@@ -187,6 +187,8 @@ allow pasta_t sysctl_net_t:dir search;
 allow pasta_t sysctl_net_t:file { open write };
 allow pasta_t kernel_t:system module_request;
 
+allow pasta_t nsfs_t:file read;
+
 allow pasta_t net_conf_t:lnk_file read;
 allow pasta_t proc_net_t:lnk_file read;
 
