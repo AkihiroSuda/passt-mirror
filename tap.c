@@ -561,7 +561,8 @@ static bool tap4_is_fragment(const struct iphdr *iph,
 
 		num_dropped++;
 		if (now->tv_sec - last_message > FRAGMENT_MSG_RATE) {
-			warn("Can't process IPv4 fragments (%lu dropped)", num_dropped);
+			warn("Can't process IPv4 fragments (%u dropped)",
+			     num_dropped);
 			last_message = now->tv_sec;
 			num_dropped = 0;
 		}
