@@ -51,6 +51,7 @@ require {
 	type tun_tap_device_t;
 	type sysctl_net_t;
 	class tun_socket create;
+	type user_tty_device_t;
 
 	attribute port_type;
 	type port_t;
@@ -77,6 +78,12 @@ require {
 	type kernel_t;
 	class process setpgid;
 	type shell_exec_t;
+	type ifconfig_exec_t;
+	type netutils_exec_t;
+	type ping_exec_t;
+	type ifconfig_t;
+	type netutils_t;
+	type ping_t;
 	type init_t;
 
 	class capability { sys_tty_config setuid setgid };
@@ -111,7 +118,12 @@ allow pasta_t self:user_namespace create;
 allow pasta_t passwd_file_t:file read_file_perms;
 sssd_search_lib(pasta_t)
 
-allow pasta_t bin_t:file { execute execute_no_trans map };
+domain_auto_trans(pasta_t, bin_t, unconfined_t);
+domain_auto_trans(pasta_t, shell_exec_t, unconfined_t);
+domain_auto_trans(pasta_t, ifconfig_exec_t, ifconfig_t);
+domain_auto_trans(pasta_t, netutils_exec_t, netutils_t);
+domain_auto_trans(pasta_t, ping_exec_t, ping_t);
+
 allow pasta_t nsfs_t:file { open read };
 
 allow pasta_t user_home_t:dir getattr;
@@ -192,3 +204,8 @@ allow pasta_t nsfs_t:file read;
 allow pasta_t net_conf_t:lnk_file read;
 allow pasta_t proc_net_t:lnk_file read;
 
+allow pasta_t unconfined_t:process { noatsecure rlimitinh siginh };
+allow pasta_t ifconfig_t:process { noatsecure rlimitinh siginh };
+allow pasta_t netutils_t:process { noatsecure rlimitinh siginh };
+allow pasta_t ping_t:process { noatsecure rlimitinh siginh };
+allow pasta_t user_tty_device_t:chr_file { append read write };
