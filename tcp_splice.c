@@ -172,7 +172,7 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 static int tcp_splice_epoll_ctl(const struct ctx *c,
 				struct tcp_splice_conn *conn)
 {
-	int m = conn->c.in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
+	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref_a = { .type = EPOLL_TYPE_TCP, .fd = conn->a,
 				  .tcp.index = CONN_IDX(conn) };
 	union epoll_ref ref_b = { .type = EPOLL_TYPE_TCP, .fd = conn->b,
@@ -192,7 +192,7 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 	    epoll_ctl(c->epollfd, m, conn->b, &ev_b))
 		goto delete;
 
-	conn->c.in_epoll = true;
+	conn->in_epoll = true;
 
 	return 0;
 

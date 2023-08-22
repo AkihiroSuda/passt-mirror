@@ -12,11 +12,9 @@
 /**
  * struct tcp_conn_common - Common fields for spliced and non-spliced
  * @spliced:		Is this a spliced connection?
- * @in_epoll:		Is the connection in the epoll set?
  */
 struct tcp_conn_common {
 	bool spliced	:1;
-	bool in_epoll	:1;
 };
 
 extern const char *tcp_common_flag_str[];
@@ -24,6 +22,7 @@ extern const char *tcp_common_flag_str[];
 /**
  * struct tcp_tap_conn - Descriptor for a TCP connection (not spliced)
  * @c:			Fields common with tcp_splice_conn
+ * @in_epoll:		Is the connection in the epoll set?
  * @next_index:		Connection index of next item in hash chain, -1 for none
  * @tap_mss:		MSS advertised by tap/guest, rounded to 2 ^ TCP_MSS_BITS
  * @sock:		Socket descriptor number
@@ -50,6 +49,7 @@ struct tcp_tap_conn {
 	/* Must be first element to match tcp_splice_conn */
 	struct tcp_conn_common c;
 
+	bool		in_epoll	:1;
 	int	 	next_index	:TCP_CONN_INDEX_BITS + 2;
 
 #define TCP_RETRANS_BITS		3
@@ -122,6 +122,7 @@ struct tcp_tap_conn {
 /**
  * struct tcp_splice_conn - Descriptor for a spliced TCP connection
  * @c:			Fields common with tcp_tap_conn
+ * @in_epoll:		Is the connection in the epoll set?
  * @a:			File descriptor number of socket for accepted connection
  * @pipe_a_b:		Pipe ends for splice() from @a to @b
  * @b:			File descriptor number of peer connected socket
@@ -137,6 +138,7 @@ struct tcp_splice_conn {
 	/* Must be first element to match tcp_tap_conn */
 	struct tcp_conn_common c;
 
+	bool in_epoll	:1;
 	int a;
 	int pipe_a_b[2];
 	int b;

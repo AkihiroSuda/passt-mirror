@@ -634,13 +634,13 @@ static void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
  */
 static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
-	int m = conn->c.in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
+	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
 				.tcp.index = CONN_IDX(conn) };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
 	if (conn->events == CLOSED) {
-		if (conn->c.in_epoll)
+		if (conn->in_epoll)
 			epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->sock, &ev);
 		if (conn->timer != -1)
 			epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->timer, &ev);
@@ -652,7 +652,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	if (epoll_ctl(c->epollfd, m, conn->sock, &ev))
 		return -errno;
 
-	conn->c.in_epoll = true;
+	conn->in_epoll = true;
 
 	if (conn->timer != -1) {
 		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP_TIMER,
