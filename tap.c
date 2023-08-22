@@ -818,8 +818,6 @@ resume:
 				continue;
 		}
 
-		*saddr = c->ip6.addr;
-
 		if (proto != IPPROTO_TCP && proto != IPPROTO_UDP) {
 			tap_packet_debug(NULL, ip6h, NULL, proto, NULL, 1);
 			continue;
