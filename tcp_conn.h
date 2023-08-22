@@ -35,9 +35,9 @@ extern const char *tcp_common_flag_str[];
  * @ws_to_tap:		Window scaling factor advertised to tap/guest
  * @sndbuf:		Sending buffer in kernel, rounded to 2 ^ SNDBUF_BITS
  * @seq_dup_ack_approx:	Last duplicate ACK number sent to tap
- * @addr:		Remote address (IPv4 or IPv6)
- * @tap_port:		Guest-facing tap port
- * @sock_port:		Remote, socket-facing port
+ * @faddr:		Guest side forwarding address (guest's remote address)
+ * @eport:		Guest side endpoint port (guest's local port)
+ * @fport:		Guest side forwarding port (guest's remote port)
  * @wnd_from_tap:	Last window size from tap, unscaled (as received)
  * @wnd_to_tap:		Sending window advertised to tap, unscaled (as sent)
  * @seq_to_tap:		Next sequence for packets to tap
@@ -105,9 +105,9 @@ struct tcp_tap_conn {
 	uint8_t		seq_dup_ack_approx;
 
 
-	union inany_addr addr;
-	in_port_t	tap_port;
-	in_port_t	sock_port;
+	union inany_addr faddr;
+	in_port_t	eport;
+	in_port_t	fport;
 
 	uint16_t	wnd_from_tap;
 	uint16_t	wnd_to_tap;

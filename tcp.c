@@ -401,7 +401,7 @@ struct tcp6_l2_head {	/* For MSS6 macro: keep in sync with tcp6_l2_buf_t */
 #define OPT_SACK	5
 #define OPT_TS		8
 
-#define CONN_V4(conn)		(!!inany_v4(&(conn)->addr))
+#define CONN_V4(conn)		(!!inany_v4(&(conn)->faddr))
 #define CONN_V6(conn)		(!CONN_V4(conn))
 #define CONN_IS_CLOSING(conn)						\
 	((conn->events & ESTABLISHED) &&				\
@@ -434,7 +434,9 @@ static const char *tcp_flag_str[] __attribute((__unused__)) = {
 static int tcp_sock_init_ext	[NUM_PORTS][IP_VERSIONS];
 static int tcp_sock_ns		[NUM_PORTS][IP_VERSIONS];
 
-/* Table of destinations with very low RTT (assumed to be local), LRU */
+/* Table of guest side forwarding addresses with very low RTT (assumed
+ * to be local to the host), LRU
+ */
 static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
 
 /* Static buffers */
@@ -858,7 +860,7 @@ static int tcp_rtt_dst_low(const struct tcp_tap_conn *conn)
 	int i;
 
 	for (i = 0; i < LOW_RTT_TABLE_SIZE; i++)
-		if (inany_equals(&conn->addr, low_rtt_dst + i))
+		if (inany_equals(&conn->faddr, low_rtt_dst + i))
 			return 1;
 
 	return 0;
@@ -880,7 +882,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 		return;
 
 	for (i = 0; i < LOW_RTT_TABLE_SIZE; i++) {
-		if (inany_equals(&conn->addr, low_rtt_dst + i))
+		if (inany_equals(&conn->faddr, low_rtt_dst + i))
 			return;
 		if (hole == -1 && IN6_IS_ADDR_UNSPECIFIED(low_rtt_dst + i))
 			hole = i;
@@ -892,7 +894,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 	if (hole == -1)
 		return;
 
-	low_rtt_dst[hole++] = conn->addr;
+	low_rtt_dst[hole++] = conn->faddr;
 	if (hole == LOW_RTT_TABLE_SIZE)
 		hole = 0;
 	inany_from_af(low_rtt_dst + hole, AF_INET6, &in6addr_any);
@@ -1162,18 +1164,18 @@ static int tcp_opt_get(const char *opts, size_t len, uint8_t type_find,
 /**
  * tcp_hash_match() - Check if a connection entry matches address and ports
  * @conn:	Connection entry to match against
- * @addr:	Remote address
- * @tap_port:	tap-facing port
- * @sock_port:	Socket-facing port
+ * @faddr:	Guest side forwarding address
+ * @eport:	Guest side endpoint port
+ * @fport:	Guest side forwarding port
  *
  * Return: 1 on match, 0 otherwise
  */
 static int tcp_hash_match(const struct tcp_tap_conn *conn,
-			  const union inany_addr *addr,
-			  in_port_t tap_port, in_port_t sock_port)
+			  const union inany_addr *faddr,
+			  in_port_t eport, in_port_t fport)
 {
-	if (inany_equals(&conn->addr, addr) &&
-	    conn->tap_port == tap_port && conn->sock_port == sock_port)
+	if (inany_equals(&conn->faddr, faddr) &&
+	    conn->eport == eport && conn->fport == fport)
 		return 1;
 
 	return 0;
@@ -1182,21 +1184,21 @@ static int tcp_hash_match(const struct tcp_tap_conn *conn,
 /**
  * tcp_hash() - Calculate hash value for connection given address and ports
  * @c:		Execution context
- * @addr:	Remote address
- * @tap_port:	tap-facing port
- * @sock_port:	Socket-facing port
+ * @faddr:	Guest side forwarding address
+ * @eport:	Guest side endpoint port
+ * @fport:	Guest side forwarding port
  *
  * Return: hash value, already modulo size of the hash table
  */
-static unsigned int tcp_hash(const struct ctx *c, const union inany_addr *addr,
-			     in_port_t tap_port, in_port_t sock_port)
+static unsigned int tcp_hash(const struct ctx *c, const union inany_addr *faddr,
+			     in_port_t eport, in_port_t fport)
 {
 	struct {
-		union inany_addr addr;
-		in_port_t tap_port;
-		in_port_t sock_port;
+		union inany_addr faddr;
+		in_port_t eport;
+		in_port_t fport;
 	} __attribute__((__packed__)) in = {
-		*addr, tap_port, sock_port
+		*faddr, eport, fport
 	};
 	uint64_t b = 0;
 
@@ -1215,7 +1217,7 @@ static unsigned int tcp_hash(const struct ctx *c, const union inany_addr *addr,
 static unsigned int tcp_conn_hash(const struct ctx *c,
 				  const struct tcp_tap_conn *conn)
 {
-	return tcp_hash(c, &conn->addr, conn->tap_port, conn->sock_port);
+	return tcp_hash(c, &conn->faddr, conn->eport, conn->fport);
 }
 
 /**
@@ -1227,7 +1229,7 @@ static void tcp_hash_insert(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int b;
 
-	b = tcp_hash(c, &conn->addr, conn->tap_port, conn->sock_port);
+	b = tcp_hash(c, &conn->faddr, conn->eport, conn->fport);
 	conn->next_index = tc_hash[b] ? CONN_IDX(tc_hash[b]) : -1;
 	tc_hash[b] = conn;
 
@@ -1296,25 +1298,24 @@ static void tcp_tap_conn_update(struct ctx *c, struct tcp_tap_conn *old,
  * tcp_hash_lookup() - Look up connection given remote address and ports
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
- * @addr:	Remote address, pointer to in_addr or in6_addr
- * @tap_port:	tap-facing port
- * @sock_port:	Socket-facing port
+ * @faddr:	Guest side forwarding address (guest remote address)
+ * @eport:	Guest side endpoint port (guest local port)
+ * @fport:	Guest side forwarding port (guest remote port)
  *
  * Return: connection pointer, if found, -ENOENT otherwise
  */
 static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
-					    int af, const void *addr,
-					    in_port_t tap_port,
-					    in_port_t sock_port)
+					    int af, const void *faddr,
+					    in_port_t eport, in_port_t fport)
 {
 	union inany_addr aany;
 	struct tcp_tap_conn *conn;
 	int b;
 
-	inany_from_af(&aany, af, addr);
-	b = tcp_hash(c, &aany, tap_port, sock_port);
+	inany_from_af(&aany, af, faddr);
+	b = tcp_hash(c, &aany, eport, fport);
 	for (conn = tc_hash[b]; conn; conn = conn_at_idx(conn->next_index)) {
-		if (tcp_hash_match(conn, &aany, tap_port, sock_port))
+		if (tcp_hash_match(conn, &aany, eport, fport))
 			return conn;
 	}
 
@@ -1447,13 +1448,13 @@ static size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 				      void *p, size_t plen,
 				      const uint16_t *check, uint32_t seq)
 {
-	const struct in_addr *a4 = inany_v4(&conn->addr);
+	const struct in_addr *a4 = inany_v4(&conn->faddr);
 	size_t ip_len, tlen;
 
 #define SET_TCP_HEADER_COMMON_V4_V6(b, conn, seq)			\
 do {									\
-	b->th.source = htons(conn->sock_port);				\
-	b->th.dest = htons(conn->tap_port);				\
+	b->th.source = htons(conn->fport);				\
+	b->th.dest = htons(conn->eport);				\
 	b->th.seq = htonl(seq);						\
 	b->th.ack_seq = htonl(conn->seq_ack_to_tap);			\
 	if (conn->events & ESTABLISHED)	{				\
@@ -1489,7 +1490,7 @@ do {									\
 		ip_len = plen + sizeof(struct ipv6hdr) + sizeof(struct tcphdr);
 
 		b->ip6h.payload_len = htons(plen + sizeof(struct tcphdr));
-		b->ip6h.saddr = conn->addr.a6;
+		b->ip6h.saddr = conn->faddr.a6;
 		if (IN6_IS_ADDR_LINKLOCAL(&b->ip6h.saddr))
 			b->ip6h.daddr = c->ip6.addr_ll_seen;
 		else
@@ -1842,7 +1843,7 @@ static void tcp_clamp_window(const struct ctx *c, struct tcp_tap_conn *conn,
 /**
  * tcp_seq_init() - Calculate initial sequence number according to RFC 6528
  * @c:		Execution context
- * @conn:	TCP connection, with addr, sock_port and tap_port populated
+ * @conn:	TCP connection, with faddr, fport and eport populated
  * @now:	Current timestamp
  */
 static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
@@ -1855,9 +1856,9 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 		union inany_addr dst;
 		in_port_t dstport;
 	} __attribute__((__packed__)) in = {
-		.src = conn->addr,
-		.srcport = conn->tap_port,
-		.dstport = conn->sock_port,
+		.src = conn->faddr,
+		.srcport = conn->eport,
+		.dstport = conn->fport,
 	};
 	uint32_t ns, seq = 0;
 
@@ -2082,7 +2083,7 @@ static void tcp_conn_from_tap(struct ctx *c,
 	if (!(conn->wnd_from_tap = (htons(th->window) >> conn->ws_from_tap)))
 		conn->wnd_from_tap = 1;
 
-	inany_from_af(&conn->addr, af, daddr);
+	inany_from_af(&conn->faddr, af, daddr);
 
 	if (af == AF_INET) {
 		sa = (struct sockaddr *)&addr4;
@@ -2092,8 +2093,8 @@ static void tcp_conn_from_tap(struct ctx *c,
 		sl = sizeof(addr6);
 	}
 
-	conn->sock_port = ntohs(th->dest);
-	conn->tap_port = ntohs(th->source);
+	conn->fport = ntohs(th->dest);
+	conn->eport = ntohs(th->source);
 
 	conn->seq_init_from_tap = ntohl(th->seq);
 	conn->seq_from_tap = conn->seq_init_from_tap + 1;
@@ -2753,10 +2754,10 @@ static void tcp_tap_conn_from_sock(struct ctx *c,
 	conn->ws_to_tap = conn->ws_from_tap = 0;
 	conn_event(c, conn, SOCK_ACCEPTED);
 
-	inany_from_sockaddr(&conn->addr, &conn->sock_port, sa);
-	conn->tap_port = ref.port;
+	inany_from_sockaddr(&conn->faddr, &conn->fport, sa);
+	conn->eport = ref.port;
 
-	tcp_snat_inbound(c, &conn->addr);
+	tcp_snat_inbound(c, &conn->faddr);
 
 	tcp_seq_init(c, conn, now);
 	tcp_hash_insert(c, conn);
