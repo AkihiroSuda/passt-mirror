@@ -141,11 +141,13 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 		.tot_len	= 0,					\
 		.id		= 0,					\
 		.frag_off	= 0,					\
-		.ttl		= 255,					\
+		.ttl		= 0xff,					\
 		.protocol	= (proto),				\
 		.saddr		= 0,					\
 		.daddr		= 0,					\
 	}
+#define L2_BUF_IP4_PSUM(proto)	((uint32_t)htons_constant(0x4500) +	\
+				 (uint32_t)htons_constant(0xff00 | (proto)))
 
 #define L2_BUF_IP6_INIT(proto)						\
 	{								\

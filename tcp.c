@@ -323,10 +323,8 @@
 #define MSS_DEFAULT			536
 
 struct tcp4_l2_head {	/* For MSS4 macro: keep in sync with tcp4_l2_buf_t */
-	uint32_t psum;
-	uint32_t tsum;
 #ifdef __AVX2__
-	uint8_t pad[18];
+	uint8_t pad[26];
 #else
 	uint8_t pad[2];
 #endif
@@ -443,8 +441,6 @@ static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
 
 /**
  * tcp4_l2_buf_t - Pre-cooked IPv4 packet buffers for tap connections
- * @psum:	Partial IP header checksum (excluding tot_len and saddr)
- * @tsum:	Partial TCP header checksum (excluding length and saddr)
  * @pad:	Align TCP header to 32 bytes, for AVX2 checksum calculation only
  * @taph:	Tap-level headers (partially pre-filled)
  * @iph:	Pre-filled IP header (except for tot_len and saddr)
@@ -452,17 +448,15 @@ static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
  * @data:	Storage for TCP payload
  */
 static struct tcp4_l2_buf_t {
-	uint32_t psum;		/* 0 */
-	uint32_t tsum;		/* 4 */
 #ifdef __AVX2__
-	uint8_t pad[18];	/* 8, align th to 32 bytes */
+	uint8_t pad[26];	/* 0, align th to 32 bytes */
 #else
-	uint8_t pad[2];		/*	align iph to 4 bytes	8 */
+	uint8_t pad[2];		/*	align iph to 4 bytes	0 */
 #endif
-	struct tap_hdr taph;	/* 26				10 */
-	struct iphdr iph;	/* 44				28 */
-	struct tcphdr th;	/* 64				48 */
-	uint8_t data[MSS4];	/* 84				68 */
+	struct tap_hdr taph;	/* 26				2 */
+	struct iphdr iph;	/* 44				20 */
+	struct tcphdr th;	/* 64				40 */
+	uint8_t data[MSS4];	/* 84				60 */
 				/* 65536			65532 */
 #ifdef __AVX2__
 } __attribute__ ((packed, aligned(32)))
@@ -517,8 +511,6 @@ static struct iovec	tcp_iov			[UIO_MAXIOV];
 
 /**
  * tcp4_l2_flags_buf_t - IPv4 packet buffers for segments without data (flags)
- * @psum:	Partial IP header checksum (excluding tot_len and saddr)
- * @tsum:	Partial TCP header checksum (excluding length and saddr)
  * @pad:	Align TCP header to 32 bytes, for AVX2 checksum calculation only
  * @taph:	Tap-level headers (partially pre-filled)
  * @iph:	Pre-filled IP header (except for tot_len and saddr)
@@ -526,16 +518,14 @@ static struct iovec	tcp_iov			[UIO_MAXIOV];
  * @opts:	Headroom for TCP options
  */
 static struct tcp4_l2_flags_buf_t {
-	uint32_t psum;		/* 0 */
-	uint32_t tsum;		/* 4 */
 #ifdef __AVX2__
-	uint8_t pad[18];	/* 8, align th to 32 bytes */
+	uint8_t pad[26];	/* 0, align th to 32 bytes */
 #else
-	uint8_t pad[2];		/*	align iph to 4 bytes	8 */
+	uint8_t pad[2];		/*	align iph to 4 bytes	0 */
 #endif
-	struct tap_hdr taph;	/* 26				10 */
-	struct iphdr iph;	/* 44				28 */
-	struct tcphdr th;	/* 64				48 */
+	struct tap_hdr taph;	/* 26				2 */
+	struct iphdr iph;	/* 44				20 */
+	struct tcphdr th;	/* 64				40 */
 	char opts[OPT_MSS_LEN + OPT_WS_LEN + 1];
 #ifdef __AVX2__
 } __attribute__ ((packed, aligned(32)))
@@ -953,11 +943,13 @@ void tcp_sock_set_bufsize(const struct ctx *c, int s)
  */
 static void tcp_update_check_ip4(struct tcp4_l2_buf_t *buf)
 {
-	uint32_t sum = buf->psum;
+	uint32_t sum = L2_BUF_IP4_PSUM(IPPROTO_TCP);
 
 	sum += buf->iph.tot_len;
 	sum += (buf->iph.saddr >> 16) & 0xffff;
 	sum += buf->iph.saddr & 0xffff;
+	sum += (buf->iph.daddr >> 16) & 0xffff;
+	sum += buf->iph.daddr & 0xffff;
 
 	buf->iph.check = (uint16_t)~csum_fold(sum);
 }
@@ -969,10 +961,12 @@ static void tcp_update_check_ip4(struct tcp4_l2_buf_t *buf)
 static void tcp_update_check_tcp4(struct tcp4_l2_buf_t *buf)
 {
 	uint16_t tlen = ntohs(buf->iph.tot_len) - 20;
-	uint32_t sum = buf->tsum;
+	uint32_t sum = htons(IPPROTO_TCP);
 
 	sum += (buf->iph.saddr >> 16) & 0xffff;
 	sum += buf->iph.saddr & 0xffff;
+	sum += (buf->iph.daddr >> 16) & 0xffff;
+	sum += buf->iph.daddr & 0xffff;
 	sum += htons(ntohs(buf->iph.tot_len) - 20);
 
 	buf->th.check = 0;
@@ -1023,20 +1017,6 @@ void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
 
 		if (ip_da) {
 			b4f->iph.daddr = b4->iph.daddr = ip_da->s_addr;
-			if (!i) {
-				b4f->iph.saddr = b4->iph.saddr = 0;
-				b4f->iph.tot_len = b4->iph.tot_len = 0;
-				b4f->iph.check = b4->iph.check = 0;
-				b4f->psum = b4->psum = sum_16b(&b4->iph, 20);
-
-				b4->tsum = ((ip_da->s_addr >> 16) & 0xffff) +
-					    (ip_da->s_addr & 0xffff) +
-					    htons(IPPROTO_TCP);
-				b4f->tsum = b4->tsum;
-			} else {
-				b4f->psum = b4->psum = tcp4_l2_buf[0].psum;
-				b4f->tsum = b4->tsum = tcp4_l2_buf[0].tsum;
-			}
 		}
 	}
 }
@@ -1045,15 +1025,16 @@ void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
  * tcp_sock4_iov_init() - Initialise scatter-gather L2 buffers for IPv4 sockets
  * @c:		Execution context
  */
-static void tcp_sock4_iov_init(const struct ctx *c)
+static void tcp_sock4_iov_init(struct ctx *c)
 {
+	struct iphdr iph = L2_BUF_IP4_INIT(IPPROTO_TCP);
 	struct iovec *iov;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(tcp4_l2_buf); i++) {
 		tcp4_l2_buf[i] = (struct tcp4_l2_buf_t) {
 			.taph = TAP_HDR_INIT(ETH_P_IP),
-			.iph = L2_BUF_IP4_INIT(IPPROTO_TCP),
+			.iph = iph,
 			.th = { .doff = sizeof(struct tcphdr) / 4, .ack = 1 }
 		};
 	}

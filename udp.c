@@ -168,7 +168,6 @@ static uint8_t udp_act[IP_VERSIONS][UDP_ACT_TYPE_MAX][DIV_ROUND_UP(NUM_PORTS, 8)
 /**
  * udp4_l2_buf_t - Pre-cooked IPv4 packet buffers for tap connections
  * @s_in:	Source socket address, filled in by recvmmsg()
- * @psum:	Partial IP header checksum (excluding tot_len and saddr)
  * @taph:	Tap-level headers (partially pre-filled)
  * @iph:	Pre-filled IP header (except for tot_len and saddr)
  * @uh:		Headroom for UDP header
@@ -176,7 +175,6 @@ static uint8_t udp_act[IP_VERSIONS][UDP_ACT_TYPE_MAX][DIV_ROUND_UP(NUM_PORTS, 8)
  */
 static struct udp4_l2_buf_t {
 	struct sockaddr_in s_in;
-	uint32_t psum;
 
 	struct tap_hdr taph;
 	struct iphdr iph;
@@ -263,11 +261,13 @@ static void udp_invert_portmap(struct udp_port_fwd *fwd)
  */
 static void udp_update_check4(struct udp4_l2_buf_t *buf)
 {
-	uint32_t sum = buf->psum;
+	uint32_t sum = L2_BUF_IP4_PSUM(IPPROTO_UDP);
 
 	sum += buf->iph.tot_len;
 	sum += (buf->iph.saddr >> 16) & 0xffff;
 	sum += buf->iph.saddr & 0xffff;
+	sum += (buf->iph.daddr >> 16) & 0xffff;
+	sum += buf->iph.daddr & 0xffff;
 
 	buf->iph.check = (uint16_t)~csum_fold(sum);
 }
@@ -292,14 +292,6 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
 
 		if (ip_da) {
 			b4->iph.daddr = ip_da->s_addr;
-			if (!i) {
-				b4->iph.saddr = 0;
-				b4->iph.tot_len = 0;
-				b4->iph.check = 0;
-				b4->psum = sum_16b(&b4->iph, 20);
-			} else {
-				b4->psum = udp4_l2_buf[0].psum;
-			}
 		}
 	}
 }
