@@ -309,9 +309,6 @@
 #define TCP_FRAMES							\
 	(c->mode == MODE_PASST ? TCP_FRAMES_MEM : 1)
 
-#define TCP_FILE_PRESSURE		30	/* % of c->nofile */
-#define TCP_CONN_PRESSURE		30	/* % of c->tcp.conn_count */
-
 #define TCP_HASH_TABLE_LOAD		70		/* % */
 #define TCP_HASH_TABLE_SIZE		(TCP_MAX_CONNS * 100 /		\
 					 TCP_HASH_TABLE_LOAD)
@@ -1385,16 +1382,10 @@ static void tcp_l2_data_buf_flush(struct ctx *c)
  */
 void tcp_defer_handler(struct ctx *c)
 {
-	int max_conns = c->tcp.conn_count / 100 * TCP_CONN_PRESSURE;
-	int max_files = c->nofile / 100 * TCP_FILE_PRESSURE;
 	union tcp_conn *conn;
 
 	tcp_l2_flags_buf_flush(c);
 	tcp_l2_data_buf_flush(c);
-
-	if ((c->tcp.conn_count < MIN(max_files, max_conns)) &&
-	    (c->tcp.splice_conn_count < MIN(max_files / 6, max_conns)))
-		return;
 
 	for (conn = tc + c->tcp.conn_count - 1; conn >= tc; conn--) {
 		if (conn->c.spliced) {

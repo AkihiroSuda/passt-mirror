@@ -295,7 +295,6 @@ void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union)
 	conn->flags = 0;
 	debug("TCP (spliced): index %li, CLOSED", CONN_IDX(conn));
 
-	c->tcp.splice_conn_count--;
 	tcp_table_compact(c, conn_union);
 }
 
@@ -513,7 +512,6 @@ bool tcp_splice_conn_from_sock(struct ctx *c, union tcp_listen_epoll_ref ref,
 		trace("TCP (spliced): failed to set TCP_QUICKACK on %i", s);
 
 	conn->c.spliced = true;
-	c->tcp.splice_conn_count++;
 	conn->a = s;
 
 	if (tcp_splice_new(c, conn, ref.port, ref.ns))
