@@ -6,6 +6,9 @@
  *           IPv6 or IPv4 (encoded as IPv4-mapped IPv6 addresses)
  */
 
+#ifndef INANY_H
+#define INANY_H
+
 /** union inany_addr - Represents either an IPv4 or IPv6 address
  * @a6:			Address as an IPv6 address, may be IPv4-mapped
  * @v4mapped.zero:	All zero-bits for an IPv4 address
@@ -90,3 +93,5 @@ static inline void inany_from_sockaddr(union inany_addr *aa, in_port_t *port,
 		ASSERT(0);
 	}
 }
+
+#endif /* INANY_H */
