@@ -997,10 +997,8 @@ static void tcp_update_check_tcp6(struct tcp6_l2_buf_t *buf)
  * tcp_update_l2_buf() - Update L2 buffers with Ethernet and IPv4 addresses
  * @eth_d:	Ethernet destination address, NULL if unchanged
  * @eth_s:	Ethernet source address, NULL if unchanged
- * @ip_da:	Pointer to IPv4 destination address, NULL if unchanged
  */
-void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
-		       const struct in_addr *ip_da)
+void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 {
 	int i;
 
@@ -1014,10 +1012,6 @@ void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
 		tap_update_mac(&b6->taph, eth_d, eth_s);
 		tap_update_mac(&b4f->taph, eth_d, eth_s);
 		tap_update_mac(&b6f->taph, eth_d, eth_s);
-
-		if (ip_da) {
-			b4f->iph.daddr = b4->iph.daddr = ip_da->s_addr;
-		}
 	}
 }
 

@@ -276,10 +276,8 @@ static void udp_update_check4(struct udp4_l2_buf_t *buf)
  * udp_update_l2_buf() - Update L2 buffers with Ethernet and IPv4 addresses
  * @eth_d:	Ethernet destination address, NULL if unchanged
  * @eth_s:	Ethernet source address, NULL if unchanged
- * @ip_da:	Pointer to IPv4 destination address, NULL if unchanged
  */
-void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
-		       const struct in_addr *ip_da)
+void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 {
 	int i;
 
@@ -289,10 +287,6 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
 
 		tap_update_mac(&b4->taph, eth_d, eth_s);
 		tap_update_mac(&b6->taph, eth_d, eth_s);
-
-		if (ip_da) {
-			b4->iph.daddr = ip_da->s_addr;
-		}
 	}
 }
 
@@ -578,6 +572,7 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 	ip_len = udp4_l2_mh_sock[n].msg_len + sizeof(b->iph) + sizeof(b->uh);
 
 	b->iph.tot_len = htons(ip_len);
+	b->iph.daddr = c->ip4.addr_seen.s_addr;
 
 	src_port = ntohs(b->s_in.sin_port);
 

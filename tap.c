@@ -625,10 +625,8 @@ resume:
 
 		l4_len = l3_len - hlen;
 
-		if (iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr) {
+		if (iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr)
 			c->ip4.addr_seen.s_addr = iph->saddr;
-			proto_update_l2_buf(NULL, NULL, &c->ip4.addr_seen);
-		}
 
 		l4h = packet_get(in, i, sizeof(*eh) + hlen, l4_len, NULL);
 		if (!l4h)
@@ -969,7 +967,7 @@ redo:
 
 		if (memcmp(c->mac_guest, eh->h_source, ETH_ALEN)) {
 			memcpy(c->mac_guest, eh->h_source, ETH_ALEN);
-			proto_update_l2_buf(c->mac_guest, NULL, NULL);
+			proto_update_l2_buf(c->mac_guest, NULL);
 		}
 
 		switch (ntohs(eh->h_proto)) {
@@ -1030,7 +1028,7 @@ restart:
 
 		if (memcmp(c->mac_guest, eh->h_source, ETH_ALEN)) {
 			memcpy(c->mac_guest, eh->h_source, ETH_ALEN);
-			proto_update_l2_buf(c->mac_guest, NULL, NULL);
+			proto_update_l2_buf(c->mac_guest, NULL);
 		}
 
 		switch (ntohs(eh->h_proto)) {

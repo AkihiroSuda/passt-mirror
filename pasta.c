@@ -353,7 +353,7 @@ void pasta_ns_conf(struct ctx *c)
 		}
 	}
 
-	proto_update_l2_buf(c->mac_guest, NULL, NULL);
+	proto_update_l2_buf(c->mac_guest, NULL);
 }
 
 /**

@@ -26,8 +26,7 @@ void tcp_timer(struct ctx *c, const struct timespec *ts);
 void tcp_defer_handler(struct ctx *c);
 
 void tcp_sock_set_bufsize(const struct ctx *c, int s);
-void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
-		       const struct in_addr *ip_da);
+void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s);
 
 /**
  * union tcp_epoll_ref - epoll reference portion for TCP connections

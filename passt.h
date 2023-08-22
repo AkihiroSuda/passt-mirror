@@ -303,7 +303,7 @@ struct ctx {
 	int low_rmem;
 };
 
-void proto_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s,
-			 const struct in_addr *ip_da);
+void proto_update_l2_buf(const unsigned char *eth_d,
+			 const unsigned char *eth_s);
 
 #endif /* PASST_H */
