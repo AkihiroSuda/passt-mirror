@@ -2005,13 +2005,15 @@ static void tcp_bind_outbound(const struct ctx *c, int s, sa_family_t af)
  * tcp_conn_from_tap() - Handle connection request (SYN segment) from tap
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
- * @addr:	Remote address, pointer to in_addr or in6_addr
+ * @saddr:	Source address, pointer to in_addr or in6_addr
+ * @daddr:	Destination address, pointer to in_addr or in6_addr
  * @th:		TCP header from tap: caller MUST ensure it's there
  * @opts:	Pointer to start of options
  * @optlen:	Bytes in options: caller MUST ensure available length
  * @now:	Current timestamp
  */
-static void tcp_conn_from_tap(struct ctx *c, int af, const void *addr,
+static void tcp_conn_from_tap(struct ctx *c,
+			      int af, const void *saddr, const void *daddr,
 			      const struct tcphdr *th, const char *opts,
 			      size_t optlen, const struct timespec *now)
 {
@@ -2019,17 +2021,19 @@ static void tcp_conn_from_tap(struct ctx *c, int af, const void *addr,
 	struct sockaddr_in addr4 = {
 		.sin_family = AF_INET,
 		.sin_port = th->dest,
-		.sin_addr = *(struct in_addr *)addr,
+		.sin_addr = *(struct in_addr *)daddr,
 	};
 	struct sockaddr_in6 addr6 = {
 		.sin6_family = AF_INET6,
 		.sin6_port = th->dest,
-		.sin6_addr = *(struct in6_addr *)addr,
+		.sin6_addr = *(struct in6_addr *)daddr,
 	};
 	const struct sockaddr *sa;
 	struct tcp_tap_conn *conn;
 	socklen_t sl;
 	int s, mss;
+
+	(void)saddr;
 
 	if (c->tcp.conn_count >= TCP_MAX_CONNS)
 		return;
@@ -2039,9 +2043,9 @@ static void tcp_conn_from_tap(struct ctx *c, int af, const void *addr,
 			return;
 
 	if (!c->no_map_gw) {
-		if (af == AF_INET && IN4_ARE_ADDR_EQUAL(addr, &c->ip4.gw))
+		if (af == AF_INET && IN4_ARE_ADDR_EQUAL(daddr, &c->ip4.gw))
 			addr4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-		if (af == AF_INET6 && IN6_ARE_ADDR_EQUAL(addr, &c->ip6.gw))
+		if (af == AF_INET6 && IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.gw))
 			addr6.sin6_addr	= in6addr_loopback;
 	}
 
@@ -2078,7 +2082,7 @@ static void tcp_conn_from_tap(struct ctx *c, int af, const void *addr,
 	if (!(conn->wnd_from_tap = (htons(th->window) >> conn->ws_from_tap)))
 		conn->wnd_from_tap = 1;
 
-	inany_from_af(&conn->addr, af, addr);
+	inany_from_af(&conn->addr, af, daddr);
 
 	if (af == AF_INET) {
 		sa = (struct sockaddr *)&addr4;
@@ -2556,13 +2560,14 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
  * tcp_tap_handler() - Handle packets from tap and state transitions
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
- * @addr:	Destination address
+ * @saddr:	Source address
+ * @daddr:	Destination address
  * @p:		Pool of TCP packets, with TCP headers
  * @now:	Current timestamp
  *
  * Return: count of consumed packets
  */
-int tcp_tap_handler(struct ctx *c, int af, const void *addr,
+int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 		    const struct pool *p, const struct timespec *now)
 {
 	struct tcp_tap_conn *conn;
@@ -2583,12 +2588,13 @@ int tcp_tap_handler(struct ctx *c, int af, const void *addr,
 	optlen = MIN(optlen, ((1UL << 4) /* from doff width */ - 6) * 4UL);
 	opts = packet_get(p, 0, sizeof(*th), optlen, NULL);
 
-	conn = tcp_hash_lookup(c, af, addr, htons(th->source), htons(th->dest));
+	conn = tcp_hash_lookup(c, af, daddr, htons(th->source), htons(th->dest));
 
 	/* New connection from tap */
 	if (!conn) {
 		if (opts && th->syn && !th->ack)
-			tcp_conn_from_tap(c, af, addr, th, opts, optlen, now);
+			tcp_conn_from_tap(c, af, saddr, daddr, th,
+					  opts, optlen, now);
 		return 1;
 	}
 

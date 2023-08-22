@@ -154,16 +154,20 @@ void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref)
  * icmp_tap_handler() - Handle packets from tap
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
- * @addr:	Destination address
+ * @saddr:	Source address
+ * @daddr:	Destination address
  * @p:		Packet pool, single packet with ICMP/ICMPv6 header
  * @now:	Current timestamp
  *
  * Return: count of consumed packets (always 1, even if malformed)
  */
-int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
+int icmp_tap_handler(const struct ctx *c, int af,
+		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
 	size_t plen;
+
+	(void)saddr;
 
 	if (af == AF_INET) {
 		struct sockaddr_in sa = {
@@ -210,7 +214,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 		icmp_id_map[V4][id].ts = now->tv_sec;
 		bitmap_set(icmp_act[V4], id);
 
-		sa.sin_addr = *(struct in_addr *)addr;
+		sa.sin_addr = *(struct in_addr *)daddr;
 		if (sendto(s, ih, sizeof(*ih) + plen, MSG_NOSIGNAL,
 			   (struct sockaddr *)&sa, sizeof(sa)) < 0) {
 			debug("ICMP: failed to relay request to socket");
@@ -264,7 +268,7 @@ int icmp_tap_handler(const struct ctx *c, int af, const void *addr,
 		icmp_id_map[V6][id].ts = now->tv_sec;
 		bitmap_set(icmp_act[V6], id);
 
-		sa.sin6_addr = *(struct in6_addr *)addr;
+		sa.sin6_addr = *(struct in6_addr *)daddr;
 		if (sendto(s, ih, sizeof(*ih) + plen, MSG_NOSIGNAL,
 			   (struct sockaddr *)&sa, sizeof(sa)) < 1) {
 			debug("ICMPv6: failed to relay request to socket");

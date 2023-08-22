@@ -643,7 +643,8 @@ resume:
 			tap_packet_debug(iph, NULL, NULL, 0, NULL, 1);
 
 			packet_add(pkt, l4_len, l4h);
-			icmp_tap_handler(c, AF_INET, &iph->daddr, pkt, now);
+			icmp_tap_handler(c, AF_INET, &iph->saddr, &iph->daddr,
+					 pkt, now);
 			continue;
 		}
 
@@ -708,7 +709,6 @@ append:
 
 	for (j = 0, seq = tap4_l4; j < seq_count; j++, seq++) {
 		struct pool *p = (struct pool *)&seq->p;
-		struct in_addr *da = &seq->daddr;
 		size_t n = p->count;
 
 		tap_packet_debug(NULL, NULL, seq, 0, NULL, n);
@@ -716,11 +716,13 @@ append:
 		if (seq->protocol == IPPROTO_TCP) {
 			if (c->no_tcp)
 				continue;
-			while ((n -= tcp_tap_handler(c, AF_INET, da, p, now)));
+			while ((n -= tcp_tap_handler(c, AF_INET, &seq->saddr,
+						     &seq->daddr, p, now)));
 		} else if (seq->protocol == IPPROTO_UDP) {
 			if (c->no_udp)
 				continue;
-			while ((n -= udp_tap_handler(c, AF_INET, da, p, now)));
+			while ((n -= udp_tap_handler(c, AF_INET, &seq->saddr,
+						     &seq->daddr, p, now)));
 		}
 	}
 
@@ -801,7 +803,7 @@ resume:
 			tap_packet_debug(NULL, ip6h, NULL, proto, NULL, 1);
 
 			packet_add(pkt, l4_len, l4h);
-			icmp_tap_handler(c, AF_INET6, daddr, pkt, now);
+			icmp_tap_handler(c, AF_INET6, saddr, daddr, pkt, now);
 			continue;
 		}
 
@@ -868,7 +870,6 @@ append:
 
 	for (j = 0, seq = tap6_l4; j < seq_count; j++, seq++) {
 		struct pool *p = (struct pool *)&seq->p;
-		struct in6_addr *da = &seq->daddr;
 		size_t n = p->count;
 
 		tap_packet_debug(NULL, NULL, NULL, seq->protocol, seq, n);
@@ -876,11 +877,13 @@ append:
 		if (seq->protocol == IPPROTO_TCP) {
 			if (c->no_tcp)
 				continue;
-			while ((n -= tcp_tap_handler(c, AF_INET6, da, p, now)));
+			while ((n -= tcp_tap_handler(c, AF_INET6, &seq->saddr,
+						     &seq->daddr, p, now)));
 		} else if (seq->protocol == IPPROTO_UDP) {
 			if (c->no_udp)
 				continue;
-			while ((n -= udp_tap_handler(c, AF_INET6, da, p, now)));
+			while ((n -= udp_tap_handler(c, AF_INET6, &seq->saddr,
+						     &seq->daddr, p, now)));
 		}
 	}
 

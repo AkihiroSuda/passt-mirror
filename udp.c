@@ -799,7 +799,8 @@ void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
  * udp_tap_handler() - Handle packets from tap
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
- * @addr:	Destination address
+ * @saddr:	Source address
+ * @daddr:	Destination address
  * @p:		Pool of UDP packets, with UDP headers
  * @now:	Current timestamp
  *
@@ -807,7 +808,7 @@ void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
  *
  * #syscalls sendmmsg
  */
-int udp_tap_handler(struct ctx *c, int af, const void *addr,
+int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 		    const struct pool *p, const struct timespec *now)
 {
 	struct mmsghdr mm[UIO_MAXIOV];
@@ -821,6 +822,7 @@ int udp_tap_handler(struct ctx *c, int af, const void *addr,
 	socklen_t sl;
 
 	(void)c;
+	(void)saddr;
 
 	uh = packet_get(p, 0, 0, sizeof(*uh), NULL);
 	if (!uh)
@@ -836,7 +838,7 @@ int udp_tap_handler(struct ctx *c, int af, const void *addr,
 		s_in = (struct sockaddr_in) {
 			.sin_family = AF_INET,
 			.sin_port = uh->dest,
-			.sin_addr = *(struct in_addr *)addr,
+			.sin_addr = *(struct in_addr *)daddr,
 		};
 
 		sa = (struct sockaddr *)&s_in;
@@ -881,17 +883,17 @@ int udp_tap_handler(struct ctx *c, int af, const void *addr,
 		s_in6 = (struct sockaddr_in6) {
 			.sin6_family = AF_INET6,
 			.sin6_port = uh->dest,
-			.sin6_addr = *(struct in6_addr *)addr,
+			.sin6_addr = *(struct in6_addr *)daddr,
 		};
 		const struct in6_addr *bind_addr = &in6addr_any;
 
 		sa = (struct sockaddr *)&s_in6;
 		sl = sizeof(s_in6);
 
-		if (IN6_ARE_ADDR_EQUAL(addr, &c->ip6.dns_match) &&
+		if (IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.dns_match) &&
 		    ntohs(s_in6.sin6_port) == 53) {
 			s_in6.sin6_addr = c->ip6.dns_host;
-		} else if (IN6_ARE_ADDR_EQUAL(addr, &c->ip6.gw) &&
+		} else if (IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.gw) &&
 			   !c->no_map_gw) {
 			if (!(udp_tap_map[V6][dst].flags & PORT_LOCAL) ||
 			    (udp_tap_map[V6][dst].flags & PORT_LOOPBACK))
