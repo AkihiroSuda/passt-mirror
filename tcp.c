@@ -1857,8 +1857,8 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 		in_port_t dstport;
 	} __attribute__((__packed__)) in = {
 		.src = conn->faddr,
-		.srcport = conn->eport,
-		.dstport = conn->fport,
+		.srcport = conn->fport,
+		.dstport = conn->eport,
 	};
 	uint32_t ns, seq = 0;
 
