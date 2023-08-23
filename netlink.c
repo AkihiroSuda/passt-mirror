@@ -629,6 +629,7 @@ int nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 		memcpy(&req.set.a4.l, addr, sizeof(req.set.a4.l));
 		req.set.a4.rta_l.rta_len = rta_len;
 		req.set.a4.rta_l.rta_type = IFA_LOCAL;
+		memcpy(&req.set.a4.a, addr, sizeof(req.set.a4.a));
 		req.set.a4.rta_a.rta_len = rta_len;
 		req.set.a4.rta_a.rta_type = IFA_ADDRESS;
 	}
