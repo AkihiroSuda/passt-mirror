@@ -462,8 +462,21 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			if (rta->rta_type == RTA_OIF)
+			if (rta->rta_type == RTA_OIF) {
+				/* The host obviously list's the host interface
+				 * id here, we need to change it to the
+				 * namespace's interface id
+				 */
 				*(unsigned int *)RTA_DATA(rta) = ifi_dst;
+			} else if (rta->rta_type == RTA_PREFSRC) {
+				/* Host routes might include a preferred source
+				 * address, which must be one of the host's
+				 * addresses.  However, with -a pasta will use a
+				 * different namespace address, making such a
+				 * route invalid in the namespace.  Strip off
+				 * RTA_PREFSRC attributes to avoid that. */
+				rta->rta_type = RTA_UNSPEC;
+			}
 		}
 	}
 
