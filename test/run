@@ -82,6 +82,10 @@ run() {
 	test pasta_options/log_to_file
 	teardown pasta_options
 
+	setup build
+	test pasta_podman/bats
+	teardown build
+
 	setup memory
 	test memory/passt
 	teardown memory
