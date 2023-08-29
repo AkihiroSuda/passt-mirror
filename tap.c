@@ -615,7 +615,7 @@ resume:
 			continue;
 
 		hlen = iph->ihl * 4UL;
-		if (hlen < sizeof(*iph) || htons(iph->tot_len) != l3_len ||
+		if (hlen < sizeof(*iph) || htons(iph->tot_len) > l3_len ||
 		    hlen > l3_len)
 			continue;
 
@@ -623,7 +623,7 @@ resume:
 		if (tap4_is_fragment(iph, now))
 			continue;
 
-		l4_len = l3_len - hlen;
+		l4_len = htons(iph->tot_len) - hlen;
 
 		if (iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr)
 			c->ip4.addr_seen.s_addr = iph->saddr;
