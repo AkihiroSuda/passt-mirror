@@ -323,8 +323,8 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	if (opts[53].c[0] == DHCPDISCOVER) {
 		info("DHCP: offer to discover");
 		opts[53].s[0] = DHCPOFFER;
-	} else if (opts[53].c[0] == DHCPREQUEST) {
-		info("DHCP: ack to request");
+	} else if (opts[53].c[0] == DHCPREQUEST || !opts[53].clen) {
+		info("%s: ack to request", opts[53].clen ? "DHCP" : "BOOTP");
 		opts[53].s[0] = DHCPACK;
 	} else {
 		return -1;
