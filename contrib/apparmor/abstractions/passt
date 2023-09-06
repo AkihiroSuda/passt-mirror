@@ -26,7 +26,7 @@
   capability sys_ptrace,
 
   /					r,	# isolate_prefork(), isolation.c
-  mount		""	-> "/",
+  mount options=(rw, runbindable) /,
   mount		""	-> "/tmp/",
   pivot_root	"/tmp/" -> "/tmp/",
   umount	"/",
