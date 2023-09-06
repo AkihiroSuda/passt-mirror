@@ -51,17 +51,27 @@ This package adds SELinux enforcement to passt(1) and pasta(1).
 
 %build
 %set_build_flags
-%make_build VERSION="%{version}-%{release}.%{_arch}"
+# The Makefile creates symbolic links for pasta, but we need actual copies for
+# SELinux file contexts to work as intended. Same with pasta.avx2 if present.
+# Build twice, changing the version string, to avoid duplicate Build-IDs.
+%make_build VERSION="%{version}-%{release}.%{_arch}-pasta"
+mv -f passt pasta
+%ifarch x86_64
+mv -f passt.avx2 pasta.avx2
+%make_build passt passt.avx2 VERSION="%{version}-%{release}.%{_arch}"
+%else
+%make_build passt VERSION="%{version}-%{release}.%{_arch}"
+%endif
 
 %install
+# Already built (not as symbolic links), see above
+touch pasta
+%ifarch x86_64
+touch pasta.avx2
+%endif
 
 %make_install DESTDIR=%{buildroot} prefix=%{_prefix} bindir=%{_bindir} mandir=%{_mandir} docdir=%{_docdir}/%{name}
-# The Makefile creates symbolic links for pasta, but we need hard links for
-# SELinux file contexts to work as intended. Same with pasta.avx2 if present.
-ln -f %{buildroot}%{_bindir}/passt %{buildroot}%{_bindir}/pasta
 %ifarch x86_64
-ln -f %{buildroot}%{_bindir}/passt.avx2 %{buildroot}%{_bindir}/pasta.avx2
-
 ln -sr %{buildroot}%{_mandir}/man1/passt.1 %{buildroot}%{_mandir}/man1/passt.avx2.1
 ln -sr %{buildroot}%{_mandir}/man1/pasta.1 %{buildroot}%{_mandir}/man1/pasta.avx2.1
 install -p -m 755 %{buildroot}%{_bindir}/passt.avx2 %{buildroot}%{_bindir}/pasta.avx2
