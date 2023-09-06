@@ -15,10 +15,17 @@
 
   include <abstractions/passt>
 
+  mount		""	-> "/proc/",
+
   @{PROC}/net/tcp			r,	# procfs_scan_listen(), util.c
   @{PROC}/net/tcp6			r,
   @{PROC}/net/udp			r,
   @{PROC}/net/udp6			r,
+
+  @{PROC}/@{pid}/net/tcp		r,	# procfs_scan_listen(), util.c
+  @{PROC}/@{pid}/net/tcp6		r,
+  @{PROC}/@{pid}/net/udp		r,
+  @{PROC}/@{pid}/net/udp6		r,
 
   @{run}/user/@{uid}/netns/*		r,	# pasta_open_ns(), pasta.c
 
