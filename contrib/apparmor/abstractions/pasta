@@ -40,3 +40,5 @@
 
   owner @{PROC}/sys/net/ipv4/ping_group_range w, # pasta_spawn_cmd(), pasta.c
   /{usr/,}bin/**			Ux,
+
+  /usr/bin/pasta.avx2			ix,	# arch_avx2_exec(), arch.c
