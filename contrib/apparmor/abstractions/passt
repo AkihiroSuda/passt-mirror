@@ -31,6 +31,8 @@
   pivot_root	"/tmp/" -> "/tmp/",
   umount	"/",
 
+  owner @{PROC}/@{pid}/uid_map		r,	# conf_ugid()
+
   network netlink raw,				# nl_sock_init_do(), netlink.c
 
   network inet stream,				# tcp.c
