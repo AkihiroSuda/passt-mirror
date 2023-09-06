@@ -15,8 +15,7 @@
 
   include <abstractions/base>
 
-  # Alternatively: include <abstractions/nameservice>
-  @{etc_ro}/resolv.conf			r,	# get_dns(), conf.c
+  include <abstractions/nameservice>		# get_dns(), conf.c
 
   capability net_bind_service,			# isolation.c, conf.c
   capability setuid,
