@@ -2294,11 +2294,12 @@ err:
  * @c:		Execution context
  * @conn:	Connection pointer
  * @p:		Pool of TCP packets, with TCP headers
+ * @idx:	Index of first data packet in pool
  *
  * #syscalls sendmsg
  */
 static void tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
-			      const struct pool *p)
+			      const struct pool *p, int idx)
 {
 	int i, iov_i, ack = 0, fin = 0, retr = 0, keep = -1, partial_send = 0;
 	uint16_t max_ack_seq_wnd = conn->wnd_from_tap;
@@ -2313,7 +2314,7 @@ static void tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 
 	ASSERT(conn->events & ESTABLISHED);
 
-	for (i = 0, iov_i = 0; i < (int)p->count; i++) {
+	for (i = idx, iov_i = 0; i < (int)p->count; i++) {
 		uint32_t seq, seq_offset, ack_seq;
 		struct tcphdr *th;
 		char *data;
@@ -2530,12 +2531,13 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
  * @saddr:	Source address
  * @daddr:	Destination address
  * @p:		Pool of TCP packets, with TCP headers
+ * @idx:	Index of first packet in pool to process
  * @now:	Current timestamp
  *
  * Return: count of consumed packets
  */
 int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
-		    const struct pool *p, const struct timespec *now)
+		    const struct pool *p, int idx, const struct timespec *now)
 {
 	struct tcp_tap_conn *conn;
 	size_t optlen, len;
@@ -2543,17 +2545,17 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	int ack_due = 0;
 	char *opts;
 
-	if (!packet_get(p, 0, 0, 0, &len))
+	if (!packet_get(p, idx, 0, 0, &len))
 		return 1;
 
-	th = packet_get(p, 0, 0, sizeof(*th), NULL);
+	th = packet_get(p, idx, 0, sizeof(*th), NULL);
 	if (!th)
 		return 1;
 
 	optlen = th->doff * 4UL - sizeof(*th);
 	/* Static checkers might fail to see this: */
 	optlen = MIN(optlen, ((1UL << 4) /* from doff width */ - 6) * 4UL);
-	opts = packet_get(p, 0, sizeof(*th), optlen, NULL);
+	opts = packet_get(p, idx, sizeof(*th), optlen, NULL);
 
 	conn = tcp_hash_lookup(c, af, daddr, htons(th->source), htons(th->dest));
 
@@ -2569,7 +2571,7 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 
 	if (th->rst) {
 		conn_event(c, conn, CLOSED);
-		return p->count;
+		return p->count - idx;
 	}
 
 	if (th->ack && !(conn->events & ESTABLISHED))
@@ -2591,7 +2593,7 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	if (conn->events & TAP_SYN_RCVD) {
 		if (!(conn->events & TAP_SYN_ACK_SENT)) {
 			tcp_rst(c, conn);
-			return p->count;
+			return p->count - idx;
 		}
 
 		conn_event(c, conn, ESTABLISHED);
@@ -2603,19 +2605,19 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 			tcp_send_flag(c, conn, ACK);
 			conn_event(c, conn, SOCK_FIN_SENT);
 
-			return p->count;
+			return p->count - idx;
 		}
 
 		if (!th->ack) {
 			tcp_rst(c, conn);
-			return p->count;
+			return p->count - idx;
 		}
 
 		tcp_clamp_window(c, conn, ntohs(th->window));
 
 		tcp_data_from_sock(c, conn);
 
-		if (p->count == 1)
+		if (p->count - idx == 1)
 			return 1;
 	}
 
@@ -2631,7 +2633,7 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	}
 
 	/* Established connections accepting data from tap */
-	tcp_data_from_tap(c, conn, p);
+	tcp_data_from_tap(c, conn, p, idx);
 	if (conn->seq_ack_to_tap != conn->seq_from_tap)
 		ack_due = 1;
 
@@ -2645,7 +2647,7 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	if (ack_due)
 		conn_flag(c, conn, ACK_TO_TAP_DUE);
 
-	return p->count;
+	return p->count - idx;
 }
 
 /**
