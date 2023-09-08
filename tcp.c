@@ -2598,7 +2598,7 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 			tcp_send_flag(c, conn, ACK);
 			conn_event(c, conn, SOCK_FIN_SENT);
 
-			return p->count - idx;
+			return 1;
 		}
 
 		if (!th->ack)
