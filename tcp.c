@@ -1146,7 +1146,7 @@ static int tcp_hash_match(const struct tcp_tap_conn *conn,
 			  const union inany_addr *faddr,
 			  in_port_t eport, in_port_t fport)
 {
-	if (inany_equals(&conn->faddr, faddr) &&
+	if (conn->events != CLOSED && inany_equals(&conn->faddr, faddr) &&
 	    conn->eport == eport && conn->fport == fport)
 		return 1;
 
