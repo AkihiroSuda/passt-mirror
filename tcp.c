@@ -2323,17 +2323,13 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 		size_t off;
 
 		th = packet_get(p, i, 0, sizeof(*th), &len);
-		if (!th) {
-			tcp_rst(c, conn);
-			return p->count - idx;
-		}
+		if (!th)
+			return -1;
 		len += sizeof(*th);
 
 		off = th->doff * 4UL;
-		if (off < sizeof(*th) || off > len) {
-			tcp_rst(c, conn);
-			return p->count - idx;
-		}
+		if (off < sizeof(*th) || off > len)
+			return -1;
 
 		if (th->rst) {
 			conn_event(c, conn, CLOSED);
@@ -2449,9 +2445,9 @@ eintr:
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 			tcp_send_flag(c, conn, ACK_IF_NEEDED);
 			return p->count - idx;
+
 		}
-		tcp_rst(c, conn);
-		return p->count - idx;
+		return -1;
 	}
 
 	if (n < (int)(seq_from_tap - conn->seq_from_tap)) {
@@ -2580,20 +2576,18 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 
 	/* Establishing connection from socket */
 	if (conn->events & SOCK_ACCEPTED) {
-		if (th->syn && th->ack && !th->fin)
+		if (th->syn && th->ack && !th->fin) {
 			tcp_conn_from_sock_finish(c, conn, th, opts, optlen);
-		else
-			tcp_rst(c, conn);
+			return 1;
+		}
 
-		return 1;
+		goto reset;
 	}
 
 	/* Establishing connection from tap */
 	if (conn->events & TAP_SYN_RCVD) {
-		if (!(conn->events & TAP_SYN_ACK_SENT)) {
-			tcp_rst(c, conn);
-			return p->count - idx;
-		}
+		if (!(conn->events & TAP_SYN_ACK_SENT))
+			goto reset;
 
 		conn_event(c, conn, ESTABLISHED);
 
@@ -2607,10 +2601,8 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 			return p->count - idx;
 		}
 
-		if (!th->ack) {
-			tcp_rst(c, conn);
-			return p->count - idx;
-		}
+		if (!th->ack)
+			goto reset;
 
 		tcp_clamp_window(c, conn, ntohs(th->window));
 
@@ -2633,6 +2625,9 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 
 	/* Established connections accepting data from tap */
 	count = tcp_data_from_tap(c, conn, p, idx);
+	if (count == -1)
+		goto reset;
+
 	if (conn->seq_ack_to_tap != conn->seq_from_tap)
 		ack_due = 1;
 
@@ -2647,6 +2642,14 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 		conn_flag(c, conn, ACK_TO_TAP_DUE);
 
 	return count;
+
+reset:
+	/* Something's gone wrong, so reset the connection.  We discard
+	 * remaining packets in the batch, since they'd be invalidated when our
+	 * RST is received, even if otherwise good.
+	 */
+	tcp_rst(c, conn);
+	return p->count - idx;
 }
 
 /**
