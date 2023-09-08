@@ -789,6 +789,7 @@ void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
  * @saddr:	Source address
  * @daddr:	Destination address
  * @p:		Pool of UDP packets, with UDP headers
+ * @idx:	Index of first packet to process
  * @now:	Current timestamp
  *
  * Return: count of consumed packets
@@ -796,7 +797,7 @@ void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
  * #syscalls sendmmsg
  */
 int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
-		    const struct pool *p, const struct timespec *now)
+		    const struct pool *p, int idx, const struct timespec *now)
 {
 	struct mmsghdr mm[UIO_MAXIOV];
 	struct iovec m[UIO_MAXIOV];
@@ -811,7 +812,7 @@ int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	(void)c;
 	(void)saddr;
 
-	uh = packet_get(p, 0, 0, sizeof(*uh), NULL);
+	uh = packet_get(p, idx, 0, sizeof(*uh), NULL);
 	if (!uh)
 		return 1;
 
@@ -859,7 +860,7 @@ int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 			s = sock_l4(c, AF_INET, IPPROTO_UDP, &bind_addr,
 				    bind_if, src, uref.u32);
 			if (s < 0)
-				return p->count;
+				return p->count - idx;
 
 			udp_tap_map[V4][src].sock = s;
 			bitmap_set(udp_act[V4][UDP_ACT_TAP], src);
@@ -909,7 +910,7 @@ int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 			s = sock_l4(c, AF_INET6, IPPROTO_UDP, bind_addr,
 				    bind_if, src, uref.u32);
 			if (s < 0)
-				return p->count;
+				return p->count - idx;
 
 			udp_tap_map[V6][src].sock = s;
 			bitmap_set(udp_act[V6][UDP_ACT_TAP], src);
@@ -918,13 +919,13 @@ int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 		udp_tap_map[V6][src].ts = now->tv_sec;
 	}
 
-	for (i = 0; i < (int)p->count; i++) {
+	for (i = 0; i < (int)p->count - idx; i++) {
 		struct udphdr *uh_send;
 		size_t len;
 
-		uh_send = packet_get(p, i, 0, sizeof(*uh), &len);
+		uh_send = packet_get(p, idx + i, 0, sizeof(*uh), &len);
 		if (!uh_send)
-			return p->count;
+			return p->count - idx;
 
 		mm[i].msg_hdr.msg_name = sa;
 		mm[i].msg_hdr.msg_namelen = sl;

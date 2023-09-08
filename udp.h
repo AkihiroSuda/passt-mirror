@@ -11,7 +11,7 @@
 void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
 		      const struct timespec *now);
 int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
-		    const struct pool *p, const struct timespec *now);
+		    const struct pool *p, int idx, const struct timespec *now);
 int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port);
 int udp_init(struct ctx *c);
