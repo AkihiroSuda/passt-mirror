@@ -2320,16 +2320,12 @@ static void tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 		char *data;
 		size_t off;
 
-		if (!packet_get(p, i, 0, 0, &len)) {
-			tcp_rst(c, conn);
-			return;
-		}
-
-		th = packet_get(p, i, 0, sizeof(*th), NULL);
+		th = packet_get(p, i, 0, sizeof(*th), &len);
 		if (!th) {
 			tcp_rst(c, conn);
 			return;
 		}
+		len += sizeof(*th);
 
 		off = th->doff * 4UL;
 		if (off < sizeof(*th) || off > len) {
@@ -2545,12 +2541,10 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	int ack_due = 0;
 	char *opts;
 
-	if (!packet_get(p, idx, 0, 0, &len))
-		return 1;
-
-	th = packet_get(p, idx, 0, sizeof(*th), NULL);
+	th = packet_get(p, idx, 0, sizeof(*th), &len);
 	if (!th)
 		return 1;
+	len += sizeof(*th);
 
 	optlen = th->doff * 4UL - sizeof(*th);
 	/* Static checkers might fail to see this: */
