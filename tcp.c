@@ -2337,7 +2337,7 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 
 		if (th->rst) {
 			conn_event(c, conn, CLOSED);
-			return p->count - idx;
+			return 1;
 		}
 
 		len -= off;
@@ -2570,7 +2570,7 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 
 	if (th->rst) {
 		conn_event(c, conn, CLOSED);
-		return p->count - idx;
+		return 1;
 	}
 
 	if (th->ack && !(conn->events & ESTABLISHED))
