@@ -376,24 +376,34 @@ search:
 		return offset;
 
 	for (i = 0; *c->dns_search[i].n; i++) {
-		if (!i) {
+		size_t name_len = strlen(c->dns_search[i].n);
+
+		/* We already append separators, don't duplicate if present */
+		if (c->dns_search[i].n[name_len - 1] == '.')
+			name_len--;
+
+		/* Skip root-only search domains */
+		if (!name_len)
+			continue;
+
+		if (!srch) {
 			srch = (struct opt_dns_search *)(buf + offset);
 			offset += sizeof(struct opt_hdr);
 			srch->hdr.t = OPT_DNS_SEARCH;
 			srch->hdr.l = 0;
 			p = srch->list;
-			*p = 0;
 		}
 
-		p = stpcpy(p + 1, c->dns_search[i].n);
-		*(p++) = 0;
-		srch->hdr.l += strlen(c->dns_search[i].n) + 2;
-		offset += strlen(c->dns_search[i].n) + 2;
+		*p = '.';
+		p = stpncpy(p + 1, c->dns_search[i].n, name_len);
+		p++;
+		srch->hdr.l += name_len + 2;
+		offset += name_len + 2;
 	}
 
 	if (srch) {
 		for (i = 0; i < srch->hdr.l; i++) {
-			if (srch->list[i] == '.' || !srch->list[i]) {
+			if (srch->list[i] == '.') {
 				srch->list[i] = strcspn(srch->list + i + 1,
 							".");
 			}
