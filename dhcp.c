@@ -317,6 +317,7 @@ int dhcp(const struct ctx *c, const struct pool *p)
 			return -1;
 
 		memcpy(&opts[*type].c, val, *olen);
+		opts[*type].clen = *olen;
 		opt_off += *olen + 2;
 	}
 
