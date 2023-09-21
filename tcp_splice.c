@@ -73,7 +73,7 @@ static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2][2];
 #define CONN_V6(x)			(x->flags & SPLICE_V6)
 #define CONN_V4(x)			(!CONN_V6(x))
 #define CONN_HAS(conn, set)		((conn->events & (set)) == (set))
-#define CONN(index)			(&tc[(index)].splice)
+#define CONN(idx)			(&tc[(idx)].splice)
 #define CONN_IDX(conn)			((union tcp_conn *)(conn) - tc)
 
 /* Display strings for connection events */

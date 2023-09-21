@@ -563,20 +563,20 @@ static unsigned int tcp6_l2_flags_buf_used;
 /* TCP connections */
 union tcp_conn tc[TCP_MAX_CONNS];
 
-#define CONN(index)		(&tc[(index)].tap)
+#define CONN(idx)		(&tc[(idx)].tap)
 #define CONN_IDX(conn)		((union tcp_conn *)(conn) - tc)
 
 /** conn_at_idx() - Find a connection by index, if present
- * @index:	Index of connection to lookup
+ * @idx:	Index of connection to lookup
  *
- * Return: pointer to connection, or NULL if @index is out of bounds
+ * Return: pointer to connection, or NULL if @idx is out of bounds
  */
-static inline struct tcp_tap_conn *conn_at_idx(int index)
+static inline struct tcp_tap_conn *conn_at_idx(int idx)
 {
-	if ((index < 0) || (index >= TCP_MAX_CONNS))
+	if ((idx < 0) || (idx >= TCP_MAX_CONNS))
 		return NULL;
-	ASSERT(!(CONN(index)->c.spliced));
-	return CONN(index);
+	ASSERT(!(CONN(idx)->c.spliced));
+	return CONN(idx);
 }
 
 /* Table for lookup from remote address, local port, remote port */

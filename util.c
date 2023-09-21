@@ -38,15 +38,15 @@
 
 /**
  * ipv6_l4hdr() - Find pointer to L4 header in IPv6 packet and extract protocol
- * @p:		Packet pool, packet number @index has IPv6 header at @offset
- * @index:	Index of packet in pool
+ * @p:		Packet pool, packet number @idx has IPv6 header at @offset
+ * @idx:	Index of packet in pool
  * @offset:	Pre-calculated IPv6 header offset
  * @proto:	Filled with L4 protocol number
  * @dlen:	Data length (payload excluding header extensions), set on return
  *
  * Return: pointer to L4 header, NULL if not found
  */
-char *ipv6_l4hdr(const struct pool *p, int index, size_t offset, uint8_t *proto,
+char *ipv6_l4hdr(const struct pool *p, int idx, size_t offset, uint8_t *proto,
 		 size_t *dlen)
 {
 	struct ipv6_opt_hdr *o;
@@ -55,8 +55,8 @@ char *ipv6_l4hdr(const struct pool *p, int index, size_t offset, uint8_t *proto,
 	int hdrlen;
 	uint8_t nh;
 
-	base = packet_get(p, index, 0, 0, NULL);
-	ip6h = packet_get(p, index, offset, sizeof(*ip6h), dlen);
+	base = packet_get(p, idx, 0, 0, NULL);
+	ip6h = packet_get(p, idx, offset, sizeof(*ip6h), dlen);
 	if (!ip6h)
 		return NULL;
 
@@ -66,7 +66,7 @@ char *ipv6_l4hdr(const struct pool *p, int index, size_t offset, uint8_t *proto,
 	if (!IPV6_NH_OPT(nh))
 		goto found;
 
-	while ((o = packet_get_try(p, index, offset, sizeof(*o), dlen))) {
+	while ((o = packet_get_try(p, idx, offset, sizeof(*o), dlen))) {
 		nh = o->nexthdr;
 		hdrlen = (o->hdrlen + 1) * 8;
 

@@ -33,11 +33,11 @@
 void packet_add_do(struct pool *p, size_t len, const char *start,
 		   const char *func, int line)
 {
-	size_t index = p->count;
+	size_t idx = p->count;
 
-	if (index >= p->size) {
+	if (idx >= p->size) {
 		trace("add packet index %lu to pool with size %lu, %s:%i",
-		      index, p->size, func, line);
+		      idx, p->size, func, line);
 		return;
 	}
 
@@ -66,8 +66,8 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 	}
 #endif
 
-	p->pkt[index].offset = start - p->buf;
-	p->pkt[index].len = len;
+	p->pkt[idx].offset = start - p->buf;
+	p->pkt[idx].len = len;
 
 	p->count++;
 }
@@ -75,7 +75,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 /**
  * packet_get_do() - Get data range from packet descriptor from given pool
  * @p:		Packet pool
- * @index:	Index of packet descriptor in pool
+ * @idx:	Index of packet descriptor in pool
  * @offset:	Offset of data range in packet descriptor
  * @len:	Length of desired data range
  * @left:	Length of available data after range, set on return, can be NULL
@@ -84,13 +84,13 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
  *
  * Return: pointer to start of data range, NULL on invalid range or descriptor
  */
-void *packet_get_do(const struct pool *p, size_t index, size_t offset,
+void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 		    size_t len, size_t *left, const char *func, int line)
 {
-	if (index >= p->size || index >= p->count) {
+	if (idx >= p->size || idx >= p->count) {
 		if (func) {
 			trace("packet %lu from pool size: %lu, count: %lu, "
-			      "%s:%i", index, p->size, p->count, func, line);
+			      "%s:%i", idx, p->size, p->count, func, line);
 		}
 		return NULL;
 	}
@@ -103,28 +103,28 @@ void *packet_get_do(const struct pool *p, size_t index, size_t offset,
 		return NULL;
 	}
 
-	if (p->pkt[index].offset + len + offset > p->buf_size) {
+	if (p->pkt[idx].offset + len + offset > p->buf_size) {
 		if (func) {
 			trace("packet offset plus length %lu from size %lu, "
-			      "%s:%i", p->pkt[index].offset + len + offset,
+			      "%s:%i", p->pkt[idx].offset + len + offset,
 			      p->buf_size, func, line);
 		}
 		return NULL;
 	}
 
-	if (len + offset > p->pkt[index].len) {
+	if (len + offset > p->pkt[idx].len) {
 		if (func) {
 			trace("data length %lu, offset %lu from length %u, "
-			      "%s:%i", len, offset, p->pkt[index].len,
+			      "%s:%i", len, offset, p->pkt[idx].len,
 			      func, line);
 		}
 		return NULL;
 	}
 
 	if (left)
-		*left = p->pkt[index].len - offset - len;
+		*left = p->pkt[idx].len - offset - len;
 
-	return p->buf + p->pkt[index].offset + offset;
+	return p->buf + p->pkt[idx].offset + offset;
 }
 
 /**
