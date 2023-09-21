@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "log.h"
 
@@ -224,5 +225,45 @@ void write_pidfile(int fd, pid_t pid);
 int __daemon(int pidfile_fd, int devnull_fd);
 int fls(unsigned long x);
 int write_file(const char *path, const char *buf);
+
+/*
+ * Workarounds for https://github.com/llvm/llvm-project/issues/58992
+ *
+ * For a number (maybe all) system calls that _write_ a socket address,
+ * clang-tidy doesn't register that the memory of the socket address will be
+ * initialised after the call.  This can't easily be worked around with
+ * clang-tidy suppressions, because the warning doesn't show on the syscall
+ * itself but later when we access the supposedly uninitialised field.
+ */
+static inline void sa_init(struct sockaddr *sa, socklen_t *sl)
+{
+#ifdef CLANG_TIDY_58992
+	if (sa)
+		memset(sa, 0, *sl);
+#else
+	(void)sa;
+	(void)sl;
+#endif /* CLANG_TIDY_58992 */
+}
+
+static inline ssize_t wrap_recvfrom(int sockfd, void *buf, size_t len,
+				    int flags,
+				    struct sockaddr *src_addr,
+				    socklen_t *addrlen)
+{
+	sa_init(src_addr, addrlen);
+	return recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+}
+#define recvfrom(s, buf, len, flags, src, addrlen)		\
+	wrap_recvfrom((s), (buf), (len), (flags), (src), (addrlen))
+
+static inline int wrap_accept4(int sockfd, struct sockaddr *addr,
+			       socklen_t *addrlen, int flags)
+{
+	sa_init(addr, addrlen);
+	return accept4(sockfd, addr, addrlen, flags);
+}
+#define accept4(s, addr, addrlen, flags) \
+	wrap_accept4((s), (addr), (addrlen), (flags))
 
 #endif /* UTIL_H */

@@ -76,11 +76,6 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 	if (c->no_icmp)
 		return;
 
-	/* FIXME: Workaround clang-tidy not realizing that recvfrom()
-	 * writes the socket address.  See
-	 * https://github.com/llvm/llvm-project/issues/58992
-	 */
-	memset(&sr, 0, sizeof(sr));
 	n = recvfrom(ref.fd, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
 	if (n < 0)
 		return;

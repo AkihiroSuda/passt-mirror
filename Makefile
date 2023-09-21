@@ -276,7 +276,7 @@ clang-tidy: $(SRCS) $(HEADERS)
 	-concurrency-mt-unsafe,\
 	-readability-identifier-length \
 	-config='{CheckOptions: [{key: bugprone-suspicious-string-compare.WarnOnImplicitComparison, value: "false"}]}' \
-	--warnings-as-errors=* $(SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS))
+	--warnings-as-errors=* $(SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
 
 SYSTEM_INCLUDES := /usr/include $(wildcard /usr/include/$(TARGET))
 ifeq ($(shell $(CC) -v 2>&1 | grep -c "gcc version"),1)

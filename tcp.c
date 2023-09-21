@@ -2752,19 +2752,13 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 			const struct timespec *now)
 {
 	struct sockaddr_storage sa;
+	socklen_t sl = sizeof(sa);
 	union tcp_conn *conn;
-	socklen_t sl;
 	int s;
 
 	if (c->no_tcp || c->tcp.conn_count >= TCP_MAX_CONNS)
 		return;
 
-	sl = sizeof(sa);
-	/* FIXME: Workaround clang-tidy not realizing that accept4()
-	 * writes the socket address.  See
-	 * https://github.com/llvm/llvm-project/issues/58992
-	 */
-	memset(&sa, 0, sizeof(struct sockaddr_in6));
 	s = accept4(ref.fd, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
 		return;
