@@ -413,13 +413,15 @@ static size_t tap_send_frames_passt(const struct ctx *c,
  * @c:		Execution context
  * @iov:	Array of buffers, each containing one frame (with L2 headers)
  * @n:		Number of buffers/frames in @iov
+ *
+ * Return: number of frames actually sent
  */
-void tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
+size_t tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
 {
 	size_t m;
 
 	if (!n)
-		return;
+		return 0;
 
 	if (c->mode == MODE_PASST)
 		m = tap_send_frames_passt(c, iov, n);
@@ -427,9 +429,11 @@ void tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
 		m = tap_send_frames_pasta(c, iov, n);
 
 	if (m < n)
-		debug("tap: dropped %lu frames of %lu due to short send", n - m, n);
+		debug("tap: failed to send %lu frames of %lu", n - m, n);
 
 	pcap_multiple(iov, m, c->mode == MODE_PASST ? sizeof(uint32_t) : 0);
+
+	return m;
 }
 
 /**

@@ -434,6 +434,16 @@ static int tcp_sock_ns		[NUM_PORTS][IP_VERSIONS];
  */
 static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
 
+/**
+ * tcp_buf_seq_update - Sequences to update with length of frames once sent
+ * @seq:	Pointer to sequence number sent to tap-side, to be updated
+ * @len:	TCP payload length
+ */
+struct tcp_buf_seq_update {
+	uint32_t *seq;
+	uint16_t len;
+};
+
 /* Static buffers */
 
 /**
@@ -462,6 +472,8 @@ static struct tcp4_l2_buf_t {
 #endif
 tcp4_l2_buf[TCP_FRAMES_MEM];
 
+static struct tcp_buf_seq_update tcp4_l2_buf_seq_update[TCP_FRAMES_MEM];
+
 static unsigned int tcp4_l2_buf_used;
 
 /**
@@ -489,6 +501,8 @@ struct tcp6_l2_buf_t {
 } __attribute__ ((packed, aligned(__alignof__(unsigned int))))
 #endif
 tcp6_l2_buf[TCP_FRAMES_MEM];
+
+static struct tcp_buf_seq_update tcp6_l2_buf_seq_update[TCP_FRAMES_MEM];
 
 static unsigned int tcp6_l2_buf_used;
 
@@ -1364,10 +1378,17 @@ static void tcp_l2_flags_buf_flush(const struct ctx *c)
  */
 static void tcp_l2_data_buf_flush(const struct ctx *c)
 {
-	tap_send_frames(c, tcp6_l2_iov, tcp6_l2_buf_used);
+	unsigned i;
+	size_t m;
+
+	m = tap_send_frames(c, tcp6_l2_iov, tcp6_l2_buf_used);
+	for (i = 0; i < m; i++)
+		*tcp6_l2_buf_seq_update[i].seq += tcp6_l2_buf_seq_update[i].len;
 	tcp6_l2_buf_used = 0;
 
-	tap_send_frames(c, tcp4_l2_iov, tcp4_l2_buf_used);
+	m = tap_send_frames(c, tcp4_l2_iov, tcp4_l2_buf_used);
+	for (i = 0; i < m; i++)
+		*tcp4_l2_buf_seq_update[i].seq += tcp4_l2_buf_seq_update[i].len;
 	tcp4_l2_buf_used = 0;
 }
 
@@ -2145,16 +2166,19 @@ static int tcp_sock_consume(const struct tcp_tap_conn *conn, uint32_t ack_seq)
  * @plen:	Payload length at L4
  * @no_csum:	Don't compute IPv4 checksum, use the one from previous buffer
  * @seq:	Sequence number to be sent
- * @now:	Current timestamp
  */
 static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			    ssize_t plen, int no_csum, uint32_t seq)
 {
+	uint32_t *seq_update = &conn->seq_to_tap;
 	struct iovec *iov;
 
 	if (CONN_V4(conn)) {
 		struct tcp4_l2_buf_t *b = &tcp4_l2_buf[tcp4_l2_buf_used];
 		const uint16_t *check = no_csum ? &(b - 1)->iph.check : NULL;
+
+		tcp4_l2_buf_seq_update[tcp4_l2_buf_used].seq = seq_update;
+		tcp4_l2_buf_seq_update[tcp4_l2_buf_used].len = plen;
 
 		iov = tcp4_l2_iov + tcp4_l2_buf_used++;
 		iov->iov_len = tcp_l2_buf_fill_headers(c, conn, b, plen,
@@ -2163,6 +2187,9 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			tcp_l2_data_buf_flush(c);
 	} else if (CONN_V6(conn)) {
 		struct tcp6_l2_buf_t *b = &tcp6_l2_buf[tcp6_l2_buf_used];
+
+		tcp6_l2_buf_seq_update[tcp6_l2_buf_used].seq = seq_update;
+		tcp6_l2_buf_seq_update[tcp6_l2_buf_used].len = plen;
 
 		iov = tcp6_l2_iov + tcp6_l2_buf_used++;
 		iov->iov_len = tcp_l2_buf_fill_headers(c, conn, b, plen,
@@ -2189,7 +2216,7 @@ static int tcp_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 	int s = conn->sock, i, ret = 0;
 	struct msghdr mh_sock = { 0 };
 	uint16_t mss = MSS_GET(conn);
-	uint32_t already_sent;
+	uint32_t already_sent, seq;
 	struct iovec *iov;
 
 	already_sent = conn->seq_to_tap - conn->seq_ack_from_tap;
@@ -2278,14 +2305,15 @@ static int tcp_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 
 	/* Finally, queue to tap */
 	plen = mss;
+	seq = conn->seq_to_tap;
 	for (i = 0; i < send_bufs; i++) {
 		int no_csum = i && i != send_bufs - 1 && tcp4_l2_buf_used;
 
 		if (i == send_bufs - 1)
 			plen = last_len;
 
-		tcp_data_to_tap(c, conn, plen, no_csum, conn->seq_to_tap);
-		conn->seq_to_tap += plen;
+		tcp_data_to_tap(c, conn, plen, no_csum, seq);
+		seq += plen;
 	}
 
 	conn_flag(c, conn, ACK_FROM_TAP_DUE);
