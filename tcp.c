@@ -2517,7 +2517,7 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
 	 * dequeue waiting for SYN,ACK from tap -- check now.
 	 */
 	tcp_data_from_sock(c, conn);
-	tcp_send_flag(c, conn, ACK_IF_NEEDED);
+	tcp_send_flag(c, conn, ACK);
 }
 
 /**
