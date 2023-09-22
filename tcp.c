@@ -1782,7 +1782,23 @@ static void tcp_clamp_window(const struct ctx *c, struct tcp_tap_conn *conn,
 	wnd <<= conn->ws_from_tap;
 	wnd = MIN(MAX_WINDOW, wnd);
 
-	if (conn->flags & WND_CLAMPED) {
+	/* TODO: With (at least) Linux kernel versions 6.1 to 6.5, if we end up
+	 * with a zero-sized window on a TCP socket, dropping data (once
+	 * acknowledged by the guest) with recv() and MSG_TRUNC doesn't appear
+	 * to be enough to make the kernel advertise a non-zero window to the
+	 * sender. Forcing a TCP_WINDOW_CLAMP setting, even with the existing
+	 * value, fixes this.
+	 *
+	 * The STALLED flag on a connection is a sufficient indication that we
+	 * might have a zero-sized window on the socket, because it's set if we
+	 * exhausted the tap-side window, or if everything we receive from a
+	 * socket is already in flight to the guest.
+	 *
+	 * So, if STALLED is set, and we received a window value from the tap,
+	 * force a TCP_WINDOW_CLAMP setsockopt(). This should be investigated
+	 * further and fixed in the kernel instead, if confirmed.
+	 */
+	if (!(conn->flags & STALLED) && conn->flags & WND_CLAMPED) {
 		if (prev_scaled == wnd)
 			return;
 
@@ -2405,11 +2421,11 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 			i = keep - 1;
 	}
 
-	tcp_clamp_window(c, conn, max_ack_seq_wnd);
-
 	/* On socket flush failure, pretend there was no ACK, try again later */
 	if (ack && !tcp_sock_consume(conn, max_ack_seq))
 		tcp_update_seqack_from_tap(c, conn, max_ack_seq);
+
+	tcp_clamp_window(c, conn, max_ack_seq_wnd);
 
 	if (retr) {
 		trace("TCP: fast re-transmit, ACK: %u, previous sequence: %u",
@@ -2568,8 +2584,6 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	if (th->ack && !(conn->events & ESTABLISHED))
 		tcp_update_seqack_from_tap(c, conn, ntohl(th->ack_seq));
 
-	conn_flag(c, conn, ~STALLED);
-
 	/* Establishing connection from socket */
 	if (conn->events & SOCK_ACCEPTED) {
 		if (th->syn && th->ack && !th->fin) {
@@ -2623,6 +2637,11 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	count = tcp_data_from_tap(c, conn, p, idx);
 	if (count == -1)
 		goto reset;
+
+	/* Note: STALLED matters for tcp_clamp_window(): unset it only after
+	 * processing data (and window) from the tap side
+	 */
+	conn_flag(c, conn, ~STALLED);
 
 	if (conn->seq_ack_to_tap != conn->seq_from_tap)
 		ack_due = 1;
