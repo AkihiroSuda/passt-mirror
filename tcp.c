@@ -2099,7 +2099,7 @@ static void tcp_conn_from_tap(struct ctx *c,
 }
 
 /**
- * tcp_sock_consume() - Consume (discard) data from buffer, update ACK sequence
+ * tcp_sock_consume() - Consume (discard) data from buffer
  * @conn:	Connection pointer
  * @ack_seq:	ACK sequence, host order
  *
