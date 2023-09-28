@@ -51,16 +51,16 @@
  *
  */
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "siphash.h"
 
 #define ROTL(x, b) (uint64_t)(((x) << (b)) | ((x) >> (64 - (b))))
 
-#define PREAMBLE(len)							  \
+#define PREAMBLE							  \
 	uint64_t v[4] = { 0x736f6d6570736575ULL, 0x646f72616e646f6dULL,	  \
 			  0x6c7967656e657261ULL, 0x7465646279746573ULL }; \
-	uint64_t b = (uint64_t)(len) << 56;				  \
 	int __i;							  \
 									  \
 	do {								  \
@@ -103,13 +103,21 @@ static inline void siphash_feed(uint64_t *v, uint64_t in)
 	v[0] ^= in;
 }
 
-#define POSTAMBLE							  \
-	do {								  \
-		siphash_feed(v, b);					  \
-		v[2] ^= 0xff;						  \
-		sipround(v, 4);						  \
-		b = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);			  \
-	} while (0)
+/**
+ * siphash_final - Finalize SipHash calculations
+ * @v:		siphash state (4 x 64-bit integers)
+ * @len:	Total length of input data
+ * @tail:	Final data for the hash (<= 7 bytes)
+ */
+static inline uint64_t siphash_final(uint64_t *v, size_t len, uint64_t tail)
+{
+	uint64_t b = (uint64_t)(len) << 56 | tail;
+
+	siphash_feed(v, b);
+	v[2] ^= 0xff;
+	sipround(v, 4);
+	return v[0] ^ v[1] ^ v[2] ^ v[3];
+}
 
 /**
  * siphash_8b() - Table index or timestamp offset for TCP over IPv4 (8 bytes in)
@@ -132,11 +140,11 @@ __attribute__((optimize("-fno-strict-aliasing")))
 /* cppcheck-suppress unusedFunction */
 uint64_t siphash_8b(const uint8_t *in, const uint64_t *k)
 {
-	PREAMBLE(8);
+	PREAMBLE;
 	siphash_feed(v, *(uint64_t *)in);
-	POSTAMBLE;
 
-	return b;
+
+	return siphash_final(v, 8, 0);
 }
 
 /**
@@ -153,12 +161,10 @@ uint64_t siphash_12b(const uint8_t *in, const uint64_t *k)
 {
 	uint32_t *in32 = (uint32_t *)in;
 
-	PREAMBLE(12);
+	PREAMBLE;
 	siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
-	b |= *(in32 + 2);
-	POSTAMBLE;
 
-	return b;
+	return siphash_final(v, 12, *(in32 + 2));
 }
 
 /**
@@ -175,15 +181,12 @@ uint64_t siphash_20b(const uint8_t *in, const uint64_t *k)
 	uint32_t *in32 = (uint32_t *)in;
 	int i;
 
-	PREAMBLE(20);
+	PREAMBLE;
 
 	for (i = 0; i < 2; i++, in32 += 2)
 		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
-	b |= *in32;
-	POSTAMBLE;
-
-	return b;
+	return siphash_final(v, 20, *in32);
 }
 
 /**
@@ -201,14 +204,12 @@ uint64_t siphash_32b(const uint8_t *in, const uint64_t *k)
 	uint64_t *in64 = (uint64_t *)in;
 	int i;
 
-	PREAMBLE(32);
+	PREAMBLE;
 
 	for (i = 0; i < 4; i++, in64++)
 		siphash_feed(v, *in64);
 
-	POSTAMBLE;
-
-	return b;
+	return siphash_final(v, 32, 0);
 }
 
 /**
@@ -225,13 +226,10 @@ uint64_t siphash_36b(const uint8_t *in, const uint64_t *k)
 	uint32_t *in32 = (uint32_t *)in;
 	int i;
 
-	PREAMBLE(36);
+	PREAMBLE;
 
 	for (i = 0; i < 4; i++, in32 += 2)
 		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
-	b |= *in32;
-	POSTAMBLE;
-
-	return b;
+	return siphash_final(v, 36, *in32);
 }
