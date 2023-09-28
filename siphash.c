@@ -58,33 +58,37 @@
 
 #define ROTL(x, b) (uint64_t)(((x) << (b)) | ((x) >> (64 - (b))))
 
-#define SIPHASH_INIT(k) {						\
+struct siphash_state {
+	uint64_t v[4];
+};
+
+#define SIPHASH_INIT(k) { {						\
 		0x736f6d6570736575ULL ^ (k)[0],				\
 		0x646f72616e646f6dULL ^ (k)[1],				\
 		0x6c7967656e657261ULL ^ (k)[0],				\
 		0x7465646279746573ULL ^ (k)[1]				\
-	}
+	} }
 
 /**
  * sipround() - Perform rounds of SipHash scrambling
  * @v:		siphash state (4 x 64-bit integers)
  * @n:		Number of rounds to apply
  */
-static inline void sipround(uint64_t *v, int n)
+static inline void sipround(struct siphash_state *state, int n)
 {
 	int i;
 
 	for (i = 0; i < n; i++) {
-		v[0] += v[1];
-		v[1] = ROTL(v[1], 13) ^ v[0];
-		v[0] = ROTL(v[0], 32);
-		v[2] += v[3];
-		v[3] = ROTL(v[3], 16) ^ v[2];
-		v[0] += v[3];
-		v[3] = ROTL(v[3], 21) ^ v[0];
-		v[2] += v[1];
-		v[1] = ROTL(v[1], 17) ^ v[2];
-		v[2] = ROTL(v[2], 32);
+		state->v[0] += state->v[1];
+		state->v[1] = ROTL(state->v[1], 13) ^ state->v[0];
+		state->v[0] = ROTL(state->v[0], 32);
+		state->v[2] += state->v[3];
+		state->v[3] = ROTL(state->v[3], 16) ^ state->v[2];
+		state->v[0] += state->v[3];
+		state->v[3] = ROTL(state->v[3], 21) ^ state->v[0];
+		state->v[2] += state->v[1];
+		state->v[1] = ROTL(state->v[1], 17) ^ state->v[2];
+		state->v[2] = ROTL(state->v[2], 32);
 	}
 }
 
@@ -93,11 +97,11 @@ static inline void sipround(uint64_t *v, int n)
  * @v:		siphash state (4 x 64-bit integers)
  * @in:		New value to fold into hash
  */
-static inline void siphash_feed(uint64_t *v, uint64_t in)
+static inline void siphash_feed(struct siphash_state *state, uint64_t in)
 {
-	v[3] ^= in;
-	sipround(v, 2);
-	v[0] ^= in;
+	state->v[3] ^= in;
+	sipround(state, 2);
+	state->v[0] ^= in;
 }
 
 /**
@@ -106,14 +110,15 @@ static inline void siphash_feed(uint64_t *v, uint64_t in)
  * @len:	Total length of input data
  * @tail:	Final data for the hash (<= 7 bytes)
  */
-static inline uint64_t siphash_final(uint64_t *v, size_t len, uint64_t tail)
+static inline uint64_t siphash_final(struct siphash_state *state,
+				     size_t len, uint64_t tail)
 {
 	uint64_t b = (uint64_t)(len) << 56 | tail;
 
-	siphash_feed(v, b);
-	v[2] ^= 0xff;
-	sipround(v, 4);
-	return v[0] ^ v[1] ^ v[2] ^ v[3];
+	siphash_feed(state, b);
+	state->v[2] ^= 0xff;
+	sipround(state, 4);
+	return state->v[0] ^ state->v[1] ^ state->v[2] ^ state->v[3];
 }
 
 /**
@@ -137,12 +142,11 @@ __attribute__((optimize("-fno-strict-aliasing")))
 /* cppcheck-suppress unusedFunction */
 uint64_t siphash_8b(const uint8_t *in, const uint64_t *k)
 {
-	uint64_t v[4] = SIPHASH_INIT(k);
+	struct siphash_state state = SIPHASH_INIT(k);
 
-	siphash_feed(v, *(uint64_t *)in);
+	siphash_feed(&state, *(uint64_t *)in);
 
-
-	return siphash_final(v, 8, 0);
+	return siphash_final(&state, 8, 0);
 }
 
 /**
@@ -157,12 +161,12 @@ __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 /* cppcheck-suppress unusedFunction */
 uint64_t siphash_12b(const uint8_t *in, const uint64_t *k)
 {
+	struct siphash_state state = SIPHASH_INIT(k);
 	uint32_t *in32 = (uint32_t *)in;
-	uint64_t v[4] = SIPHASH_INIT(k);
 
-	siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
+	siphash_feed(&state, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
-	return siphash_final(v, 12, *(in32 + 2));
+	return siphash_final(&state, 12, *(in32 + 2));
 }
 
 /**
@@ -176,14 +180,14 @@ uint64_t siphash_12b(const uint8_t *in, const uint64_t *k)
 __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 uint64_t siphash_20b(const uint8_t *in, const uint64_t *k)
 {
+	struct siphash_state state = SIPHASH_INIT(k);
 	uint32_t *in32 = (uint32_t *)in;
-	uint64_t v[4] = SIPHASH_INIT(k);
 	int i;
 
 	for (i = 0; i < 2; i++, in32 += 2)
-		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
+		siphash_feed(&state, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
-	return siphash_final(v, 20, *in32);
+	return siphash_final(&state, 20, *in32);
 }
 
 /**
@@ -198,14 +202,14 @@ __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 /* cppcheck-suppress unusedFunction */
 uint64_t siphash_32b(const uint8_t *in, const uint64_t *k)
 {
+	struct siphash_state state = SIPHASH_INIT(k);
 	uint64_t *in64 = (uint64_t *)in;
-	uint64_t v[4] = SIPHASH_INIT(k);
 	int i;
 
 	for (i = 0; i < 4; i++, in64++)
-		siphash_feed(v, *in64);
+		siphash_feed(&state, *in64);
 
-	return siphash_final(v, 32, 0);
+	return siphash_final(&state, 32, 0);
 }
 
 /**
@@ -219,12 +223,12 @@ uint64_t siphash_32b(const uint8_t *in, const uint64_t *k)
 __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 uint64_t siphash_36b(const uint8_t *in, const uint64_t *k)
 {
+	struct siphash_state state = SIPHASH_INIT(k);
 	uint32_t *in32 = (uint32_t *)in;
-	uint64_t v[4] = SIPHASH_INIT(k);
 	int i;
 
 	for (i = 0; i < 4; i++, in32 += 2)
-		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
+		siphash_feed(&state, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
-	return siphash_final(v, 36, *in32);
+	return siphash_final(&state, 36, *in32);
 }
