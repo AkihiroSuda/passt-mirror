@@ -69,8 +69,17 @@
  *
  * Return: 32-bit sum of 16-bit words
 */
+/* Type-Based Alias Analysis (TBAA) optimisation in gcc 11 and 12 (-flto -O2)
+ * makes these functions essentially useless by allowing reordering of stores of
+ * input data across function calls. Not even declaring @in as char pointer is
+ * enough: disable gcc's interpretation of strict aliasing altogether. See also:
+ *
+ *	https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106706
+ *	https://stackoverflow.com/questions/2958633/gcc-strict-aliasing-and-horror-stories
+ *	https://lore.kernel.org/all/alpine.LFD.2.00.0901121128080.6528__33422.5328093909$1232291247$gmane$org@localhost.localdomain/
+ */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
-__attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
+__attribute__((optimize("-fno-strict-aliasing")))
 uint32_t sum_16b(const void *buf, size_t len)
 {
 	const uint16_t *p = buf;
@@ -110,7 +119,7 @@ uint16_t csum_fold(uint32_t sum)
  * Return: 16-bit IPv4-style checksum
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
-__attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
+__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
 uint16_t csum_unaligned(const void *buf, size_t len, uint32_t init)
 {
 	return (uint16_t)~csum_fold(sum_16b(buf, len) + init);
@@ -247,7 +256,7 @@ void csum_icmp6(struct icmp6hdr *icmp6hr,
  * - coding style adaptation
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
-__attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
+__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
 static uint32_t csum_avx2(const void *buf, size_t len, uint32_t init)
 {
 	__m256i a, b, sum256, sum_a_hi, sum_a_lo, sum_b_hi, sum_b_lo, c, d;
@@ -395,7 +404,7 @@ less_than_128_bytes:
  * Return: 16-bit folded, complemented checksum sum
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
-__attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
+__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
 uint16_t csum(const void *buf, size_t len, uint32_t init)
 {
 	return (uint16_t)~csum_fold(csum_avx2(buf, len, init));
@@ -412,7 +421,7 @@ uint16_t csum(const void *buf, size_t len, uint32_t init)
  * Return: 16-bit folded, complemented checksum
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
-__attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
+__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
 uint16_t csum(const void *buf, size_t len, uint32_t init)
 {
 	return csum_unaligned(buf, len, init);
