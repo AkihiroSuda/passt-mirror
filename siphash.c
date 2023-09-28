@@ -91,11 +91,21 @@ static inline void sipround(uint64_t *v, int n)
 	}
 }
 
+/**
+ * siphash_feed() - Fold 64-bits of data into the hash state
+ * @v:		siphash state (4 x 64-bit integers)
+ * @in:		New value to fold into hash
+ */
+static inline void siphash_feed(uint64_t *v, uint64_t in)
+{
+	v[3] ^= in;
+	sipround(v, 2);
+	v[0] ^= in;
+}
+
 #define POSTAMBLE							  \
 	do {								  \
-		v[3] ^= b;						  \
-		sipround(v, 2);						  \
-		v[0] ^= b;						  \
+		siphash_feed(v, b);					  \
 		v[2] ^= 0xff;						  \
 		sipround(v, 4);						  \
 		b = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);			  \
@@ -123,9 +133,7 @@ __attribute__((optimize("-fno-strict-aliasing")))
 uint64_t siphash_8b(const uint8_t *in, const uint64_t *k)
 {
 	PREAMBLE(8);
-	v[3] ^= *(uint64_t *)in;
-	sipround(v, 2);
-	v[0] ^= *(uint64_t *)in;
+	siphash_feed(v, *(uint64_t *)in);
 	POSTAMBLE;
 
 	return b;
@@ -144,14 +152,9 @@ __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 uint64_t siphash_12b(const uint8_t *in, const uint64_t *k)
 {
 	uint32_t *in32 = (uint32_t *)in;
-	uint64_t combined;
-
-	combined = (uint64_t)(*(in32 + 1)) << 32 | *in32;
 
 	PREAMBLE(12);
-	v[3] ^= combined;
-	sipround(v, 2);
-	v[0] ^= combined;
+	siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 	b |= *(in32 + 2);
 	POSTAMBLE;
 
@@ -174,13 +177,8 @@ uint64_t siphash_20b(const uint8_t *in, const uint64_t *k)
 
 	PREAMBLE(20);
 
-	for (i = 0; i < 2; i++, in32 += 2) {
-		uint64_t combined = (uint64_t)(*(in32 + 1)) << 32 | *in32;
-
-		v[3] ^= combined;
-		sipround(v, 2);
-		v[0] ^= combined;
-	}
+	for (i = 0; i < 2; i++, in32 += 2)
+		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
 	b |= *in32;
 	POSTAMBLE;
@@ -205,11 +203,8 @@ uint64_t siphash_32b(const uint8_t *in, const uint64_t *k)
 
 	PREAMBLE(32);
 
-	for (i = 0; i < 4; i++, in64++) {
-		v[3] ^= *in64;
-		sipround(v, 2);
-		v[0] ^= *in64;
-	}
+	for (i = 0; i < 4; i++, in64++)
+		siphash_feed(v, *in64);
 
 	POSTAMBLE;
 
@@ -232,13 +227,8 @@ uint64_t siphash_36b(const uint8_t *in, const uint64_t *k)
 
 	PREAMBLE(36);
 
-	for (i = 0; i < 4; i++, in32 += 2) {
-		uint64_t combined = (uint64_t)(*(in32 + 1)) << 32 | *in32;
-
-		v[3] ^= combined;
-		sipround(v, 2);
-		v[0] ^= combined;
-	}
+	for (i = 0; i < 4; i++, in32 += 2)
+		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
 	b |= *in32;
 	POSTAMBLE;
