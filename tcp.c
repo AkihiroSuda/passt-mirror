@@ -1826,7 +1826,8 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 		.srcport = conn->fport,
 		.dstport = conn->eport,
 	};
-	uint32_t ns, seq = 0;
+	uint64_t hash;
+	uint32_t ns;
 
 	if (CONN_V4(conn))
 		inany_from_af(&aany, AF_INET, &c->ip4.addr);
@@ -1834,12 +1835,12 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 		inany_from_af(&aany, AF_INET6, &c->ip6.addr);
 	in.dst = aany;
 
-	seq = siphash_36b((uint8_t *)&in, c->tcp.hash_secret);
+	hash = siphash_36b((uint8_t *)&in, c->tcp.hash_secret);
 
 	/* 32ns ticks, overflows 32 bits every 137s */
 	ns = (now->tv_sec * 1000000000 + now->tv_nsec) >> 5;
 
-	conn->seq_to_tap = seq + ns;
+	conn->seq_to_tap = ((uint32_t)(hash >> 32) ^ (uint32_t)hash) + ns;
 }
 
 /**

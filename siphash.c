@@ -61,7 +61,6 @@
 	uint64_t v[4] = { 0x736f6d6570736575ULL, 0x646f72616e646f6dULL,	  \
 			  0x6c7967656e657261ULL, 0x7465646279746573ULL }; \
 	uint64_t b = (uint64_t)(len) << 56;				  \
-	uint32_t ret;							  \
 	int __i;							  \
 									  \
 	do {								  \
@@ -93,8 +92,6 @@
 		v[2] ^= 0xff;						  \
 		SIPROUND(4);						  \
 		b = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);			  \
-		ret = (uint32_t)(b >> 32) ^ (uint32_t)b;		  \
-		(void)ret;						  \
 	} while (0)
 
 /**
@@ -132,12 +129,12 @@ uint64_t siphash_8b(const uint8_t *in, const uint64_t *k)
  * @in:		Input data (two addresses, two ports)
  * @k:		Hash function key, 128 bits
  *
- * Return: 32 bits obtained by XORing the two halves of the 64-bit hash output
+ * Return: the 64-bit hash output
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
 __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 /* cppcheck-suppress unusedFunction */
-uint32_t siphash_12b(const uint8_t *in, const uint64_t *k)
+uint64_t siphash_12b(const uint8_t *in, const uint64_t *k)
 {
 	uint32_t *in32 = (uint32_t *)in;
 	uint64_t combined;
@@ -151,7 +148,7 @@ uint32_t siphash_12b(const uint8_t *in, const uint64_t *k)
 	b |= *(in32 + 2);
 	POSTAMBLE;
 
-	return ret;
+	return b;
 }
 
 /**
@@ -194,7 +191,7 @@ uint64_t siphash_20b(const uint8_t *in, const uint64_t *k)
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
 __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 /* cppcheck-suppress unusedFunction */
-uint32_t siphash_32b(const uint8_t *in, const uint64_t *k)
+uint64_t siphash_32b(const uint8_t *in, const uint64_t *k)
 {
 	uint64_t *in64 = (uint64_t *)in;
 	int i;
@@ -217,11 +214,11 @@ uint32_t siphash_32b(const uint8_t *in, const uint64_t *k)
  * @in:		Input data (two addresses, two ports)
  * @k:		Hash function key, 128 bits
  *
- * Return: 32 bits obtained by XORing the two halves of the 64-bit hash output
+ * Return: the 64-bit hash output
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
 __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
-uint32_t siphash_36b(const uint8_t *in, const uint64_t *k)
+uint64_t siphash_36b(const uint8_t *in, const uint64_t *k)
 {
 	uint32_t *in32 = (uint32_t *)in;
 	int i;
@@ -239,5 +236,5 @@ uint32_t siphash_36b(const uint8_t *in, const uint64_t *k)
 	b |= *in32;
 	POSTAMBLE;
 
-	return ret;
+	return b;
 }
