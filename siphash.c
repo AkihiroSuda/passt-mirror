@@ -68,29 +68,36 @@
 			v[__i] = k[__i % 2];				  \
 	} while (0)
 
-#define SIPROUND(n)							  \
-	do {								  \
-		for (__i = 0; __i < (n); __i++) {			  \
-			v[0] += v[1];					  \
-			v[1] = ROTL(v[1], 13) ^ v[0];			  \
-			v[0] = ROTL(v[0], 32);				  \
-			v[2] += v[3];					  \
-			v[3] = ROTL(v[3], 16) ^ v[2];			  \
-			v[0] += v[3];					  \
-			v[3] = ROTL(v[3], 21) ^ v[0];			  \
-			v[2] += v[1];					  \
-			v[1] = ROTL(v[1], 17) ^ v[2];			  \
-			v[2] = ROTL(v[2], 32);				  \
-		}							  \
-	} while (0)
+/**
+ * sipround() - Perform rounds of SipHash scrambling
+ * @v:		siphash state (4 x 64-bit integers)
+ * @n:		Number of rounds to apply
+ */
+static inline void sipround(uint64_t *v, int n)
+{
+	int i;
+
+	for (i = 0; i < n; i++) {
+		v[0] += v[1];
+		v[1] = ROTL(v[1], 13) ^ v[0];
+		v[0] = ROTL(v[0], 32);
+		v[2] += v[3];
+		v[3] = ROTL(v[3], 16) ^ v[2];
+		v[0] += v[3];
+		v[3] = ROTL(v[3], 21) ^ v[0];
+		v[2] += v[1];
+		v[1] = ROTL(v[1], 17) ^ v[2];
+		v[2] = ROTL(v[2], 32);
+	}
+}
 
 #define POSTAMBLE							  \
 	do {								  \
 		v[3] ^= b;						  \
-		SIPROUND(2);						  \
+		sipround(v, 2);						  \
 		v[0] ^= b;						  \
 		v[2] ^= 0xff;						  \
-		SIPROUND(4);						  \
+		sipround(v, 4);						  \
 		b = (v[0] ^ v[1]) ^ (v[2] ^ v[3]);			  \
 	} while (0)
 
@@ -117,7 +124,7 @@ uint64_t siphash_8b(const uint8_t *in, const uint64_t *k)
 {
 	PREAMBLE(8);
 	v[3] ^= *(uint64_t *)in;
-	SIPROUND(2);
+	sipround(v, 2);
 	v[0] ^= *(uint64_t *)in;
 	POSTAMBLE;
 
@@ -143,7 +150,7 @@ uint64_t siphash_12b(const uint8_t *in, const uint64_t *k)
 
 	PREAMBLE(12);
 	v[3] ^= combined;
-	SIPROUND(2);
+	sipround(v, 2);
 	v[0] ^= combined;
 	b |= *(in32 + 2);
 	POSTAMBLE;
@@ -171,7 +178,7 @@ uint64_t siphash_20b(const uint8_t *in, const uint64_t *k)
 		uint64_t combined = (uint64_t)(*(in32 + 1)) << 32 | *in32;
 
 		v[3] ^= combined;
-		SIPROUND(2);
+		sipround(v, 2);
 		v[0] ^= combined;
 	}
 
@@ -200,7 +207,7 @@ uint64_t siphash_32b(const uint8_t *in, const uint64_t *k)
 
 	for (i = 0; i < 4; i++, in64++) {
 		v[3] ^= *in64;
-		SIPROUND(2);
+		sipround(v, 2);
 		v[0] ^= *in64;
 	}
 
@@ -229,7 +236,7 @@ uint64_t siphash_36b(const uint8_t *in, const uint64_t *k)
 		uint64_t combined = (uint64_t)(*(in32 + 1)) << 32 | *in32;
 
 		v[3] ^= combined;
-		SIPROUND(2);
+		sipround(v, 2);
 		v[0] ^= combined;
 	}
 
