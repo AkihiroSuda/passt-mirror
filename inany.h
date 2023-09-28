@@ -14,8 +14,9 @@
  * @v4mapped.zero:	All zero-bits for an IPv4 address
  * @v4mapped.one:	All one-bits for an IPv4 address
  * @v4mapped.a4:	If @a6 is an IPv4 mapped address, the IPv4 address
+ * @u64:		As an array of u64s (solely for hashing)
  *
- * @v4mapped shouldn't be accessed except via helpers.
+ * @v4mapped and @u64 shouldn't be accessed except via helpers.
  */
 union inany_addr {
 	struct in6_addr a6;
@@ -24,7 +25,10 @@ union inany_addr {
 		uint8_t one[2];
 		struct in_addr a4;
 	} v4mapped;
+	uint32_t u32[4];
 };
+static_assert(sizeof(union inany_addr) == sizeof(struct in6_addr));
+static_assert(_Alignof(union inany_addr) == _Alignof(uint32_t));
 
 /** inany_v4 - Extract IPv4 address, if present, from IPv[46] address
  * @addr:	IPv4 or IPv6 address
@@ -92,6 +96,17 @@ static inline void inany_from_sockaddr(union inany_addr *aa, in_port_t *port,
 		/* Not valid to call with other address families */
 		ASSERT(0);
 	}
+}
+
+/** inany_siphash_feed- Fold IPv[46] address into an in-progress siphash
+ * @state:	siphash state
+ * @aa:		inany to hash
+ */
+static inline void inany_siphash_feed(struct siphash_state *state,
+				      const union inany_addr *aa)
+{
+	siphash_feed(state, (uint64_t)aa->u32[0] << 32 | aa->u32[1]);
+	siphash_feed(state, (uint64_t)aa->u32[2] << 32 | aa->u32[3]);
 }
 
 #endif /* INANY_H */

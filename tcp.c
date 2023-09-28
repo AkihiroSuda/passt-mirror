@@ -1165,18 +1165,13 @@ static int tcp_hash_match(const struct tcp_tap_conn *conn,
 static unsigned int tcp_hash(const struct ctx *c, const union inany_addr *faddr,
 			     in_port_t eport, in_port_t fport)
 {
-	struct {
-		union inany_addr faddr;
-		in_port_t eport;
-		in_port_t fport;
-	} __attribute__((__packed__)) in = {
-		*faddr, eport, fport
-	};
-	uint64_t b = 0;
+	struct siphash_state state = SIPHASH_INIT(c->tcp.hash_secret);
+	uint64_t hash;
 
-	b = siphash_20b((uint8_t *)&in, c->tcp.hash_secret);
+	inany_siphash_feed(&state, faddr);
+	hash = siphash_final(&state, 20, (uint64_t)eport << 16 | fport);
 
-	return (unsigned int)(b % TCP_HASH_TABLE_SIZE);
+	return (unsigned int)(hash % TCP_HASH_TABLE_SIZE);
 }
 
 /**
@@ -1815,17 +1810,8 @@ static void tcp_clamp_window(const struct ctx *c, struct tcp_tap_conn *conn,
 static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 			 const struct timespec *now)
 {
+	struct siphash_state state = SIPHASH_INIT(c->tcp.hash_secret);
 	union inany_addr aany;
-	struct {
-		union inany_addr src;
-		in_port_t srcport;
-		union inany_addr dst;
-		in_port_t dstport;
-	} __attribute__((__packed__)) in = {
-		.src = conn->faddr,
-		.srcport = conn->fport,
-		.dstport = conn->eport,
-	};
 	uint64_t hash;
 	uint32_t ns;
 
@@ -1833,9 +1819,11 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 		inany_from_af(&aany, AF_INET, &c->ip4.addr);
 	else
 		inany_from_af(&aany, AF_INET6, &c->ip6.addr);
-	in.dst = aany;
 
-	hash = siphash_36b((uint8_t *)&in, c->tcp.hash_secret);
+	inany_siphash_feed(&state, &conn->faddr);
+	inany_siphash_feed(&state, &aany);
+	hash = siphash_final(&state, 36,
+			     (uint64_t)conn->fport << 16 | conn->eport);
 
 	/* 32ns ticks, overflows 32 bits every 137s */
 	ns = (now->tv_sec * 1000000000 + now->tv_nsec) >> 5;
