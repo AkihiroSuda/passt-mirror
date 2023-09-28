@@ -58,15 +58,12 @@
 
 #define ROTL(x, b) (uint64_t)(((x) << (b)) | ((x) >> (64 - (b))))
 
-#define PREAMBLE							  \
-	uint64_t v[4] = { 0x736f6d6570736575ULL, 0x646f72616e646f6dULL,	  \
-			  0x6c7967656e657261ULL, 0x7465646279746573ULL }; \
-	int __i;							  \
-									  \
-	do {								  \
-		for (__i = sizeof(v) / sizeof(v[0]) - 1; __i >= 0; __i--) \
-			v[__i] ^= k[__i % 2];				  \
-	} while (0)
+#define SIPHASH_INIT(k) {						\
+		0x736f6d6570736575ULL ^ (k)[0],				\
+		0x646f72616e646f6dULL ^ (k)[1],				\
+		0x6c7967656e657261ULL ^ (k)[0],				\
+		0x7465646279746573ULL ^ (k)[1]				\
+	}
 
 /**
  * sipround() - Perform rounds of SipHash scrambling
@@ -140,7 +137,8 @@ __attribute__((optimize("-fno-strict-aliasing")))
 /* cppcheck-suppress unusedFunction */
 uint64_t siphash_8b(const uint8_t *in, const uint64_t *k)
 {
-	PREAMBLE;
+	uint64_t v[4] = SIPHASH_INIT(k);
+
 	siphash_feed(v, *(uint64_t *)in);
 
 
@@ -160,8 +158,8 @@ __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 uint64_t siphash_12b(const uint8_t *in, const uint64_t *k)
 {
 	uint32_t *in32 = (uint32_t *)in;
+	uint64_t v[4] = SIPHASH_INIT(k);
 
-	PREAMBLE;
 	siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
 
 	return siphash_final(v, 12, *(in32 + 2));
@@ -179,9 +177,8 @@ __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 uint64_t siphash_20b(const uint8_t *in, const uint64_t *k)
 {
 	uint32_t *in32 = (uint32_t *)in;
+	uint64_t v[4] = SIPHASH_INIT(k);
 	int i;
-
-	PREAMBLE;
 
 	for (i = 0; i < 2; i++, in32 += 2)
 		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
@@ -202,9 +199,8 @@ __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 uint64_t siphash_32b(const uint8_t *in, const uint64_t *k)
 {
 	uint64_t *in64 = (uint64_t *)in;
+	uint64_t v[4] = SIPHASH_INIT(k);
 	int i;
-
-	PREAMBLE;
 
 	for (i = 0; i < 4; i++, in64++)
 		siphash_feed(v, *in64);
@@ -224,9 +220,8 @@ __attribute__((optimize("-fno-strict-aliasing")))	/* See siphash_8b() */
 uint64_t siphash_36b(const uint8_t *in, const uint64_t *k)
 {
 	uint32_t *in32 = (uint32_t *)in;
+	uint64_t v[4] = SIPHASH_INIT(k);
 	int i;
-
-	PREAMBLE;
 
 	for (i = 0; i < 4; i++, in32 += 2)
 		siphash_feed(v, (uint64_t)(*(in32 + 1)) << 32 | *in32);
