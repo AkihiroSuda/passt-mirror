@@ -65,7 +65,7 @@
 									  \
 	do {								  \
 		for (__i = sizeof(v) / sizeof(v[0]) - 1; __i >= 0; __i--) \
-			v[__i] = k[__i % 2];				  \
+			v[__i] ^= k[__i % 2];				  \
 	} while (0)
 
 /**
