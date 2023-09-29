@@ -1553,6 +1553,13 @@ static int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 
 	conn->wnd_to_tap = MIN(new_wnd_to_tap >> conn->ws_to_tap, USHRT_MAX);
 
+	/* Certain cppcheck versions, e.g. 2.12.0 have a bug where they think
+	 * the MIN() above restricts conn->wnd_to_tap to be zero.  That's
+	 * clearly incorrect, but until the bug is fixed, work around it.
+	 *   https://bugzilla.redhat.com/show_bug.cgi?id=2240705
+	 *   https://sourceforge.net/p/cppcheck/discussion/general/thread/f5b1a00646/
+	 */
+	/* cppcheck-suppress [knownConditionTrueFalse, unmatchedSuppression] */
 	if (!conn->wnd_to_tap)
 		conn_flag(c, conn, ACK_TO_TAP_DUE);
 
