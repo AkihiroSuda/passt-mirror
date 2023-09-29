@@ -1742,14 +1742,12 @@ void conf(struct ctx *c, int argc, char **argv)
 	/* Inbound port options can be parsed now (after IPv4/IPv6 settings) */
 	optind = 1;
 	do {
-		struct port_fwd *fwd;
-
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
-		if ((name == 't' && (fwd = &c->tcp.fwd_in)) ||
-		    (name == 'u' && (fwd = &c->udp.fwd_in.f))) {
-			conf_ports(c, name, optarg, fwd);
-		}
+		if (name == 't')
+			conf_ports(c, name, optarg, &c->tcp.fwd_in);
+		else if (name == 'u')
+			conf_ports(c, name, optarg, &c->udp.fwd_in.f);
 	} while (name != -1);
 
 	if (c->mode == MODE_PASTA)
@@ -1777,14 +1775,12 @@ void conf(struct ctx *c, int argc, char **argv)
 	/* ...and outbound port options now that namespaces are set up. */
 	optind = 1;
 	do {
-		struct port_fwd *fwd;
-
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
-		if ((name == 'T' && (fwd = &c->tcp.fwd_out)) ||
-		    (name == 'U' && (fwd = &c->udp.fwd_out.f))) {
-			conf_ports(c, name, optarg, fwd);
-		}
+		if (name == 'T')
+			conf_ports(c, name, optarg, &c->tcp.fwd_out);
+		else if (name == 'U')
+			conf_ports(c, name, optarg, &c->udp.fwd_out.f);
 	} while (name != -1);
 
 	if (!c->ifi4)
