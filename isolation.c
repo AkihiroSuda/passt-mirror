@@ -303,7 +303,7 @@ void isolate_user(uid_t uid, gid_t gid, bool use_userns, const char *userns,
  * Mustn't:
  *  - Remove syscalls we need to daemonise
  */
-int isolate_prefork(struct ctx *c)
+int isolate_prefork(const struct ctx *c)
 {
 	int flags = CLONE_NEWIPC | CLONE_NEWNS | CLONE_NEWUTS;
 	uint64_t ns_caps = 0;

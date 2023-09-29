@@ -345,7 +345,7 @@ int nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
  *
  * Return: 0 on success, negative error code on failure
  */
-int nl_route_set_def(int s, unsigned int ifi, sa_family_t af, void *gw)
+int nl_route_set_def(int s, unsigned int ifi, sa_family_t af, const void *gw)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -593,7 +593,7 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
  * Return: 0 on success, negative error code on failure
  */
 int nl_addr_set(int s, unsigned int ifi, sa_family_t af,
-		void *addr, int prefix_len)
+		const void *addr, int prefix_len)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -758,7 +758,7 @@ int nl_link_get_mac(int s, unsigned int ifi, void *mac)
  *
  * Return: 0 on success, negative error code on failure
  */
-int nl_link_set_mac(int s, unsigned int ifi, void *mac)
+int nl_link_set_mac(int s, unsigned int ifi, const void *mac)
 {
 	struct req_t {
 		struct nlmsghdr nlh;

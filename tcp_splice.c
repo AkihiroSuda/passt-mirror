@@ -253,7 +253,7 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
  * @c:		Execution context
  * @new:	New location of tcp_splice_conn
  */
-void tcp_splice_conn_update(struct ctx *c, struct tcp_splice_conn *new)
+void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
 {
 	tcp_splice_epoll_ctl(c, new);
 	if (tcp_splice_epoll_ctl(c, new))
@@ -486,7 +486,8 @@ static void tcp_splice_dir(struct tcp_splice_conn *conn, int ref_sock,
  * Return: true if able to create a spliced connection, false otherwise
  * #syscalls:pasta setsockopt
  */
-bool tcp_splice_conn_from_sock(struct ctx *c, union tcp_listen_epoll_ref ref,
+bool tcp_splice_conn_from_sock(const struct ctx *c,
+			       union tcp_listen_epoll_ref ref,
 			       struct tcp_splice_conn *conn, int s,
 			       const struct sockaddr *sa)
 {

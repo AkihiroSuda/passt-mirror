@@ -362,7 +362,7 @@ void pasta_ns_conf(struct ctx *c)
  *
  * Return: inotify file descriptor, -1 on failure or if not needed/applicable
  */
-int pasta_netns_quit_init(struct ctx *c)
+int pasta_netns_quit_init(const struct ctx *c)
 {
 	int flags = O_NONBLOCK | O_CLOEXEC;
 	union epoll_ref ref = { .type = EPOLL_TYPE_NSQUIT };
@@ -399,7 +399,7 @@ int pasta_netns_quit_init(struct ctx *c)
 void pasta_netns_quit_handler(struct ctx *c, int inotify_fd)
 {
 	char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
-	struct inotify_event *in_ev = (struct inotify_event *)buf;
+	const struct inotify_event *in_ev = (struct inotify_event *)buf;
 
 	if (read(inotify_fd, buf, sizeof(buf)) < (ssize_t)sizeof(*in_ev))
 		return;

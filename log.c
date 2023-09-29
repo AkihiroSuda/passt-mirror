@@ -216,7 +216,7 @@ void logfile_init(const char *name, const char *path, size_t size)
  *
  * #syscalls lseek ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
  */
-static void logfile_rotate_fallocate(int fd, struct timespec *ts)
+static void logfile_rotate_fallocate(int fd, const struct timespec *ts)
 {
 	char buf[BUFSIZ], *nl;
 	int n;
@@ -253,7 +253,7 @@ static void logfile_rotate_fallocate(int fd, struct timespec *ts)
  * #syscalls lseek ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
  * #syscalls ftruncate
  */
-static void logfile_rotate_move(int fd, struct timespec *ts)
+static void logfile_rotate_move(int fd, const struct timespec *ts)
 {
 	int header_len, write_offset, end, discard, n;
 	char buf[BUFSIZ], *nl;
@@ -318,7 +318,7 @@ out:
  *
  * fallocate() passed as EXTRA_SYSCALL only if FALLOC_FL_COLLAPSE_RANGE is there
  */
-static int logfile_rotate(int fd, struct timespec *ts)
+static int logfile_rotate(int fd, const struct timespec *ts)
 {
 	if (fcntl(fd, F_SETFL, O_RDWR /* Drop O_APPEND: explicit lseek() */))
 		return -errno;

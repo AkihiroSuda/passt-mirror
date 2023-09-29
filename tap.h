@@ -62,7 +62,7 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 		   struct in_addr dst, in_port_t dport,
 		   const void *in, size_t len);
 void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
-		    void *in, size_t len);
+		    const void *in, size_t len);
 const struct in6_addr *tap_ip6_daddr(const struct ctx *c,
 				     const struct in6_addr *src);
 void tap_udp6_send(const struct ctx *c,
@@ -71,9 +71,9 @@ void tap_udp6_send(const struct ctx *c,
 		   uint32_t flow, const void *in, size_t len);
 void tap_icmp6_send(const struct ctx *c,
 		    const struct in6_addr *src, const struct in6_addr *dst,
-		    void *in, size_t len);
+		    const void *in, size_t len);
 int tap_send(const struct ctx *c, const void *data, size_t len);
-void tap_send_frames(struct ctx *c, const struct iovec *iov, size_t n);
+void tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n);
 void tap_update_mac(struct tap_hdr *taph,
 		    const unsigned char *eth_d, const unsigned char *eth_s);
 void tap_listen_handler(struct ctx *c, uint32_t events);

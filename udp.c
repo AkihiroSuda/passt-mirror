@@ -691,7 +691,7 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
  *
  * Return: size of tap frame with headers
  */
-static void udp_tap_send(struct ctx *c,
+static void udp_tap_send(const struct ctx *c,
 			 unsigned int start, unsigned int n,
 			 in_port_t dstport, bool v6, const struct timespec *now)
 {
@@ -726,7 +726,7 @@ static void udp_tap_send(struct ctx *c,
  *
  * #syscalls recvmmsg
  */
-void udp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events,
+void udp_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
 		      const struct timespec *now)
 {
 	/* For not entirely clear reasons (data locality?) pasta gets

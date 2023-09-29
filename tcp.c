@@ -1016,7 +1016,7 @@ void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
  * tcp_sock4_iov_init() - Initialise scatter-gather L2 buffers for IPv4 sockets
  * @c:		Execution context
  */
-static void tcp_sock4_iov_init(struct ctx *c)
+static void tcp_sock4_iov_init(const struct ctx *c)
 {
 	struct iphdr iph = L2_BUF_IP4_INIT(IPPROTO_TCP);
 	struct iovec *iov;
@@ -1237,7 +1237,7 @@ static void tcp_hash_remove(const struct ctx *c,
  * @old:	Old location of tcp_tap_conn
  * @new:	New location of tcp_tap_conn
  */
-static void tcp_tap_conn_update(struct ctx *c, struct tcp_tap_conn *old,
+static void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
 				struct tcp_tap_conn *new)
 {
 	struct tcp_tap_conn *entry, *prev = NULL;
@@ -1327,7 +1327,7 @@ void tcp_table_compact(struct ctx *c, union tcp_conn *hole)
  */
 static void tcp_conn_destroy(struct ctx *c, union tcp_conn *conn_union)
 {
-	struct tcp_tap_conn *conn = &conn_union->tap;
+	const struct tcp_tap_conn *conn = &conn_union->tap;
 
 	close(conn->sock);
 	if (conn->timer != -1)
@@ -1349,7 +1349,7 @@ static void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);
  * tcp_l2_flags_buf_flush() - Send out buffers for segments with no data (flags)
  * @c:		Execution context
  */
-static void tcp_l2_flags_buf_flush(struct ctx *c)
+static void tcp_l2_flags_buf_flush(const struct ctx *c)
 {
 	tap_send_frames(c, tcp6_l2_flags_iov, tcp6_l2_flags_buf_used);
 	tcp6_l2_flags_buf_used = 0;
@@ -1362,7 +1362,7 @@ static void tcp_l2_flags_buf_flush(struct ctx *c)
  * tcp_l2_data_buf_flush() - Send out buffers for segments with data
  * @c:		Execution context
  */
-static void tcp_l2_data_buf_flush(struct ctx *c)
+static void tcp_l2_data_buf_flush(const struct ctx *c)
 {
 	tap_send_frames(c, tcp6_l2_iov, tcp6_l2_buf_used);
 	tcp6_l2_buf_used = 0;
@@ -2098,7 +2098,7 @@ static void tcp_conn_from_tap(struct ctx *c,
  *
  * Return: 0 on success, negative error code from recv() on failure
  */
-static int tcp_sock_consume(struct tcp_tap_conn *conn, uint32_t ack_seq)
+static int tcp_sock_consume(const struct tcp_tap_conn *conn, uint32_t ack_seq)
 {
 	/* Simply ignore out-of-order ACKs: we already consumed the data we
 	 * needed from the buffer, and we won't rewind back to a lower ACK
@@ -2124,14 +2124,14 @@ static int tcp_sock_consume(struct tcp_tap_conn *conn, uint32_t ack_seq)
  * @seq:	Sequence number to be sent
  * @now:	Current timestamp
  */
-static void tcp_data_to_tap(struct ctx *c, struct tcp_tap_conn *conn,
+static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			    ssize_t plen, int no_csum, uint32_t seq)
 {
 	struct iovec *iov;
 
 	if (CONN_V4(conn)) {
 		struct tcp4_l2_buf_t *b = &tcp4_l2_buf[tcp4_l2_buf_used];
-		uint16_t *check = no_csum ? &(b - 1)->iph.check : NULL;
+		const uint16_t *check = no_csum ? &(b - 1)->iph.check : NULL;
 
 		iov = tcp4_l2_iov + tcp4_l2_buf_used++;
 		iov->iov_len = tcp_l2_buf_fill_headers(c, conn, b, plen,
@@ -2704,7 +2704,7 @@ static void tcp_snat_inbound(const struct ctx *c, union inany_addr *addr)
 static void tcp_tap_conn_from_sock(struct ctx *c,
 				   union tcp_listen_epoll_ref ref,
 				   struct tcp_tap_conn *conn, int s,
-				   struct sockaddr *sa,
+				   const struct sockaddr *sa,
 				   const struct timespec *now)
 {
 	conn->c.spliced = false;

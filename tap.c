@@ -203,7 +203,7 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
  * @len:	ICMP packet length, including ICMP header
  */
 void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
-		    void *in, size_t len)
+		    const void *in, size_t len)
 {
 	char buf[USHRT_MAX];
 	void *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
@@ -291,7 +291,7 @@ void tap_udp6_send(const struct ctx *c,
  */
 void tap_icmp6_send(const struct ctx *c,
 		    const struct in6_addr *src, const struct in6_addr *dst,
-		    void *in, size_t len)
+		    const void *in, size_t len)
 {
 	char buf[USHRT_MAX];
 	void *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
@@ -315,7 +315,7 @@ void tap_icmp6_send(const struct ctx *c,
  *
  * #syscalls:pasta write
  */
-static size_t tap_send_frames_pasta(struct ctx *c,
+static size_t tap_send_frames_pasta(const struct ctx *c,
 				    const struct iovec *iov, size_t n)
 {
 	size_t i;
@@ -414,7 +414,7 @@ static size_t tap_send_frames_passt(const struct ctx *c,
  * @iov:	Array of buffers, each containing one frame (with L2 headers)
  * @n:		Number of buffers/frames in @iov
  */
-void tap_send_frames(struct ctx *c, const struct iovec *iov, size_t n)
+void tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
 {
 	size_t m;
 
@@ -706,7 +706,7 @@ append:
 	}
 
 	for (j = 0, seq = tap4_l4; j < seq_count; j++, seq++) {
-		struct pool *p = (struct pool *)&seq->p;
+		const struct pool *p = (const struct pool *)&seq->p;
 		size_t k;
 
 		tap_packet_debug(NULL, NULL, seq, 0, NULL, p->count);
@@ -869,7 +869,7 @@ append:
 	}
 
 	for (j = 0, seq = tap6_l4; j < seq_count; j++, seq++) {
-		struct pool *p = (struct pool *)&seq->p;
+		const struct pool *p = (const struct pool *)&seq->p;
 		size_t k;
 
 		tap_packet_debug(NULL, NULL, NULL, seq->protocol, seq,
@@ -1022,7 +1022,7 @@ redo:
 	pool_flush(pool_tap6);
 restart:
 	while ((len = read(c->fd_tap, pkt_buf + n, TAP_BUF_BYTES - n)) > 0) {
-		struct ethhdr *eh = (struct ethhdr *)(pkt_buf + n);
+		const struct ethhdr *eh = (struct ethhdr *)(pkt_buf + n);
 
 		if (len < (ssize_t)sizeof(*eh) || len > (ssize_t)ETH_MAX_MTU) {
 			n += len;

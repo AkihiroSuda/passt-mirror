@@ -218,7 +218,7 @@ void bitmap_clear(uint8_t *map, int bit);
 int bitmap_isset(const uint8_t *map, int bit);
 char *line_read(char *buf, size_t len, int fd);
 void procfs_scan_listen(struct ctx *c, uint8_t proto, int ip_version, int ns,
-			uint8_t *map, uint8_t *exclude);
+			uint8_t *map, const uint8_t *exclude);
 void ns_enter(const struct ctx *c);
 bool ns_is_init(void);
 void write_pidfile(int fd, pid_t pid);
@@ -235,7 +235,7 @@ int write_file(const char *path, const char *buf);
  * clang-tidy suppressions, because the warning doesn't show on the syscall
  * itself but later when we access the supposedly uninitialised field.
  */
-static inline void sa_init(struct sockaddr *sa, socklen_t *sl)
+static inline void sa_init(struct sockaddr *sa, const socklen_t *sl)
 {
 #ifdef CLANG_TIDY_58992
 	if (sa)

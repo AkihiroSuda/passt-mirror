@@ -419,7 +419,8 @@ bind_fail:
  * @addr:	Address found in /etc/resolv.conf
  * @conf:	Pointer to reference of current entry in array of IPv4 resolvers
  */
-static void add_dns4(struct ctx *c, struct in_addr *addr, struct in_addr **conf)
+static void add_dns4(struct ctx *c, const struct in_addr *addr,
+		     struct in_addr **conf)
 {
 	/* Guest or container can only access local addresses via redirect */
 	if (IN4_IS_ADDR_LOOPBACK(addr)) {
@@ -1177,7 +1178,7 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 void conf(struct ctx *c, int argc, char **argv)
 {
 	int netns_only = 0;
-	struct option options[] = {
+	const struct option options[] = {
 		{"debug",	no_argument,		NULL,		'd' },
 		{"quiet",	no_argument,		NULL,		'q' },
 		{"foreground",	no_argument,		NULL,		'f' },

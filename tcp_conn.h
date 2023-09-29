@@ -190,7 +190,7 @@ extern union tcp_conn tc[];
 extern int init_sock_pool4	[TCP_SOCK_POOL_SIZE];
 extern int init_sock_pool6	[TCP_SOCK_POOL_SIZE];
 
-void tcp_splice_conn_update(struct ctx *c, struct tcp_splice_conn *new);
+void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new);
 void tcp_table_compact(struct ctx *c, union tcp_conn *hole);
 void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union);
 void tcp_splice_timer(struct ctx *c, union tcp_conn *conn_union);

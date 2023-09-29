@@ -320,7 +320,8 @@ void bitmap_clear(uint8_t *map, int bit)
  */
 int bitmap_isset(const uint8_t *map, int bit)
 {
-	unsigned long *word = (unsigned long *)map + BITMAP_WORD(bit);
+	const unsigned long *word
+		= (const unsigned long *)map + BITMAP_WORD(bit);
 
 	return !!(*word & BITMAP_BIT(bit));
 }
@@ -337,7 +338,7 @@ int bitmap_isset(const uint8_t *map, int bit)
  * #syscalls:pasta ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
  */
 void procfs_scan_listen(struct ctx *c, uint8_t proto, int ip_version, int ns,
-			uint8_t *map, uint8_t *exclude)
+			uint8_t *map, const uint8_t *exclude)
 {
 	char *path, *line;
 	struct lineread lr;
