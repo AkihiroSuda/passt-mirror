@@ -149,6 +149,13 @@ static int fill(struct msg *m)
 	for (o = 0; o < 255; o++)
 		opts[o].sent = 0;
 
+	/* Some clients (wattcp32, mTCP, maybe some others) expect
+	 * option 53 at the beginning of the list.
+	 * Put it there explicitly, unless requested via option 55.
+	 */
+	if (!memchr(opts[55].c, 53, opts[55].clen))
+		fill_one(m, 53, &offset);
+
 	for (i = 0; i < opts[55].clen; i++) {
 		o = opts[55].c[i];
 		if (opts[o].slen)
