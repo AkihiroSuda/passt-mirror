@@ -12,7 +12,8 @@
 #define LOGFILE_CUT_RATIO		30	/* When full, cut ~30% size */
 #define LOGFILE_SIZE_MIN		(5UL * MAX(BUFSIZ, PAGE_SIZE))
 
-void logmsg(int pri, const char *format, ...);
+void logmsg(int pri, const char *format, ...)
+	__attribute__((format(printf, 2, 3)));
 
 #define err(...)	logmsg(LOG_ERR, __VA_ARGS__)
 #define warn(...)	logmsg(LOG_WARNING, __VA_ARGS__)

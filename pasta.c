@@ -239,7 +239,7 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 
 		if ((size_t)snprintf(sh_arg0, sizeof(sh_arg0),
 				     "-%s", arg.exe) >= sizeof(sh_arg0))
-			die("$SHELL is too long (%u bytes)", strlen(arg.exe));
+			die("$SHELL is too long (%zu bytes)", strlen(arg.exe));
 
 		sh_argv[0] = sh_arg0;
 		arg.argv = sh_argv;

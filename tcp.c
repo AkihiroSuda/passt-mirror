@@ -1212,7 +1212,8 @@ static void tcp_hash_insert(const struct ctx *c, struct tcp_tap_conn *conn)
 	tc_hash[b] = conn;
 
 	debug("TCP: hash table insert: index %li, sock %i, bucket: %i, next: "
-	      "%p", CONN_IDX(conn), conn->sock, b, conn_at_idx(conn->next_index));
+	      "%p", CONN_IDX(conn), conn->sock, b,
+	      (void *)conn_at_idx(conn->next_index));
 }
 
 /**
@@ -1239,7 +1240,7 @@ static void tcp_hash_remove(const struct ctx *c,
 
 	debug("TCP: hash table remove: index %li, sock %i, bucket: %i, new: %p",
 	      CONN_IDX(conn), conn->sock, b,
-	      prev ? conn_at_idx(prev->next_index) : tc_hash[b]);
+	      (void *)(prev ? conn_at_idx(prev->next_index) : tc_hash[b]));
 }
 
 /**
@@ -1267,7 +1268,8 @@ static void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
 
 	debug("TCP: hash table update: old index %li, new index %li, sock %i, "
 	      "bucket: %i, old: %p, new: %p",
-	      CONN_IDX(old), CONN_IDX(new), new->sock, b, old, new);
+	      CONN_IDX(old), CONN_IDX(new), new->sock, b,
+	      (void *)old, (void *)new);
 
 	tcp_epoll_ctl(c, new);
 }
@@ -1311,7 +1313,7 @@ void tcp_table_compact(struct ctx *c, union tcp_conn *hole)
 
 	if (CONN_IDX(hole) == --c->tcp.conn_count) {
 		debug("TCP: table compaction: maximum index was %li (%p)",
-		      CONN_IDX(hole), hole);
+		      CONN_IDX(hole), (void *)hole);
 		memset(hole, 0, sizeof(*hole));
 		return;
 	}
@@ -1326,7 +1328,8 @@ void tcp_table_compact(struct ctx *c, union tcp_conn *hole)
 
 	debug("TCP: table compaction (spliced=%d): old index %li, new index %li, "
 	      "from: %p, to: %p",
-	      from->c.spliced, CONN_IDX(from), CONN_IDX(hole), from, hole);
+	      from->c.spliced, CONN_IDX(from), CONN_IDX(hole),
+	      (void *)from, (void *)hole);
 
 	memset(from, 0, sizeof(*from));
 }

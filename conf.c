@@ -493,7 +493,7 @@ static void conf_netns_opt(char *netns, const char *arg)
 	}
 
 	if (ret <= 0 || ret > PATH_MAX)
-		die("Network namespace name/path %s too long");
+		die("Network namespace name/path %s too long", arg);
 }
 
 /**

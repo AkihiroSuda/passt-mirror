@@ -33,7 +33,8 @@ AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/MIPS64EL/MIPSEL64/')
 AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/HPPA/PARISC/')
 AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/SH4/SH/')
 
-FLAGS := -Wall -Wextra -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
+FLAGS := -Wall -Wextra -Wno-format-zero-length
+FLAGS += -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
 FLAGS += -D_FORTIFY_SOURCE=2 -O2 -pie -fPIE
 FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
 FLAGS += -DNETNS_RUN_DIR=\"/run/netns\"

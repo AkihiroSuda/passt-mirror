@@ -43,13 +43,14 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 
 	if (start < p->buf) {
 		trace("add packet start %p before buffer start %p, %s:%i",
-		      start, p->buf, func, line);
+		      (void *)start, (void *)p->buf, func, line);
 		return;
 	}
 
 	if (start + len > p->buf + p->buf_size) {
 		trace("add packet start %p, length: %lu, buffer end %p, %s:%i",
-		      start, len, p->buf + p->buf_size, func, line);
+		      (void *)start, len, (void *)(p->buf + p->buf_size),
+		      func, line);
 		return;
 	}
 
@@ -61,7 +62,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 #if UINTPTR_MAX == UINT64_MAX
 	if ((uintptr_t)start - (uintptr_t)p->buf > UINT32_MAX) {
 		trace("add packet start %p, buffer start %p, %s:%i",
-		      start, p->buf, func, line);
+		      (void *)start, (void *)p->buf, func, line);
 		return;
 	}
 #endif
