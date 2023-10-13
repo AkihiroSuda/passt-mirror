@@ -514,8 +514,6 @@ static struct iovec	tcp6_l2_iov		[TCP_FRAMES_MEM];
 static struct iovec	tcp4_l2_flags_iov	[TCP_FRAMES_MEM];
 static struct iovec	tcp6_l2_flags_iov	[TCP_FRAMES_MEM];
 
-static struct mmsghdr	tcp_l2_mh		[TCP_FRAMES_MEM];
-
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
 
@@ -3147,7 +3145,6 @@ static void tcp_sock_refill_init(const struct ctx *c)
  */
 int tcp_init(struct ctx *c)
 {
-	int i;
 #ifndef HAS_GETRANDOM
 	int dev_random = open("/dev/random", O_RDONLY);
 	unsigned int random_read = 0;
@@ -3175,9 +3172,6 @@ int tcp_init(struct ctx *c)
 		perror("TCP initial sequence getrandom");
 		exit(EXIT_FAILURE);
 	}
-
-	for (i = 0; i < ARRAY_SIZE(tcp_l2_mh); i++)
-		tcp_l2_mh[i] = (struct mmsghdr) { .msg_hdr.msg_iovlen = 1 };
 
 	if (c->ifi4)
 		tcp_sock4_iov_init(c);
