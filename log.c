@@ -47,11 +47,10 @@ int		log_to_stdout;		/* Print to stdout instead of stderr */
 
 #define BEFORE_DAEMON		(setlogmask(0) == LOG_MASK(LOG_EMERG))
 
-void logmsg(int pri, const char *format, ...)
+void vlogmsg(int pri, const char *format, va_list ap)
 {
 	FILE *out = log_to_stdout ? stdout : stderr;
 	struct timespec tp;
-	va_list args;
 
 	if (setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) {
 		clock_gettime(CLOCK_REALTIME, &tp);
@@ -61,22 +60,30 @@ void logmsg(int pri, const char *format, ...)
 	}
 
 	if ((LOG_MASK(LOG_PRI(pri)) & log_mask) || BEFORE_DAEMON) {
-		va_start(args, format);
+		va_list ap2;
+
+		va_copy(ap2, ap); /* Don't clobber ap, we need it again */
 		if (log_file != -1)
-			logfile_write(pri, format, args);
+			logfile_write(pri, format, ap2);
 		else if (!(setlogmask(0) & LOG_MASK(LOG_DEBUG)))
-			passt_vsyslog(pri, format, args);
-		va_end(args);
+			passt_vsyslog(pri, format, ap2);
 	}
 
 	if ((setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) ||
 	    (BEFORE_DAEMON && !(log_opt & LOG_PERROR))) {
-		va_start(args, format);
-		(void)vfprintf(out, format, args);
-		va_end(args);
+		(void)vfprintf(out, format, ap);
 		if (format[strlen(format)] != '\n')
 			fprintf(out, "\n");
 	}
+}
+
+void logmsg(int pri, const char *format, ...)
+{
+	va_list ap;
+
+	va_start(ap, format);
+	vlogmsg(pri, format, ap);
+	va_end(ap);
 }
 
 /* Prefixes for log file messages, indexed by priority */

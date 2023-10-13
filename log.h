@@ -12,6 +12,7 @@
 #define LOGFILE_CUT_RATIO		30	/* When full, cut ~30% size */
 #define LOGFILE_SIZE_MIN		(5UL * MAX(BUFSIZ, PAGE_SIZE))
 
+void vlogmsg(int pri, const char *format, va_list ap);
 void logmsg(int pri, const char *format, ...)
 	__attribute__((format(printf, 2, 3)));
 
