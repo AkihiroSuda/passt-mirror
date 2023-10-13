@@ -6,14 +6,18 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <syslog.h>
+
 #define LOGFILE_SIZE_DEFAULT		(1024 * 1024UL)
 #define LOGFILE_CUT_RATIO		30	/* When full, cut ~30% size */
 #define LOGFILE_SIZE_MIN		(5UL * MAX(BUFSIZ, PAGE_SIZE))
 
-void err(const char *format, ...);
-void warn(const char *format, ...);
-void info(const char *format, ...);
-void debug(const char *format, ...);
+void logmsg(int pri, const char *format, ...);
+
+#define err(...)	logmsg(LOG_ERR, __VA_ARGS__)
+#define warn(...)	logmsg(LOG_WARNING, __VA_ARGS__)
+#define info(...)	logmsg(LOG_INFO, __VA_ARGS__)
+#define debug(...)	logmsg(LOG_DEBUG, __VA_ARGS__)
 
 #define die(...)							\
 	do {								\

@@ -47,36 +47,36 @@ int		log_to_stdout;		/* Print to stdout instead of stderr */
 
 #define BEFORE_DAEMON		(setlogmask(0) == LOG_MASK(LOG_EMERG))
 
-#define logfn(name, level)						\
-void name(const char *format, ...) {					\
-	FILE *out = log_to_stdout ? stdout : stderr;			\
-	struct timespec tp;						\
-	va_list args;							\
-									\
-	if (setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) {	\
-		clock_gettime(CLOCK_REALTIME, &tp);			\
-		fprintf(out, "%lli.%04lli: ",				\
-			(long long int)tp.tv_sec - log_start,		\
-			(long long int)tp.tv_nsec / (100L * 1000));	\
-	}								\
-									\
-	if ((LOG_MASK(LOG_PRI(level)) & log_mask) || BEFORE_DAEMON) {	\
-		va_start(args, format);					\
-		if (log_file != -1)					\
-			logfile_write(level, format, args);		\
-		else if (!(setlogmask(0) & LOG_MASK(LOG_DEBUG)))	\
-			passt_vsyslog(level, format, args);		\
-		va_end(args);						\
-	}								\
-									\
-	if ((setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) ||	\
-	    (BEFORE_DAEMON && !(log_opt & LOG_PERROR))) {		\
-		va_start(args, format);					\
-		(void)vfprintf(out, format, args); 			\
-		va_end(args);						\
-		if (format[strlen(format)] != '\n')			\
-			fprintf(out, "\n");				\
-	}								\
+void logmsg(int pri, const char *format, ...)
+{
+	FILE *out = log_to_stdout ? stdout : stderr;
+	struct timespec tp;
+	va_list args;
+
+	if (setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) {
+		clock_gettime(CLOCK_REALTIME, &tp);
+		fprintf(out, "%lli.%04lli: ",
+			(long long int)tp.tv_sec - log_start,
+			(long long int)tp.tv_nsec / (100L * 1000));
+	}
+
+	if ((LOG_MASK(LOG_PRI(pri)) & log_mask) || BEFORE_DAEMON) {
+		va_start(args, format);
+		if (log_file != -1)
+			logfile_write(pri, format, args);
+		else if (!(setlogmask(0) & LOG_MASK(LOG_DEBUG)))
+			passt_vsyslog(pri, format, args);
+		va_end(args);
+	}
+
+	if ((setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) ||
+	    (BEFORE_DAEMON && !(log_opt & LOG_PERROR))) {
+		va_start(args, format);
+		(void)vfprintf(out, format, args);
+		va_end(args);
+		if (format[strlen(format)] != '\n')
+			fprintf(out, "\n");
+	}
 }
 
 /* Prefixes for log file messages, indexed by priority */
@@ -88,11 +88,6 @@ const char *logfile_prefix[] = {
 	"info:    ",
 	"         ",		/* LOG_DEBUG */
 };
-
-logfn(err,  LOG_ERR)
-logfn(warn, LOG_WARNING)
-logfn(info, LOG_INFO)
-logfn(debug,LOG_DEBUG)
 
 /**
  * trace_init() - Set log_trace depending on trace (debug) mode
