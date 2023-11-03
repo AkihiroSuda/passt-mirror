@@ -74,19 +74,19 @@ static void procfs_scan_listen(int fd, unsigned int lstate,
  */
 void get_bound_ports_tcp(struct ctx *c, int ns)
 {
-	uint8_t *map, *excl;
+	struct port_fwd *fwd, *rev;
 
 	if (ns) {
-		map = c->tcp.fwd_in.map;
-		excl = c->tcp.fwd_out.map;
+		fwd = &c->tcp.fwd_in;
+		rev = &c->tcp.fwd_out;
 	} else {
-		map = c->tcp.fwd_out.map;
-		excl = c->tcp.fwd_in.map;
+		fwd = &c->tcp.fwd_out;
+		rev = &c->tcp.fwd_in;
 	}
 
-	memset(map, 0, PORT_BITMAP_SIZE);
-	procfs_scan_listen(c->proc_net_tcp[V4][ns], TCP_LISTEN, map, excl);
-	procfs_scan_listen(c->proc_net_tcp[V6][ns], TCP_LISTEN, map, excl);
+	memset(fwd->map, 0, PORT_BITMAP_SIZE);
+	procfs_scan_listen(fwd->scan4, TCP_LISTEN, fwd->map, rev->map);
+	procfs_scan_listen(fwd->scan6, TCP_LISTEN, fwd->map, rev->map);
 }
 
 /**
@@ -96,27 +96,29 @@ void get_bound_ports_tcp(struct ctx *c, int ns)
  */
 void get_bound_ports_udp(struct ctx *c, int ns)
 {
-	uint8_t *map, *excl;
+	struct port_fwd *fwd, *rev, *tcp;
 
 	if (ns) {
-		map = c->udp.fwd_in.f.map;
-		excl = c->udp.fwd_out.f.map;
+		fwd = &c->udp.fwd_in.f;
+		rev = &c->udp.fwd_out.f;
+		tcp = &c->tcp.fwd_in;
 	} else {
-		map = c->udp.fwd_out.f.map;
-		excl = c->udp.fwd_in.f.map;
+		fwd = &c->udp.fwd_out.f;
+		rev = &c->udp.fwd_in.f;
+		tcp = &c->tcp.fwd_out;
 	}
 
-	memset(map, 0, PORT_BITMAP_SIZE);
-	procfs_scan_listen(c->proc_net_udp[V4][ns], UDP_LISTEN, map, excl);
-	procfs_scan_listen(c->proc_net_udp[V6][ns], UDP_LISTEN, map, excl);
+	memset(fwd->map, 0, PORT_BITMAP_SIZE);
+	procfs_scan_listen(fwd->scan4, UDP_LISTEN, fwd->map, rev->map);
+	procfs_scan_listen(fwd->scan6, UDP_LISTEN, fwd->map, rev->map);
 
 	/* Also forward UDP ports with the same numbers as bound TCP ports.
 	 * This is useful for a handful of protocols (e.g. iperf3) where a TCP
 	 * control port is used to set up transfers on a corresponding UDP
 	 * port.
 	 */
-	procfs_scan_listen(c->proc_net_tcp[V4][ns], TCP_LISTEN, map, excl);
-	procfs_scan_listen(c->proc_net_tcp[V6][ns], TCP_LISTEN, map, excl);
+	procfs_scan_listen(tcp->scan4, TCP_LISTEN, fwd->map, rev->map);
+	procfs_scan_listen(tcp->scan6, TCP_LISTEN, fwd->map, rev->map);
 }
 
 /**
@@ -127,29 +129,29 @@ void port_fwd_init(struct ctx *c)
 {
 	const int flags = O_RDONLY | O_CLOEXEC;
 
-	c->proc_net_tcp[V4][0] = c->proc_net_tcp[V4][1] = -1;
-	c->proc_net_tcp[V6][0] = c->proc_net_tcp[V6][1] = -1;
-	c->proc_net_udp[V4][0] = c->proc_net_udp[V4][1] = -1;
-	c->proc_net_udp[V6][0] = c->proc_net_udp[V6][1] = -1;
+	c->tcp.fwd_in.scan4 = c->tcp.fwd_in.scan6 = -1;
+	c->tcp.fwd_out.scan4 = c->tcp.fwd_out.scan6 = -1;
+	c->udp.fwd_in.f.scan4 = c->udp.fwd_in.f.scan6 = -1;
+	c->udp.fwd_out.f.scan4 = c->udp.fwd_out.f.scan6 = -1;
 
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
-		c->proc_net_tcp[V4][1] = open_in_ns(c, "/proc/net/tcp", flags);
-		c->proc_net_tcp[V6][1] = open_in_ns(c, "/proc/net/tcp6", flags);
+		c->tcp.fwd_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
+		c->tcp.fwd_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
 		get_bound_ports_tcp(c, 1);
 	}
 	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
-		c->proc_net_udp[V4][1] = open_in_ns(c, "/proc/net/udp", flags);
-		c->proc_net_udp[V6][1] = open_in_ns(c, "/proc/net/udp6", flags);
+		c->udp.fwd_in.f.scan4 = open_in_ns(c, "/proc/net/udp", flags);
+		c->udp.fwd_in.f.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
 		get_bound_ports_udp(c, 1);
 	}
 	if (c->tcp.fwd_out.mode == FWD_AUTO) {
-		c->proc_net_tcp[V4][0] = open("/proc/net/tcp", flags);
-		c->proc_net_tcp[V6][0] = open("/proc/net/tcp6", flags);
+		c->tcp.fwd_out.scan4 = open("/proc/net/tcp", flags);
+		c->tcp.fwd_out.scan6 = open("/proc/net/tcp6", flags);
 		get_bound_ports_tcp(c, 0);
 	}
 	if (c->udp.fwd_out.f.mode == FWD_AUTO) {
-		c->proc_net_udp[V4][0] = open("/proc/net/udp", flags);
-		c->proc_net_udp[V6][0] = open("/proc/net/udp6", flags);
+		c->udp.fwd_out.f.scan4 = open("/proc/net/udp", flags);
+		c->udp.fwd_out.f.scan6 = open("/proc/net/udp6", flags);
 		get_bound_ports_udp(c, 0);
 	}
 }

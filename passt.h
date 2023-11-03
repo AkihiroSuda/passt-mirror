@@ -203,8 +203,6 @@ struct ip6_ctx {
  * @no_netns_quit:	In pasta mode, don't exit if fs-bound namespace is gone
  * @netns_base:		Base name for fs-bound namespace, if any, in pasta mode
  * @netns_dir:		Directory of fs-bound namespace, if any, in pasta mode
- * @proc_net_tcp:	Stored handles for /proc/net/tcp{,6} in init and ns
- * @proc_net_udp:	Stored handles for /proc/net/udp{,6} in init and ns
  * @epollfd:		File descriptor for epoll instance
  * @fd_tap_listen:	File descriptor for listening AF_UNIX socket, if any
  * @fd_tap:		AF_UNIX socket, tuntap device, or pre-opened socket
@@ -257,9 +255,6 @@ struct ctx {
 	int no_netns_quit;
 	char netns_base[PATH_MAX];
 	char netns_dir[PATH_MAX];
-
-	int proc_net_tcp[IP_VERSIONS][2];
-	int proc_net_udp[IP_VERSIONS][2];
 
 	int epollfd;
 	int fd_tap_listen;

@@ -22,11 +22,15 @@ enum port_fwd_mode {
 /**
  * port_fwd - Describes port forwarding for one protocol and direction
  * @mode:	Overall forwarding mode (all, none, auto, specific ports)
+ * @scan4:	/proc/net fd to scan for IPv4 ports when in AUTO mode
+ * @scan6:	/proc/net fd to scan for IPv6 ports when in AUTO mode
  * @map:	Bitmap describing which ports are forwarded
  * @delta:	Offset between the original destination and mapped port number
  */
 struct port_fwd {
 	enum port_fwd_mode mode;
+	int scan4;
+	int scan6;
 	uint8_t map[PORT_BITMAP_SIZE];
 	in_port_t delta[NUM_PORTS];
 };
