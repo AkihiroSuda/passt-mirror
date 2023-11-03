@@ -3287,13 +3287,13 @@ void tcp_timer(struct ctx *c, const struct timespec *ts)
 		struct tcp_port_rebind_arg rebind_arg = { c, 0 };
 
 		if (c->tcp.fwd_out.mode == FWD_AUTO) {
-			get_bound_ports(c, 0, IPPROTO_TCP);
+			get_bound_ports_tcp(c, 0);
 			rebind_arg.bind_in_ns = 1;
 			NS_CALL(tcp_port_rebind, &rebind_arg);
 		}
 
 		if (c->tcp.fwd_in.mode == FWD_AUTO) {
-			get_bound_ports(c, 1, IPPROTO_TCP);
+			get_bound_ports_tcp(c, 1);
 			rebind_arg.bind_in_ns = 0;
 			tcp_port_rebind(&rebind_arg);
 		}

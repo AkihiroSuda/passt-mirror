@@ -31,7 +31,8 @@ struct port_fwd {
 	in_port_t delta[NUM_PORTS];
 };
 
-void get_bound_ports(struct ctx *c, int ns, uint8_t proto);
+void get_bound_ports_tcp(struct ctx *c, int ns);
+void get_bound_ports_udp(struct ctx *c, int ns);
 void port_fwd_init(struct ctx *c);
 
 #endif /* PORT_FWD_H */
