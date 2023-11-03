@@ -45,72 +45,6 @@
 #include "log.h"
 
 /**
- * get_bound_ports() - Get maps of ports with bound sockets
- * @c:		Execution context
- * @ns:		If set, set bitmaps for ports to tap/ns -- to init otherwise
- * @proto:	Protocol number (IPPROTO_TCP or IPPROTO_UDP)
- */
-void get_bound_ports(struct ctx *c, int ns, uint8_t proto)
-{
-	uint8_t *udp_map, *udp_excl, *tcp_map, *tcp_excl;
-
-	if (ns) {
-		udp_map = c->udp.fwd_in.f.map;
-		udp_excl = c->udp.fwd_out.f.map;
-		tcp_map = c->tcp.fwd_in.map;
-		tcp_excl = c->tcp.fwd_out.map;
-	} else {
-		udp_map = c->udp.fwd_out.f.map;
-		udp_excl = c->udp.fwd_in.f.map;
-		tcp_map = c->tcp.fwd_out.map;
-		tcp_excl = c->tcp.fwd_in.map;
-	}
-
-	if (proto == IPPROTO_UDP) {
-		memset(udp_map, 0, PORT_BITMAP_SIZE);
-		procfs_scan_listen(c, IPPROTO_UDP, V4, ns, udp_map, udp_excl);
-		procfs_scan_listen(c, IPPROTO_UDP, V6, ns, udp_map, udp_excl);
-
-		procfs_scan_listen(c, IPPROTO_TCP, V4, ns, udp_map, udp_excl);
-		procfs_scan_listen(c, IPPROTO_TCP, V6, ns, udp_map, udp_excl);
-	} else if (proto == IPPROTO_TCP) {
-		memset(tcp_map, 0, PORT_BITMAP_SIZE);
-		procfs_scan_listen(c, IPPROTO_TCP, V4, ns, tcp_map, tcp_excl);
-		procfs_scan_listen(c, IPPROTO_TCP, V6, ns, tcp_map, tcp_excl);
-	}
-}
-
-/**
- * struct get_bound_ports_ns_arg - Arguments for get_bound_ports_ns()
- * @c:		Execution context
- * @proto:	Protocol number (IPPROTO_TCP or IPPROTO_UDP)
- */
-struct get_bound_ports_ns_arg {
-	struct ctx *c;
-	uint8_t proto;
-};
-
-/**
- * get_bound_ports_ns() - Get maps of ports in namespace with bound sockets
- * @arg:	See struct get_bound_ports_ns_arg
- *
- * Return: 0
- */
-static int get_bound_ports_ns(void *arg)
-{
-	struct get_bound_ports_ns_arg *a = (struct get_bound_ports_ns_arg *)arg;
-	struct ctx *c = a->c;
-
-	if (!c->pasta_netns_fd)
-		return 0;
-
-	ns_enter(c);
-	get_bound_ports(c, 1, a->proto);
-
-	return 0;
-}
-
-/**
  * next_chunk - Return the next piece of a string delimited by a character
  * @s:		String to search
  * @c:		Delimiter character
@@ -1235,7 +1169,6 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"no-copy-addrs", no_argument,		NULL,		19 },
 		{ 0 },
 	};
-	struct get_bound_ports_ns_arg ns_ports_arg = { .c = c };
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
 	enum port_fwd_mode fwd_default = FWD_NONE;
@@ -1814,23 +1747,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (!c->udp.fwd_out.f.mode)
 		c->udp.fwd_out.f.mode = fwd_default;
 
-	c->proc_net_tcp[V4][0] = c->proc_net_tcp[V4][1] = -1;
-	c->proc_net_tcp[V6][0] = c->proc_net_tcp[V6][1] = -1;
-	c->proc_net_udp[V4][0] = c->proc_net_udp[V4][1] = -1;
-	c->proc_net_udp[V6][0] = c->proc_net_udp[V6][1] = -1;
-
-	if (c->tcp.fwd_in.mode == FWD_AUTO) {
-		ns_ports_arg.proto = IPPROTO_TCP;
-		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
-	}
-	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
-		ns_ports_arg.proto = IPPROTO_UDP;
-		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
-	}
-	if (c->tcp.fwd_out.mode == FWD_AUTO)
-		get_bound_ports(c, 0, IPPROTO_TCP);
-	if (c->udp.fwd_out.f.mode == FWD_AUTO)
-		get_bound_ports(c, 0, IPPROTO_UDP);
+	port_fwd_init(c);
 
 	if (!c->quiet)
 		conf_print(c);

@@ -28,7 +28,6 @@
 #include "util.h"
 #include "passt.h"
 #include "packet.h"
-#include "lineread.h"
 #include "log.h"
 
 #define IPV6_NH_OPT(nh)							\
@@ -326,69 +325,7 @@ int bitmap_isset(const uint8_t *map, int bit)
 	return !!(*word & BITMAP_BIT(bit));
 }
 
-/**
- * procfs_scan_listen() - Set bits for listening TCP or UDP sockets from procfs
- * @proto:	IPPROTO_TCP or IPPROTO_UDP
- * @ip_version:	IP version, V4 or V6
- * @ns:		Use saved file descriptors for namespace if set
- * @map:	Bitmap where numbers of ports in listening state will be set
- * @exclude:	Bitmap of ports to exclude from setting (and clear)
- *
- * #syscalls:pasta lseek
- * #syscalls:pasta ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
- */
-void procfs_scan_listen(struct ctx *c, uint8_t proto, int ip_version, int ns,
-			uint8_t *map, const uint8_t *exclude)
-{
-	char *path, *line;
-	struct lineread lr;
-	unsigned long port;
-	unsigned int state;
-	int *fd;
-
-	if (proto == IPPROTO_TCP) {
-		fd = &c->proc_net_tcp[ip_version][ns];
-		if (ip_version == V4)
-			path = "/proc/net/tcp";
-		else
-			path = "/proc/net/tcp6";
-	} else {
-		fd = &c->proc_net_udp[ip_version][ns];
-		if (ip_version == V4)
-			path = "/proc/net/udp";
-		else
-			path = "/proc/net/udp6";
-	}
-
-	if (*fd != -1) {
-		if (lseek(*fd, 0, SEEK_SET)) {
-			warn("lseek() failed on %s: %s", path, strerror(errno));
-			return;
-		}
-	} else if ((*fd = open(path, O_RDONLY | O_CLOEXEC)) < 0) {
-		return;
-	}
-
-	lineread_init(&lr, *fd);
-	lineread_get(&lr, &line); /* throw away header */
-	while (lineread_get(&lr, &line) > 0) {
-		/* NOLINTNEXTLINE(cert-err34-c): != 2 if conversion fails */
-		if (sscanf(line, "%*u: %*x:%lx %*x:%*x %x", &port, &state) != 2)
-			continue;
-
-		/* See enum in kernel's include/net/tcp_states.h */
-		if ((proto == IPPROTO_TCP && state != 0x0a) ||
-		    (proto == IPPROTO_UDP && state != 0x07))
-			continue;
-
-		if (bitmap_isset(exclude, port))
-			bitmap_clear(map, port);
-		else
-			bitmap_set(map, port);
-	}
-}
-
-/**
+/*
  * ns_enter() - Enter configured user (unless already joined) and network ns
  * @c:		Execution context
  *

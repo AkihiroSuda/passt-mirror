@@ -298,7 +298,6 @@
 #include "tap.h"
 #include "siphash.h"
 #include "pcap.h"
-#include "conf.h"
 #include "tcp_splice.h"
 #include "log.h"
 #include "inany.h"
