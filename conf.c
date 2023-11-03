@@ -1238,6 +1238,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	struct get_bound_ports_ns_arg ns_ports_arg = { .c = c };
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
+	enum port_fwd_mode fwd_default = FWD_NONE;
 	bool v4_only = false, v6_only = false;
 	char *runas = NULL, *logfile = NULL;
 	struct in6_addr *dns6 = c->ip6.dns;
@@ -1252,6 +1253,7 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	if (c->mode == MODE_PASTA) {
 		c->no_dhcp_dns = c->no_dhcp_dns_search = 1;
+		fwd_default = FWD_AUTO;
 		optstring = "dqfel:hF:I:p:P:m:a:n:M:g:i:o:D:S:46t:u:T:U:";
 	} else {
 		optstring = "dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:461t:u:";
@@ -1803,40 +1805,32 @@ void conf(struct ctx *c, int argc, char **argv)
 			if_indextoname(c->ifi6, c->pasta_ifn);
 	}
 
-	if (c->mode == MODE_PASTA) {
-		c->proc_net_tcp[V4][0] = c->proc_net_tcp[V4][1] = -1;
-		c->proc_net_tcp[V6][0] = c->proc_net_tcp[V6][1] = -1;
-		c->proc_net_udp[V4][0] = c->proc_net_udp[V4][1] = -1;
-		c->proc_net_udp[V6][0] = c->proc_net_udp[V6][1] = -1;
+	if (!c->tcp.fwd_in.mode)
+		c->tcp.fwd_in.mode = fwd_default;
+	if (!c->tcp.fwd_out.mode)
+		c->tcp.fwd_out.mode = fwd_default;
+	if (!c->udp.fwd_in.f.mode)
+		c->udp.fwd_in.f.mode = fwd_default;
+	if (!c->udp.fwd_out.f.mode)
+		c->udp.fwd_out.f.mode = fwd_default;
 
-		if (!c->tcp.fwd_in.mode || c->tcp.fwd_in.mode == FWD_AUTO) {
-			c->tcp.fwd_in.mode = FWD_AUTO;
-			ns_ports_arg.proto = IPPROTO_TCP;
-			NS_CALL(get_bound_ports_ns, &ns_ports_arg);
-		}
-		if (!c->udp.fwd_in.f.mode || c->udp.fwd_in.f.mode == FWD_AUTO) {
-			c->udp.fwd_in.f.mode = FWD_AUTO;
-			ns_ports_arg.proto = IPPROTO_UDP;
-			NS_CALL(get_bound_ports_ns, &ns_ports_arg);
-		}
-		if (!c->tcp.fwd_out.mode || c->tcp.fwd_out.mode == FWD_AUTO) {
-			c->tcp.fwd_out.mode = FWD_AUTO;
-			get_bound_ports(c, 0, IPPROTO_TCP);
-		}
-		if (!c->udp.fwd_out.f.mode || c->udp.fwd_out.f.mode == FWD_AUTO) {
-			c->udp.fwd_out.f.mode = FWD_AUTO;
-			get_bound_ports(c, 0, IPPROTO_UDP);
-		}
-	} else {
-		if (!c->tcp.fwd_in.mode)
-			c->tcp.fwd_in.mode = FWD_NONE;
-		if (!c->tcp.fwd_out.mode)
-			c->tcp.fwd_out.mode = FWD_NONE;
-		if (!c->udp.fwd_in.f.mode)
-			c->udp.fwd_in.f.mode = FWD_NONE;
-		if (!c->udp.fwd_out.f.mode)
-			c->udp.fwd_out.f.mode = FWD_NONE;
+	c->proc_net_tcp[V4][0] = c->proc_net_tcp[V4][1] = -1;
+	c->proc_net_tcp[V6][0] = c->proc_net_tcp[V6][1] = -1;
+	c->proc_net_udp[V4][0] = c->proc_net_udp[V4][1] = -1;
+	c->proc_net_udp[V6][0] = c->proc_net_udp[V6][1] = -1;
+
+	if (c->tcp.fwd_in.mode == FWD_AUTO) {
+		ns_ports_arg.proto = IPPROTO_TCP;
+		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
 	}
+	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
+		ns_ports_arg.proto = IPPROTO_UDP;
+		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
+	}
+	if (c->tcp.fwd_out.mode == FWD_AUTO)
+		get_bound_ports(c, 0, IPPROTO_TCP);
+	if (c->udp.fwd_out.f.mode == FWD_AUTO)
+		get_bound_ports(c, 0, IPPROTO_UDP);
 
 	if (!c->quiet)
 		conf_print(c);
