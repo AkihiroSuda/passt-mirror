@@ -23,39 +23,28 @@
 #include "passt.h"
 #include "lineread.h"
 
+/* See enum in kernel's include/net/tcp_states.h */
+#define UDP_LISTEN	0x07
+#define TCP_LISTEN	0x0a
+
 /**
  * procfs_scan_listen() - Set bits for listening TCP or UDP sockets from procfs
- * @proto:	IPPROTO_TCP or IPPROTO_UDP
- * @ip_version:	IP version, V4 or V6
- * @ns:		Use saved file descriptors for namespace if set
+ * @fd:		Pointer to fd for relevant /proc/net file
+ * @path:	Path to /proc/net file to open (if fd is -1)
+ * @lstate:	Code for listening state to scan for
  * @map:	Bitmap where numbers of ports in listening state will be set
  * @exclude:	Bitmap of ports to exclude from setting (and clear)
  *
  * #syscalls:pasta lseek
  * #syscalls:pasta ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
  */
-static void procfs_scan_listen(struct ctx *c, uint8_t proto, int ip_version,
-			       int ns, uint8_t *map, const uint8_t *exclude)
+static void procfs_scan_listen(int *fd, const char *path, unsigned int lstate,
+			       uint8_t *map, const uint8_t *exclude)
 {
-	char *path, *line;
 	struct lineread lr;
 	unsigned long port;
 	unsigned int state;
-	int *fd;
-
-	if (proto == IPPROTO_TCP) {
-		fd = &c->proc_net_tcp[ip_version][ns];
-		if (ip_version == V4)
-			path = "/proc/net/tcp";
-		else
-			path = "/proc/net/tcp6";
-	} else {
-		fd = &c->proc_net_udp[ip_version][ns];
-		if (ip_version == V4)
-			path = "/proc/net/udp";
-		else
-			path = "/proc/net/udp6";
-	}
+	char *line;
 
 	if (*fd != -1) {
 		if (lseek(*fd, 0, SEEK_SET)) {
@@ -73,9 +62,7 @@ static void procfs_scan_listen(struct ctx *c, uint8_t proto, int ip_version,
 		if (sscanf(line, "%*u: %*x:%lx %*x:%*x %x", &port, &state) != 2)
 			continue;
 
-		/* See enum in kernel's include/net/tcp_states.h */
-		if ((proto == IPPROTO_TCP && state != 0x0a) ||
-		    (proto == IPPROTO_UDP && state != 0x07))
+		if (state != lstate)
 			continue;
 
 		if (bitmap_isset(exclude, port))
@@ -109,15 +96,21 @@ void get_bound_ports(struct ctx *c, int ns, uint8_t proto)
 
 	if (proto == IPPROTO_UDP) {
 		memset(udp_map, 0, PORT_BITMAP_SIZE);
-		procfs_scan_listen(c, IPPROTO_UDP, V4, ns, udp_map, udp_excl);
-		procfs_scan_listen(c, IPPROTO_UDP, V6, ns, udp_map, udp_excl);
+		procfs_scan_listen(&c->proc_net_udp[V4][ns], "/proc/net/udp",
+				   UDP_LISTEN, udp_map, udp_excl);
+		procfs_scan_listen(&c->proc_net_udp[V6][ns], "/proc/net/udp6",
+				   UDP_LISTEN, udp_map, udp_excl);
 
-		procfs_scan_listen(c, IPPROTO_TCP, V4, ns, udp_map, udp_excl);
-		procfs_scan_listen(c, IPPROTO_TCP, V6, ns, udp_map, udp_excl);
+		procfs_scan_listen(&c->proc_net_tcp[V4][ns], "/proc/net/tcp",
+				   TCP_LISTEN, udp_map, udp_excl);
+		procfs_scan_listen(&c->proc_net_tcp[V6][ns], "/proc/net/tcp6",
+				   TCP_LISTEN, udp_map, udp_excl);
 	} else if (proto == IPPROTO_TCP) {
 		memset(tcp_map, 0, PORT_BITMAP_SIZE);
-		procfs_scan_listen(c, IPPROTO_TCP, V4, ns, tcp_map, tcp_excl);
-		procfs_scan_listen(c, IPPROTO_TCP, V6, ns, tcp_map, tcp_excl);
+		procfs_scan_listen(&c->proc_net_tcp[V4][ns], "/proc/net/tcp",
+				   TCP_LISTEN, tcp_map, tcp_excl);
+		procfs_scan_listen(&c->proc_net_tcp[V6][ns], "/proc/net/tcp6",
+				   TCP_LISTEN, tcp_map, tcp_excl);
 	}
 }
 
