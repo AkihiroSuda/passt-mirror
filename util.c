@@ -365,6 +365,59 @@ bool ns_is_init(void)
 }
 
 /**
+ * struct open_in_ns_args - Parameters for do_open_in_ns()
+ * @c:		Execution context
+ * @fd:		Filled in with return value from open()
+ * @err:	Filled in with errno if open() failed
+ * @path:	Path to open
+ * @flags:	open() flags
+ */
+struct open_in_ns_args {
+	const struct ctx *c;
+	int fd;
+	int err;
+	const char *path;
+	int flags;
+};
+
+/**
+ * do_open_in_ns() - Enter namespace and open a file
+ * @arg:	See struct open_in_ns_args
+ *
+ * Must be called via NS_CALL()
+ */
+static int do_open_in_ns(void *arg)
+{
+	struct open_in_ns_args *a = (struct open_in_ns_args *)arg;
+
+	ns_enter(a->c);
+
+	a->fd = open(a->path, a->flags);
+	a->err = errno;
+
+	return 0;
+}
+
+/**
+ * open_in_ns() - open() within the pasta namespace
+ * @c:		Execution context
+ * @path:	Path to open
+ * @flags:	open() flags
+ *
+ * Return: fd of open()ed file or -1 on error, errno is set to indicate error
+ */
+int open_in_ns(const struct ctx *c, const char *path, int flags)
+{
+	struct open_in_ns_args arg = {
+		.c = c, .path = path, .flags = flags,
+	};
+
+	NS_CALL(do_open_in_ns, &arg);
+	errno = arg.err;
+	return arg.fd;
+}
+
+/**
  * pid_file() - Write PID to file, if requested to do so, and close it
  * @fd:		Open PID file descriptor, closed on exit, -1 to skip writing it
  * @pid:	PID value to write
