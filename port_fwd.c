@@ -68,46 +68,26 @@ static void procfs_scan_listen(int fd, unsigned int lstate,
 }
 
 /**
- * get_bound_ports_tcp() - Get maps of TCP ports with bound sockets
- * @c:		Execution context
- * @ns:		If set, set bitmaps for ports to tap/ns -- to init otherwise
+ * port_fwd_scan_tcp() - Scan /proc to update TCP forwarding map
+ * @fwd:	Forwarding information to update
+ * @rev:	Forwarding information for the reverse direction
  */
-void get_bound_ports_tcp(struct ctx *c, int ns)
+void port_fwd_scan_tcp(struct port_fwd *fwd, const struct port_fwd *rev)
 {
-	struct port_fwd *fwd, *rev;
-
-	if (ns) {
-		fwd = &c->tcp.fwd_in;
-		rev = &c->tcp.fwd_out;
-	} else {
-		fwd = &c->tcp.fwd_out;
-		rev = &c->tcp.fwd_in;
-	}
-
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
 	procfs_scan_listen(fwd->scan4, TCP_LISTEN, fwd->map, rev->map);
 	procfs_scan_listen(fwd->scan6, TCP_LISTEN, fwd->map, rev->map);
 }
 
 /**
- * get_bound_ports_udp() - Get maps of UDP ports with bound sockets
- * @c:		Execution context
- * @ns:		If set, set bitmaps for ports to tap/ns -- to init otherwise
+ * port_fwd_scan_tcp() - Scan /proc to update TCP forwarding map
+ * @fwd:	Forwarding information to update
+ * @rev:	Forwarding information for the reverse direction
+ * @tcp:	Corresponding TCP forwarding information
  */
-void get_bound_ports_udp(struct ctx *c, int ns)
+void port_fwd_scan_udp(struct port_fwd *fwd, const struct port_fwd *rev,
+		       const struct port_fwd *tcp)
 {
-	struct port_fwd *fwd, *rev, *tcp;
-
-	if (ns) {
-		fwd = &c->udp.fwd_in.f;
-		rev = &c->udp.fwd_out.f;
-		tcp = &c->tcp.fwd_in;
-	} else {
-		fwd = &c->udp.fwd_out.f;
-		rev = &c->udp.fwd_in.f;
-		tcp = &c->tcp.fwd_out;
-	}
-
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
 	procfs_scan_listen(fwd->scan4, UDP_LISTEN, fwd->map, rev->map);
 	procfs_scan_listen(fwd->scan6, UDP_LISTEN, fwd->map, rev->map);
@@ -137,21 +117,23 @@ void port_fwd_init(struct ctx *c)
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
 		c->tcp.fwd_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
 		c->tcp.fwd_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
-		get_bound_ports_tcp(c, 1);
+		port_fwd_scan_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
 	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
 		c->udp.fwd_in.f.scan4 = open_in_ns(c, "/proc/net/udp", flags);
 		c->udp.fwd_in.f.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
-		get_bound_ports_udp(c, 1);
+		port_fwd_scan_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
+				  &c->tcp.fwd_in);
 	}
 	if (c->tcp.fwd_out.mode == FWD_AUTO) {
 		c->tcp.fwd_out.scan4 = open("/proc/net/tcp", flags);
 		c->tcp.fwd_out.scan6 = open("/proc/net/tcp6", flags);
-		get_bound_ports_tcp(c, 0);
+		port_fwd_scan_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
 	if (c->udp.fwd_out.f.mode == FWD_AUTO) {
 		c->udp.fwd_out.f.scan4 = open("/proc/net/udp", flags);
 		c->udp.fwd_out.f.scan6 = open("/proc/net/udp6", flags);
-		get_bound_ports_udp(c, 0);
+		port_fwd_scan_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
+				  &c->tcp.fwd_out);
 	}
 }
