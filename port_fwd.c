@@ -29,8 +29,7 @@
 
 /**
  * procfs_scan_listen() - Set bits for listening TCP or UDP sockets from procfs
- * @fd:		Pointer to fd for relevant /proc/net file
- * @path:	Path to /proc/net file to open (if fd is -1)
+ * @fd:		fd for relevant /proc/net file
  * @lstate:	Code for listening state to scan for
  * @map:	Bitmap where numbers of ports in listening state will be set
  * @exclude:	Bitmap of ports to exclude from setting (and clear)
@@ -38,7 +37,7 @@
  * #syscalls:pasta lseek
  * #syscalls:pasta ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
  */
-static void procfs_scan_listen(int *fd, const char *path, unsigned int lstate,
+static void procfs_scan_listen(int fd, unsigned int lstate,
 			       uint8_t *map, const uint8_t *exclude)
 {
 	struct lineread lr;
@@ -46,16 +45,12 @@ static void procfs_scan_listen(int *fd, const char *path, unsigned int lstate,
 	unsigned int state;
 	char *line;
 
-	if (*fd != -1) {
-		if (lseek(*fd, 0, SEEK_SET)) {
-			warn("lseek() failed on %s: %s", path, strerror(errno));
-			return;
-		}
-	} else if ((*fd = open(path, O_RDONLY | O_CLOEXEC)) < 0) {
+	if (lseek(fd, 0, SEEK_SET)) {
+		warn("lseek() failed on /proc/net file: %s", strerror(errno));
 		return;
 	}
 
-	lineread_init(&lr, *fd);
+	lineread_init(&lr, fd);
 	lineread_get(&lr, &line); /* throw away header */
 	while (lineread_get(&lr, &line) > 0) {
 		/* NOLINTNEXTLINE(cert-err34-c): != 2 if conversion fails */
@@ -96,20 +91,20 @@ void get_bound_ports(struct ctx *c, int ns, uint8_t proto)
 
 	if (proto == IPPROTO_UDP) {
 		memset(udp_map, 0, PORT_BITMAP_SIZE);
-		procfs_scan_listen(&c->proc_net_udp[V4][ns], "/proc/net/udp",
+		procfs_scan_listen(c->proc_net_udp[V4][ns],
 				   UDP_LISTEN, udp_map, udp_excl);
-		procfs_scan_listen(&c->proc_net_udp[V6][ns], "/proc/net/udp6",
+		procfs_scan_listen(c->proc_net_udp[V6][ns],
 				   UDP_LISTEN, udp_map, udp_excl);
 
-		procfs_scan_listen(&c->proc_net_tcp[V4][ns], "/proc/net/tcp",
+		procfs_scan_listen(c->proc_net_tcp[V4][ns],
 				   TCP_LISTEN, udp_map, udp_excl);
-		procfs_scan_listen(&c->proc_net_tcp[V6][ns], "/proc/net/tcp6",
+		procfs_scan_listen(c->proc_net_tcp[V6][ns],
 				   TCP_LISTEN, udp_map, udp_excl);
 	} else if (proto == IPPROTO_TCP) {
 		memset(tcp_map, 0, PORT_BITMAP_SIZE);
-		procfs_scan_listen(&c->proc_net_tcp[V4][ns], "/proc/net/tcp",
+		procfs_scan_listen(c->proc_net_tcp[V4][ns],
 				   TCP_LISTEN, tcp_map, tcp_excl);
-		procfs_scan_listen(&c->proc_net_tcp[V6][ns], "/proc/net/tcp6",
+		procfs_scan_listen(c->proc_net_tcp[V6][ns],
 				   TCP_LISTEN, tcp_map, tcp_excl);
 	}
 }
@@ -151,6 +146,7 @@ static int get_bound_ports_ns(void *arg)
 void port_fwd_init(struct ctx *c)
 {
 	struct get_bound_ports_ns_arg ns_ports_arg = { .c = c };
+	const int flags = O_RDONLY | O_CLOEXEC;
 
 	c->proc_net_tcp[V4][0] = c->proc_net_tcp[V4][1] = -1;
 	c->proc_net_tcp[V6][0] = c->proc_net_tcp[V6][1] = -1;
@@ -158,15 +154,25 @@ void port_fwd_init(struct ctx *c)
 	c->proc_net_udp[V6][0] = c->proc_net_udp[V6][1] = -1;
 
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
+		c->proc_net_tcp[V4][1] = open_in_ns(c, "/proc/net/tcp", flags);
+		c->proc_net_tcp[V6][1] = open_in_ns(c, "/proc/net/tcp6", flags);
 		ns_ports_arg.proto = IPPROTO_TCP;
 		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
 	}
 	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
+		c->proc_net_udp[V4][1] = open_in_ns(c, "/proc/net/udp", flags);
+		c->proc_net_udp[V6][1] = open_in_ns(c, "/proc/net/udp6", flags);
 		ns_ports_arg.proto = IPPROTO_UDP;
 		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
 	}
-	if (c->tcp.fwd_out.mode == FWD_AUTO)
+	if (c->tcp.fwd_out.mode == FWD_AUTO) {
+		c->proc_net_tcp[V4][0] = open("/proc/net/tcp", flags);
+		c->proc_net_tcp[V6][0] = open("/proc/net/tcp6", flags);
 		get_bound_ports(c, 0, IPPROTO_TCP);
-	if (c->udp.fwd_out.f.mode == FWD_AUTO)
+	}
+	if (c->udp.fwd_out.f.mode == FWD_AUTO) {
+		c->proc_net_udp[V4][0] = open("/proc/net/udp", flags);
+		c->proc_net_udp[V6][0] = open("/proc/net/udp6", flags);
 		get_bound_ports(c, 0, IPPROTO_UDP);
+	}
 }
