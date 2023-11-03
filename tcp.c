@@ -3197,37 +3197,6 @@ int tcp_init(struct ctx *c)
 }
 
 /**
- * struct tcp_port_detect_arg - Arguments for tcp_port_detect()
- * @c:			Execution context
- * @detect_in_ns:	Detect ports bound in namespace, not in init
- */
-struct tcp_port_detect_arg {
-	struct ctx *c;
-	int detect_in_ns;
-};
-
-/**
- * tcp_port_detect() - Detect ports bound in namespace or init
- * @arg:		See struct tcp_port_detect_arg
- *
- * Return: 0
- */
-static int tcp_port_detect(void *arg)
-{
-	struct tcp_port_detect_arg *a = (struct tcp_port_detect_arg *)arg;
-
-	if (a->detect_in_ns) {
-		ns_enter(a->c);
-
-		get_bound_ports(a->c, 1, IPPROTO_TCP);
-	} else {
-		get_bound_ports(a->c, 0, IPPROTO_TCP);
-	}
-
-	return 0;
-}
-
-/**
  * struct tcp_port_rebind_arg - Arguments for tcp_port_rebind()
  * @c:			Execution context
  * @bind_in_ns:		Rebind ports in namespace, not in init
@@ -3315,19 +3284,16 @@ void tcp_timer(struct ctx *c, const struct timespec *ts)
 	(void)ts;
 
 	if (c->mode == MODE_PASTA) {
-		struct tcp_port_detect_arg detect_arg = { c, 0 };
 		struct tcp_port_rebind_arg rebind_arg = { c, 0 };
 
 		if (c->tcp.fwd_out.mode == FWD_AUTO) {
-			detect_arg.detect_in_ns = 0;
-			tcp_port_detect(&detect_arg);
+			get_bound_ports(c, 0, IPPROTO_TCP);
 			rebind_arg.bind_in_ns = 1;
 			NS_CALL(tcp_port_rebind, &rebind_arg);
 		}
 
 		if (c->tcp.fwd_in.mode == FWD_AUTO) {
-			detect_arg.detect_in_ns = 1;
-			NS_CALL(tcp_port_detect, &detect_arg);
+			get_bound_ports(c, 1, IPPROTO_TCP);
 			rebind_arg.bind_in_ns = 0;
 			tcp_port_rebind(&rebind_arg);
 		}

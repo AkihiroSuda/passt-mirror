@@ -110,42 +110,11 @@ void get_bound_ports(struct ctx *c, int ns, uint8_t proto)
 }
 
 /**
- * struct get_bound_ports_ns_arg - Arguments for get_bound_ports_ns()
- * @c:		Execution context
- * @proto:	Protocol number (IPPROTO_TCP or IPPROTO_UDP)
- */
-struct get_bound_ports_ns_arg {
-	struct ctx *c;
-	uint8_t proto;
-};
-
-/**
- * get_bound_ports_ns() - Get maps of ports in namespace with bound sockets
- * @arg:	See struct get_bound_ports_ns_arg
- *
- * Return: 0
- */
-static int get_bound_ports_ns(void *arg)
-{
-	struct get_bound_ports_ns_arg *a = (struct get_bound_ports_ns_arg *)arg;
-	struct ctx *c = a->c;
-
-	if (!c->pasta_netns_fd)
-		return 0;
-
-	ns_enter(c);
-	get_bound_ports(c, 1, a->proto);
-
-	return 0;
-}
-
-/**
  * port_fwd_init() - Initial setup for port forwarding
  * @c:		Execution context
  */
 void port_fwd_init(struct ctx *c)
 {
-	struct get_bound_ports_ns_arg ns_ports_arg = { .c = c };
 	const int flags = O_RDONLY | O_CLOEXEC;
 
 	c->proc_net_tcp[V4][0] = c->proc_net_tcp[V4][1] = -1;
@@ -156,14 +125,12 @@ void port_fwd_init(struct ctx *c)
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
 		c->proc_net_tcp[V4][1] = open_in_ns(c, "/proc/net/tcp", flags);
 		c->proc_net_tcp[V6][1] = open_in_ns(c, "/proc/net/tcp6", flags);
-		ns_ports_arg.proto = IPPROTO_TCP;
-		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
+		get_bound_ports(c, 1, IPPROTO_TCP);
 	}
 	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
 		c->proc_net_udp[V4][1] = open_in_ns(c, "/proc/net/udp", flags);
 		c->proc_net_udp[V6][1] = open_in_ns(c, "/proc/net/udp6", flags);
-		ns_ports_arg.proto = IPPROTO_UDP;
-		NS_CALL(get_bound_ports_ns, &ns_ports_arg);
+		get_bound_ports(c, 1, IPPROTO_UDP);
 	}
 	if (c->tcp.fwd_out.mode == FWD_AUTO) {
 		c->proc_net_tcp[V4][0] = open("/proc/net/tcp", flags);
