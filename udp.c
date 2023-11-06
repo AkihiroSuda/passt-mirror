@@ -1147,14 +1147,14 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 {
 	struct udp_splice_port *sp;
 	struct udp_tap_port *tp;
-	int s = -1;
+	int *sockp = NULL;
 
 	switch (type) {
 	case UDP_ACT_TAP:
 		tp = &udp_tap_map[v6 ? V6 : V4][port];
 
 		if (ts->tv_sec - tp->ts > UDP_CONN_TIMEOUT) {
-			s = tp->sock;
+			sockp = &tp->sock;
 			tp->flags = 0;
 		}
 
@@ -1163,21 +1163,23 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 		sp = &udp_splice_init[v6 ? V6 : V4][port];
 
 		if (ts->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
-			s = sp->sock;
+			sockp = &sp->sock;
 
 		break;
 	case UDP_ACT_SPLICE_NS:
 		sp = &udp_splice_ns[v6 ? V6 : V4][port];
 
 		if (ts->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
-			s = sp->sock;
+			sockp = &sp->sock;
 
 		break;
 	default:
 		return;
 	}
 
-	if (s >= 0) {
+	if (sockp && *sockp >= 0) {
+		int s = *sockp;
+		*sockp = -1;
 		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, s, NULL);
 		close(s);
 		bitmap_clear(udp_act[v6 ? V6 : V4][type], port);
