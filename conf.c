@@ -1675,6 +1675,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		c->no_map_gw = 1;
 
 	/* Inbound port options can be parsed now (after IPv4/IPv6 settings) */
+	udp_portmap_clear();
 	optind = 1;
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);

@@ -239,6 +239,20 @@ static struct mmsghdr	udp4_mh_splice		[UDP_MAX_FRAMES];
 static struct mmsghdr	udp6_mh_splice		[UDP_MAX_FRAMES];
 
 /**
+ * udp_portmap_clear() - Clear UDP port map before configuration
+ */
+void udp_portmap_clear(void)
+{
+	unsigned i;
+
+	for (i = 0; i < NUM_PORTS; i++) {
+		udp_tap_map[V4][i].sock = udp_tap_map[V6][i].sock = -1;
+		udp_splice_ns[V4][i].sock = udp_splice_ns[V6][i].sock = -1;
+		udp_splice_init[V4][i].sock = udp_splice_init[V6][i].sock = -1;
+	}
+}
+
+/**
  * udp_invert_portmap() - Compute reverse port translations for return packets
  * @fwd:	Port forwarding configuration to compute reverse map for
  */
@@ -522,7 +536,7 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
 	if (from_pif == PIF_SPLICE) {
 		src += c->udp.fwd_in.rdelta[src];
 		s = udp_splice_init[v6][src].sock;
-		if (!s && allow_new)
+		if (s < 0 && allow_new)
 			s = udp_splice_new(c, v6, src, false);
 
 		if (s < 0)
@@ -534,7 +548,7 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
 		ASSERT(from_pif == PIF_HOST);
 		src += c->udp.fwd_out.rdelta[src];
 		s = udp_splice_ns[v6][src].sock;
-		if (!s && allow_new) {
+		if (s < 0 && allow_new) {
 			struct udp_splice_new_ns_arg arg = {
 				c, v6, src, -1,
 			};
@@ -849,7 +863,9 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 				s_in.sin_addr = c->ip4.addr_seen;
 		}
 
-		if (!(s = udp_tap_map[V4][src].sock)) {
+		debug("UDP from tap src=%hu dst=%hu, s=%d",
+		      src, dst, udp_tap_map[V4][src].sock);
+		if ((s = udp_tap_map[V4][src].sock) < 0) {
 			union udp_epoll_ref uref = { .port = src };
 			in_addr_t bind_addr = { 0 };
 			const char *bind_if = NULL;
@@ -899,7 +915,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 			bind_addr = &c->ip6.addr_ll;
 		}
 
-		if (!(s = udp_tap_map[V6][src].sock)) {
+		if ((s = udp_tap_map[V6][src].sock) < 0) {
 			union udp_epoll_ref uref = { .v6 = 1, .port = src };
 			const char *bind_if = NULL;
 
@@ -1161,7 +1177,7 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 		return;
 	}
 
-	if (s > 0) {
+	if (s >= 0) {
 		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, s, NULL);
 		close(s);
 		bitmap_clear(udp_act[v6 ? V6 : V4][type], port);

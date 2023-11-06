@@ -8,6 +8,7 @@
 
 #define UDP_TIMER_INTERVAL		1000 /* ms */
 
+void udp_portmap_clear(void);
 void udp_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
 		      const struct timespec *now);
 int udp_tap_handler(struct ctx *c, uint8_t pif, int af,
