@@ -35,39 +35,23 @@ hout	FREQ [ -n "__FREQ_CPUFREQ__" ] && echo __FREQ_CPUFREQ__ || echo __FREQ_PROC
 info	Throughput in Gbps, latency in µs, __THREADS__ threads at __FREQ__ GHz, __STREAMS__ streams each
 report	pasta lo_tcp __THREADS__ __FREQ__
 
-th	MTU 1500B 4000B 16384B 65535B
+th	MTU 65535B
 
 tr	TCP throughput over IPv6: ns to host
 iperf3s	host 100${i}3 __THREADS__
 
-ns	ip link set dev lo mtu 1500
-iperf3	BW ns ::1 100${i}3 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 15.0 20.0
-ns	ip link set dev lo mtu 4000
-iperf3	BW ns ::1 100${i}3 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 15.0 20.0
-ns	ip link set dev lo mtu 16384
-iperf3	BW ns ::1 100${i}3 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 15.0 20.0
-ns	ip link set dev lo mtu 65535
 iperf3	BW ns ::1 100${i}3 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 15.0 20.0
 
 iperf3k	host
 
 tl	TCP RR latency over IPv6: ns to host
-lat	-
-lat	-
-lat	-
 hostb	tcp_rr --nolog -P 10003 -C 10013 -6
 nsout	LAT tcp_rr --nolog -P 10003 -C 10013 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv6: ns to host
-lat	-
-lat	-
-lat	-
 hostb	tcp_crr --nolog -P 10003 -C 10013 -6
 nsout	LAT tcp_crr --nolog -P 10003 -C 10013 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
@@ -77,34 +61,18 @@ lat	__LAT__ 500 350
 tr	TCP throughput over IPv4: ns to host
 iperf3s	host 100${i}3 __THREADS__
 
-ns	ip link set dev lo mtu 1500
-iperf3	BW ns 127.0.0.1 100${i}3 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 15.0 20.0
-ns	ip link set dev lo mtu 4000
-iperf3	BW ns 127.0.0.1 100${i}3 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 15.0 20.0
-ns	ip link set dev lo mtu 16384
-iperf3	BW ns 127.0.0.1 100${i}3 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 15.0 20.0
-ns	ip link set dev lo mtu 65535
 iperf3	BW ns 127.0.0.1 100${i}3 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 15.0 20.0
 
 iperf3k	host
 
 tl	TCP RR latency over IPv4: ns to host
-lat	-
-lat	-
-lat	-
 hostb	tcp_rr --nolog -P 10003 -C 10013 -4
 nsout	LAT tcp_rr --nolog -P 10003 -C 10013 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv4: ns to host
-lat	-
-lat	-
-lat	-
 hostb	tcp_crr --nolog -P 10003 -C 10013 -4
 nsout	LAT tcp_crr --nolog -P 10003 -C 10013 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
@@ -113,27 +81,18 @@ lat	__LAT__ 500 350
 tr	TCP throughput over IPv6: host to ns
 iperf3s	ns 100${i}2 __THREADS__
 
-bw	-
-bw	-
-bw	-
 iperf3	BW host ::1 100${i}2 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 15.0 20.0
 
 iperf3k	ns
 
 tl	TCP RR latency over IPv6: host to ns
-lat	-
-lat	-
-lat	-
 nsb	tcp_rr --nolog -P 10002 -C 10012 -6
 hout	LAT tcp_rr --nolog -P 10002 -C 10012 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv6: host to ns
-lat	-
-lat	-
-lat	-
 nsb	tcp_crr --nolog -P 10002 -C 10012 -6
 hout	LAT tcp_crr --nolog -P 10002 -C 10012 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
@@ -143,28 +102,18 @@ lat	__LAT__ 1000 700
 tr	TCP throughput over IPv4: host to ns
 iperf3s	ns 100${i}2 __THREADS__
 
-bw	-
-bw	-
-bw	-
 iperf3	BW host 127.0.0.1 100${i}2 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 15.0 20.0
 
 iperf3k	ns
 
 tl	TCP RR latency over IPv4: host to ns
-lat	-
-lat	-
-lat	-
 nsb	tcp_rr --nolog -P 10002 -C 10012 -4
 hout	LAT tcp_rr --nolog -P 10002 -C 10012 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv4: host to ns
-lat	-
-lat	-
-lat	-
-sleep	1
 nsb	tcp_crr --nolog -P 10002 -C 10012 -4
 hout	LAT tcp_crr --nolog -P 10002 -C 10012 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
