@@ -24,7 +24,7 @@ ns	/sbin/sysctl -w net.ipv4.tcp_timestamps=0
 set	THREADS 2
 set	STREAMS 2
 set	TIME 10
-hout	OMIT echo __TIME__ / 6 | bc -l
+set	OMIT 0.1
 set	OPTS -Z -w 4M -l 1M -P __STREAMS__ -O__OMIT__
 
 hout	FREQ_PROCFS (echo "scale=1"; sed -n 's/cpu MHz.*: \([0-9]*\)\..*$/(\1+10^2\/2)\/10^3/p' /proc/cpuinfo) | bc -l | head -n1
