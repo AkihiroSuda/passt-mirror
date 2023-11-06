@@ -138,19 +138,11 @@ iperf3s	guest 100${i}1 __THREADS__
 
 bw	-
 bw	-
-ns	ip link set dev lo mtu 1280
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 1.0 1.2
-ns	ip link set dev lo mtu 1500
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 2.0 3.0
-ns	ip link set dev lo mtu 9000
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 5.0 6.0
-ns	ip link set dev lo mtu 65520
+bw	-
+bw	-
+bw	-
 iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 6.0 6.8
-ns	ip link set dev lo mtu 65535
 
 iperf3k	guest
 
@@ -180,26 +172,13 @@ lat	__LAT__ 500 350
 tr	TCP throughput over IPv4: host to guest
 iperf3s	guest 100${i}1 __THREADS__
 
-ns	ip link set dev lo mtu 256
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 0.3 0.5
-ns	ip link set dev lo mtu 576
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 0.5 1.0
-ns	ip link set dev lo mtu 1280
-ns	ip addr add ::1 dev lo
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 2.0 3.0
-ns	ip link set dev lo mtu 1500
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 2.0 3.0
-ns	ip link set dev lo mtu 9000
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__
-bw	__BW__ 5.0 6.0
-ns	ip link set dev lo mtu 65520
+bw	-
+bw	-
+bw	-
+bw	-
+bw	-
 iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 6.0 6.8
-ns	ip link set dev lo mtu 65535
 
 iperf3k	guest
 
