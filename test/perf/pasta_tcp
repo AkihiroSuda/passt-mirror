@@ -43,8 +43,7 @@ ns	ip link set dev lo mtu 1500
 iperf3	BW ns host ::1 100${i}3 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 15.0 20.0
 ns	ip link set dev lo mtu 4000
-iperf3c	ns ::1 100${i}3 __THREADS__ __TIME__ __OPTS__
-iperf3s	BW host 100${i}3 __THREADS__
+iperf3	BW ns host ::1 100${i}3 __THREADS__ __TIME__ __OPTS__
 bw	__BW__ 15.0 20.0
 ns	ip link set dev lo mtu 16384
 iperf3	BW ns host ::1 100${i}3 __THREADS__ __TIME__ __OPTS__

@@ -84,8 +84,6 @@ tr	UDP throughput over IPv6: host to ns
 bw	-
 bw	-
 bw	-
-#iperf3c	host ::1 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 15G
-#iperf3s	BW ns 100${i}2 __THREADS__
 iperf3	BW host ns ::1 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 15G
 bw	__BW__ 7.0 9.0
 
@@ -103,8 +101,6 @@ tr	UDP throughput over IPv4: host to ns
 bw	-
 bw	-
 bw	-
-#iperf3c	host 127.0.0.1 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 15G
-#iperf3s	BW ns 100${i}2 __THREADS__
 iperf3	BW host ns 127.0.0.1 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 15G
 bw	__BW__ 7.0 9.0
 
