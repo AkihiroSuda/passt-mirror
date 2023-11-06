@@ -13,33 +13,51 @@
 # Copyright (c) 2021 Red Hat GmbH
 # Author: Stefano Brivio <sbrivio@redhat.com>
 
+# test_iperf3s() - Start iperf3 server
+# $1:	Destination/server context
+# $2:	Port number, ${i} is translated to process index
+# $3:	Number of processes to run in parallel
+test_iperf3s() {
+	__sctx="${1}"
+	__port="${2}"
+	__procs="$((${3} - 1))"
+
+	pane_or_context_run_bg "${__sctx}" 				\
+		 'for i in $(seq 0 '${__procs}'); do'			\
+		 '	iperf3 -s -p'${__port}' &'			\
+		 '	echo $! > s${i}.pid; '				\
+		 'done'							\
+
+	sleep 1		# Wait for server to be ready
+}
+
+# test_iperf3k() - Kill iperf3 server
+# $1:	Destination/server context
+test_iperf3k() {
+	__sctx="${1}"
+
+	pane_or_context_run "${__sctx}" 'kill -INT $(cat s*.pid); rm s*.pid'
+
+	sleep 3		# Wait for kernel to free up ports
+}
+
 # test_iperf3() - Ugly helper for iperf3 directive
 # $1:	Variable name: to put the measure bandwidth into
 # $2:	Source/client context
-# $3:	Destination/server context
-# $4:	Destination name or address for client
-# $5:	Port number, ${i} is translated to process index
-# $6:	Number of processes to run in parallel
-# $7:	Run time, in seconds
+# $3:	Destination name or address for client
+# $4:	Port number, ${i} is translated to process index
+# $5:	Number of processes to run in parallel
+# $6:	Run time, in seconds
 # $@:	Client options
 test_iperf3() {
 	__var="${1}"; shift
 	__cctx="${1}"; shift
-	__sctx="${1}"; shift
 	__dest="${1}"; shift
 	__port="${1}"; shift
 	__procs="$((${1} - 1))"; shift
 	__time="${1}"; shift
 
 	pane_or_context_run "${__cctx}" 'rm -f c*.json'
-
-	pane_or_context_run_bg "${__sctx}" 				\
-		 'for i in $(seq 0 '${__procs}'); do'			\
-		 '	(iperf3 -s1 -p'${__port}' -i'${__time}') &'	\
-		 '	echo $! > s${i}.pid; '				\
-		 'done'							\
-
-	sleep 1		# Wait for server to be ready
 
         # A 1s wait for connection on what's basically a local link
         # indicates something is pretty wrong
@@ -55,17 +73,12 @@ test_iperf3() {
 		 '	wait'						\
 		 ')'
 
-	# Kill the server, just in case -1 didn't work right
-	pane_or_context_run "${__sctx}" 'kill -INT $(cat s*.pid); rm s*.pid'
-
 	__jval=".end.sum_received.bits_per_second"
 
 	__bw=$(pane_or_context_output "${__cctx}"			\
 		 'cat c*.json | jq -rMs "map('${__jval}') | add"')
 
 	TEST_ONE_subs="$(list_add_pair "${TEST_ONE_subs}" "__${__var}__" "${__bw}" )"
-
-	sleep 3		# Wait for kernel to free up ports
 }
 
 test_one_line() {
@@ -283,6 +296,12 @@ test_one_line() {
 	"lat")
 		table_value_latency ${__arg} || TEST_ONE_perf_nok=1
 		;;
+	"iperf3s")
+		test_iperf3s ${__arg}
+                ;;
+	"iperf3k")
+		test_iperf3k ${__arg}
+                ;;
 	"iperf3")
 		test_iperf3 ${__arg}
 		;;
