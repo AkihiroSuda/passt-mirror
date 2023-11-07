@@ -439,29 +439,6 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
 }
 
 /**
- * tcp_splice_dir() - Set sockets/pipe pointers reflecting flow direction
- * @conn:	Connection pointers
- * @ref_sock:	Socket returned as reference from epoll
- * @reverse:	Reverse direction: @ref_sock is used as destination
- * @from:	Destination socket pointer to set
- * @to:		Source socket pointer to set
- * @pipes:	Pipe set, assigned on return
- */
-static void tcp_splice_dir(struct tcp_splice_conn *conn, int ref_sock,
-			   int reverse, int *from, int *to, int **pipes)
-{
-	if (!reverse) {
-		*from = ref_sock;
-		*to   = (*from == conn->s[0]) ? conn->s[1] : conn->s[0];
-	} else {
-		*to   = ref_sock;
-		*from = (*to   == conn->s[0]) ? conn->s[1] : conn->s[0];
-	}
-
-	*pipes = *from == conn->s[0] ? conn->pipe[0] : conn->pipe[1];
-}
-
-/**
  * tcp_splice_conn_from_sock() - Attempt to init state for a spliced connection
  * @c:		Execution context
  * @ref:	epoll reference of listening socket
@@ -521,8 +498,7 @@ void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
 			     int s, uint32_t events)
 {
 	uint8_t lowat_set_flag, lowat_act_flag;
-	int from, to, *pipes, eof, never_read;
-	uint32_t *seq_read, *seq_write;
+	int fromside, eof, never_read;
 
 	if (conn->events == SPLICE_CLOSED)
 		return;
@@ -538,14 +514,15 @@ void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (events & EPOLLOUT) {
-		if (s == conn->s[0])
+		if (s == conn->s[0]) {
 			conn_event(c, conn, ~OUT_WAIT_0);
-		else
+			fromside = 1;
+		} else {
 			conn_event(c, conn, ~OUT_WAIT_1);
-
-		tcp_splice_dir(conn, s, 1, &from, &to, &pipes);
+			fromside = 0;
+		}
 	} else {
-		tcp_splice_dir(conn, s, 0, &from, &to, &pipes);
+		fromside = s == conn->s[0] ? 0 : 1;
 	}
 
 	if (events & EPOLLRDHUP) {
@@ -566,24 +543,16 @@ swap:
 	eof = 0;
 	never_read = 1;
 
-	if (from == conn->s[0]) {
-		seq_read = &conn->read[0];
-		seq_write = &conn->written[0];
-		lowat_set_flag = RCVLOWAT_SET_0;
-		lowat_act_flag = RCVLOWAT_ACT_0;
-	} else {
-		seq_read = &conn->read[1];
-		seq_write = &conn->written[1];
-		lowat_set_flag = RCVLOWAT_SET_1;
-		lowat_act_flag = RCVLOWAT_ACT_1;
-	}
+	lowat_set_flag = fromside == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
+	lowat_act_flag = fromside == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
 
 	while (1) {
 		ssize_t readlen, to_write = 0, written;
 		int more = 0;
 
 retry:
-		readlen = splice(from, NULL, pipes[1], NULL, c->tcp.pipe_size,
+		readlen = splice(conn->s[fromside], NULL,
+				 conn->pipe[fromside][1], NULL, c->tcp.pipe_size,
 				 SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
 		trace("TCP (spliced): %li from read-side call", readlen);
 		if (readlen < 0) {
@@ -608,7 +577,8 @@ retry:
 		}
 
 eintr:
-		written = splice(pipes[0], NULL, to, NULL, to_write,
+		written = splice(conn->pipe[fromside][0], NULL,
+				 conn->s[!fromside], NULL, to_write,
 				 SPLICE_F_MOVE | more | SPLICE_F_NONBLOCK);
 		trace("TCP (spliced): %li from write-side call (passed %lu)",
 		      written, to_write);
@@ -622,8 +592,8 @@ eintr:
 			    readlen > (long)c->tcp.pipe_size / 10) {
 				int lowat = c->tcp.pipe_size / 4;
 
-				setsockopt(from, SOL_SOCKET, SO_RCVLOWAT,
-					   &lowat, sizeof(lowat));
+				setsockopt(conn->s[fromside], SOL_SOCKET,
+					   SO_RCVLOWAT, &lowat, sizeof(lowat));
 
 				conn_flag(c, conn, lowat_set_flag);
 				conn_flag(c, conn, lowat_act_flag);
@@ -632,8 +602,8 @@ eintr:
 			break;
 		}
 
-		*seq_read  += readlen > 0 ? readlen : 0;
-		*seq_write += written > 0 ? written : 0;
+		conn->read[fromside]    += readlen > 0 ? readlen : 0;
+		conn->written[fromside] += written > 0 ? written : 0;
 
 		if (written < 0) {
 			if (errno == EINTR)
@@ -645,10 +615,8 @@ eintr:
 			if (never_read)
 				break;
 
-			if (to == conn->s[0])
-				conn_event(c, conn, OUT_WAIT_0);
-			else
-				conn_event(c, conn, OUT_WAIT_1);
+			conn_event(c, conn,
+				   fromside == 0 ? OUT_WAIT_1 : OUT_WAIT_0);
 			break;
 		}
 
@@ -665,14 +633,14 @@ eintr:
 	}
 
 	if ((conn->events & FIN_RCVD_0) && !(conn->events & FIN_SENT_1)) {
-		if (*seq_read == *seq_write && eof) {
+		if (conn->read[fromside] == conn->written[fromside] && eof) {
 			shutdown(conn->s[1], SHUT_WR);
 			conn_event(c, conn, FIN_SENT_1);
 		}
 	}
 
 	if ((conn->events & FIN_RCVD_1) && !(conn->events & FIN_SENT_0)) {
-		if (*seq_read == *seq_write && eof) {
+		if (conn->read[fromside] == conn->written[fromside] && eof) {
 			shutdown(conn->s[0], SHUT_WR);
 			conn_event(c, conn, FIN_SENT_0);
 		}
@@ -684,12 +652,7 @@ eintr:
 	if ((events & (EPOLLIN | EPOLLOUT)) == (EPOLLIN | EPOLLOUT)) {
 		events = EPOLLIN;
 
-		SWAP(from, to);
-		if (pipes == conn->pipe[0])
-			pipes = conn->pipe[1];
-		else
-			pipes = conn->pipe[0];
-
+		fromside = !fromside;
 		goto swap;
 	}
 
