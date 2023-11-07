@@ -182,25 +182,27 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
 	uint32_t events_a, events_b;
 
-	if (conn->flags & CLOSING)
-		goto delete;
+	if (conn->flags & CLOSING) {
+		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->a, &ev_a);
+		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->b, &ev_b);
+		return 0;
+	}
 
 	tcp_splice_conn_epoll_events(conn->events, &events_a, &events_b);
 	ev_a.events = events_a;
 	ev_b.events = events_b;
 
 	if (epoll_ctl(c->epollfd, m, conn->a, &ev_a) ||
-	    epoll_ctl(c->epollfd, m, conn->b, &ev_b))
-		goto delete;
+	    epoll_ctl(c->epollfd, m, conn->b, &ev_b)) {
+		int ret = -errno;
+		err("TCP (spliced): index %li, ERROR on epoll_ctl(): %s",
+		    CONN_IDX(conn), strerror(errno));
+		return ret;
+	}
 
 	conn->in_epoll = true;
 
 	return 0;
-
-delete:
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->a, &ev_a);
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->b, &ev_b);
-	return -errno;
 }
 
 /**
