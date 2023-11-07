@@ -58,7 +58,7 @@
 #include "tcp_conn.h"
 
 #define MAX_PIPE_SIZE			(8UL * 1024 * 1024)
-#define TCP_SPLICE_PIPE_POOL_SIZE	16
+#define TCP_SPLICE_PIPE_POOL_SIZE	32
 #define TCP_SPLICE_CONN_PRESSURE	30	/* % of conn_count */
 #define TCP_SPLICE_FILE_PRESSURE	30	/* % of c->nofile */
 
@@ -69,7 +69,7 @@ static int ns_sock_pool4	[TCP_SOCK_POOL_SIZE];
 static int ns_sock_pool6	[TCP_SOCK_POOL_SIZE];
 
 /* Pool of pre-opened pipes */
-static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2][2];
+static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2];
 
 #define CONN_V6(x)			(x->flags & SPLICE_V6)
 #define CONN_V4(x)			(!CONN_V6(x))
@@ -307,19 +307,16 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 	conn->pipe_a_b[1] = conn->pipe_b_a[1] = -1;
 
 	for (i = 0; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
-		if (splice_pipe_pool[i][0][0] >= 0) {
-			SWAP(conn->pipe_a_b[0], splice_pipe_pool[i][0][0]);
-			SWAP(conn->pipe_a_b[1], splice_pipe_pool[i][0][1]);
-
-			SWAP(conn->pipe_b_a[0], splice_pipe_pool[i][1][0]);
-			SWAP(conn->pipe_b_a[1], splice_pipe_pool[i][1][1]);
+		if (splice_pipe_pool[i][0] >= 0) {
+			SWAP(conn->pipe_a_b[0], splice_pipe_pool[i][0]);
+			SWAP(conn->pipe_a_b[1], splice_pipe_pool[i][1]);
 			break;
 		}
 	}
-
 	if (conn->pipe_a_b[0] < 0) {
-		if (pipe2(conn->pipe_a_b, O_NONBLOCK | O_CLOEXEC) ||
-		    pipe2(conn->pipe_b_a, O_NONBLOCK | O_CLOEXEC)) {
+		if (pipe2(conn->pipe_a_b, O_NONBLOCK | O_CLOEXEC)) {
+			err("TCP (spliced): cannot create a->b pipe: %s",
+			    strerror(errno));
 			conn_flag(c, conn, CLOSING);
 			return -EIO;
 		}
@@ -327,6 +324,22 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 		if (fcntl(conn->pipe_a_b[0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
 			trace("TCP (spliced): cannot set a->b pipe size to %lu",
 			      c->tcp.pipe_size);
+		}
+	}
+
+	for (; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
+		if (splice_pipe_pool[i][0] >= 0) {
+			SWAP(conn->pipe_b_a[0], splice_pipe_pool[i][0]);
+			SWAP(conn->pipe_b_a[1], splice_pipe_pool[i][1]);
+			break;
+		}
+	}
+	if (conn->pipe_b_a[0] < 0) {
+		if (pipe2(conn->pipe_b_a, O_NONBLOCK | O_CLOEXEC)) {
+			err("TCP (spliced): cannot create b->a pipe: %s",
+			    strerror(errno));
+			conn_flag(c, conn, CLOSING);
+			return -EIO;
 		}
 
 		if (fcntl(conn->pipe_b_a[0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
@@ -716,12 +729,12 @@ close:
  */
 static void tcp_set_pipe_size(struct ctx *c)
 {
-	int probe_pipe[TCP_SPLICE_PIPE_POOL_SIZE * 2][2], i, j;
+	int probe_pipe[TCP_SPLICE_PIPE_POOL_SIZE][2], i, j;
 
 	c->tcp.pipe_size = MAX_PIPE_SIZE;
 
 smaller:
-	for (i = 0; i < TCP_SPLICE_PIPE_POOL_SIZE * 2; i++) {
+	for (i = 0; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
 		if (pipe2(probe_pipe[i], O_CLOEXEC)) {
 			i++;
 			break;
@@ -736,7 +749,7 @@ smaller:
 		close(probe_pipe[j][1]);
 	}
 
-	if (i == TCP_SPLICE_PIPE_POOL_SIZE * 2)
+	if (i == TCP_SPLICE_PIPE_POOL_SIZE)
 		return;
 
 	if (!(c->tcp.pipe_size /= 2)) {
@@ -756,25 +769,14 @@ static void tcp_splice_pipe_refill(const struct ctx *c)
 	int i;
 
 	for (i = 0; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
-		if (splice_pipe_pool[i][0][0] >= 0)
+		if (splice_pipe_pool[i][0] >= 0)
 			break;
-		if (pipe2(splice_pipe_pool[i][0], O_NONBLOCK | O_CLOEXEC))
+		if (pipe2(splice_pipe_pool[i], O_NONBLOCK | O_CLOEXEC))
 			continue;
-		if (pipe2(splice_pipe_pool[i][1], O_NONBLOCK | O_CLOEXEC)) {
-			close(splice_pipe_pool[i][1][0]);
-			close(splice_pipe_pool[i][1][1]);
-			continue;
-		}
 
-		if (fcntl(splice_pipe_pool[i][0][0], F_SETPIPE_SZ,
+		if (fcntl(splice_pipe_pool[i][0], F_SETPIPE_SZ,
 			  c->tcp.pipe_size)) {
-			trace("TCP (spliced): cannot set a->b pipe size to %lu",
-			      c->tcp.pipe_size);
-		}
-
-		if (fcntl(splice_pipe_pool[i][1][0], F_SETPIPE_SZ,
-			  c->tcp.pipe_size)) {
-			trace("TCP (spliced): cannot set b->a pipe size to %lu",
+			trace("TCP (spliced): cannot set pool pipe size to %lu",
 			      c->tcp.pipe_size);
 		}
 	}
