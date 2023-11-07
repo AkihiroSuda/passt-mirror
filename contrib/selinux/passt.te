@@ -124,3 +124,4 @@ allow passt_t self:icmp_socket { bind create setopt read write };
 allow passt_t user_tmp_t:dir { add_name write };
 allow passt_t user_tmp_t:file { create open };
 allow passt_t user_tmp_t:sock_file { create read write unlink };
+allow passt_t unconfined_t:unix_stream_socket { read write };
