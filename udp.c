@@ -365,7 +365,7 @@ static void udp_sock6_iov_init(const struct ctx *c)
  * @c:		Execution context
  * @v6:		Set for IPv6 sockets
  * @src:	Source port of original connection, host order
- * @splice:	UDP_BACK_TO_INIT from init, UDP_BACK_TO_NS from namespace
+ * @ns:		Does the splice originate in the ns or not
  *
  * Return: prepared socket, negative error code on failure
  *
@@ -375,16 +375,17 @@ int udp_splice_new(const struct ctx *c, int v6, in_port_t src, bool ns)
 {
 	struct epoll_event ev = { .events = EPOLLIN | EPOLLRDHUP | EPOLLHUP };
 	union epoll_ref ref = { .type = EPOLL_TYPE_UDP,
-				.udp = { .splice = true, .ns = ns,
-					 .v6 = v6, .port = src }
+				.udp = { .splice = true, .v6 = v6, .port = src }
 			      };
 	struct udp_splice_port *sp;
 	int act, s;
 
 	if (ns) {
+		ref.udp.pif = PIF_SPLICE;
 		sp = &udp_splice_ns[v6 ? V6 : V4][src];
 		act = UDP_ACT_SPLICE_NS;
 	} else {
+		ref.udp.pif = PIF_HOST;
 		sp = &udp_splice_init[v6 ? V6 : V4][src];
 		act = UDP_ACT_SPLICE_INIT;
 	}
@@ -495,15 +496,15 @@ static int udp_mmh_splice_port(bool v6, const struct mmsghdr *mmh)
  * @n:		Number of datagrams to send
  * @src:	Datagrams will be sent from this port (on origin side)
  * @dst:	Datagrams will be send to this port (on destination side)
+ * @from_pif:	pif from which the packet originated
  * @v6:		Send as IPv6?
- * @from_ns:	If true send from pasta ns to init, otherwise reverse
  * @allow_new:	If true create sending socket if needed, if false discard
  *              if no sending socket is available
  * @now:	Timestamp
  */
 static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
-				in_port_t src, in_port_t dst,
-				bool v6, bool from_ns, bool allow_new,
+				in_port_t src, in_port_t dst, uint8_t from_pif,
+				bool v6, bool allow_new,
 				const struct timespec *now)
 {
 	struct mmsghdr *mmh_recv, *mmh_send;
@@ -518,7 +519,7 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
 		mmh_send = udp4_mh_splice;
 	}
 
-	if (from_ns) {
+	if (from_pif == PIF_SPLICE) {
 		src += c->udp.fwd_in.rdelta[src];
 		s = udp_splice_init[v6][src].sock;
 		if (!s && allow_new)
@@ -530,6 +531,7 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
 		udp_splice_ns[v6][dst].ts = now->tv_sec;
 		udp_splice_init[v6][src].ts = now->tv_sec;
 	} else {
+		ASSERT(from_pif == PIF_HOST);
 		src += c->udp.fwd_out.rdelta[src];
 		s = udp_splice_ns[v6][src].sock;
 		if (!s && allow_new) {
@@ -776,7 +778,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
 
 		if (splicefrom >= 0)
 			udp_splice_sendfrom(c, i, m, splicefrom, dstport,
-					    v6, ref.udp.ns, ref.udp.orig, now);
+					    ref.udp.pif, v6, ref.udp.orig, now);
 		else
 			udp_tap_send(c, i, m, dstport, v6, now);
 	}
@@ -974,8 +976,10 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	if (ns) {
+		uref.pif = PIF_SPLICE;
 		uref.port = (in_port_t)(port + c->udp.fwd_out.f.delta[port]);
 	} else {
+		uref.pif = PIF_HOST;
 		uref.port = (in_port_t)(port + c->udp.fwd_in.f.delta[port]);
 	}
 
@@ -990,7 +994,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			udp_splice_init[V4][port].sock = s < 0 ? -1 : s;
 		} else {
 			struct in_addr loopback = { htonl(INADDR_LOOPBACK) };
-			uref.ns = true;
 
 			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP, &loopback,
 					 ifname, port, uref.u32);
@@ -1008,8 +1011,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			udp_tap_map[V6][uref.port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V6][port].sock = s < 0 ? -1 : s;
 		} else {
-			uref.ns = true;
-
 			r6 = s = sock_l4(c, AF_INET6, IPPROTO_UDP,
 					 &in6addr_loopback,
 					 ifname, port, uref.u32);

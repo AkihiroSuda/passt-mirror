@@ -411,12 +411,12 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
  * @c:		Execution context
  * @conn:	Connection pointer
  * @port:	Destination port, host order
- * @outbound:	Connection request coming from namespace
+ * @pif:	Originating pif of the splice
  *
  * Return: return code from connect()
  */
 static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
-			  in_port_t port, int outbound)
+			  in_port_t port, uint8_t pif)
 {
 	int s = -1;
 
@@ -427,7 +427,7 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
 	 * entering the ns anyway, so we might as well refill the
 	 * pool.
 	 */
-	if (outbound) {
+	if (pif == PIF_SPLICE) {
 		int *p = CONN_V6(conn) ? init_sock_pool6 : init_sock_pool4;
 		int af = CONN_V6(conn) ? AF_INET6 : AF_INET;
 
@@ -436,6 +436,8 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
 			s = tcp_conn_new_sock(c, af);
 	} else {
 		int *p = CONN_V6(conn) ? ns_sock_pool6 : ns_sock_pool4;
+
+		ASSERT(pif == PIF_HOST);
 
 		/* If pool is empty, refill it first */
 		if (p[TCP_SOCK_POOL_SIZE-1] < 0)
@@ -516,7 +518,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	conn->c.spliced = true;
 	conn->a = s;
 
-	if (tcp_splice_new(c, conn, ref.port, ref.ns))
+	if (tcp_splice_new(c, conn, ref.port, ref.pif))
 		conn_flag(c, conn, CLOSING);
 
 	return true;

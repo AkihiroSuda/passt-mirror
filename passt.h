@@ -35,6 +35,7 @@ union epoll_ref;
 #include <assert.h>
 #include <sys/epoll.h>
 
+#include "pif.h"
 #include "packet.h"
 #include "icmp.h"
 #include "port_fwd.h"

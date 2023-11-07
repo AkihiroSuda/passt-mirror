@@ -41,13 +41,13 @@ union tcp_epoll_ref {
 /**
  * union tcp_listen_epoll_ref - epoll reference portion for TCP listening
  * @port:	Port number we're forwarding *to* (listening port plus delta)
- * @ns:		True if listening within the pasta namespace
+ * @pif:	pif in which the socket is listening
  * @u32:	Opaque u32 value of reference
  */
 union tcp_listen_epoll_ref {
 	struct {
 		in_port_t	port;
-		bool		ns;
+		uint8_t		pif;
 	};
 	uint32_t u32;
 };

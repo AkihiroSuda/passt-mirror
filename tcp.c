@@ -2964,6 +2964,7 @@ static int tcp_sock_init_af(const struct ctx *c, int af, in_port_t port,
 {
 	union tcp_listen_epoll_ref tref = {
 		.port = port + c->tcp.fwd_in.delta[port],
+		.pif = PIF_HOST,
 	};
 	int s;
 
@@ -3025,7 +3026,7 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 {
 	union tcp_listen_epoll_ref tref = {
 		.port = port + c->tcp.fwd_out.delta[port],
-		.ns = true,
+		.pif = PIF_SPLICE,
 	};
 	struct in_addr loopback = { htonl(INADDR_LOOPBACK) };
 	int s;
@@ -3051,7 +3052,7 @@ static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
 {
 	union tcp_listen_epoll_ref tref = {
 		.port = port + c->tcp.fwd_out.delta[port],
-		.ns = true,
+		.pif = PIF_SPLICE,
 	};
 	int s;
 
