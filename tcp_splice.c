@@ -255,7 +255,6 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
  */
 void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
 {
-	tcp_splice_epoll_ctl(c, new);
 	if (tcp_splice_epoll_ctl(c, new))
 		conn_flag(c, new, CLOSING);
 }
