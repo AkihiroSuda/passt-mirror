@@ -645,7 +645,8 @@ resume:
 			tap_packet_debug(iph, NULL, NULL, 0, NULL, 1);
 
 			packet_add(pkt, l4_len, l4h);
-			icmp_tap_handler(c, AF_INET, &iph->saddr, &iph->daddr,
+			icmp_tap_handler(c, PIF_TAP, AF_INET,
+					 &iph->saddr, &iph->daddr,
 					 pkt, now);
 			continue;
 		}
@@ -719,14 +720,16 @@ append:
 			if (c->no_tcp)
 				continue;
 			for (k = 0; k < p->count; )
-				k += tcp_tap_handler(c, AF_INET, &seq->saddr,
-						     &seq->daddr, p, k, now);
+				k += tcp_tap_handler(c, PIF_TAP, AF_INET,
+						     &seq->saddr, &seq->daddr,
+						     p, k, now);
 		} else if (seq->protocol == IPPROTO_UDP) {
 			if (c->no_udp)
 				continue;
 			for (k = 0; k < p->count; )
-				k += udp_tap_handler(c, AF_INET, &seq->saddr,
-						     &seq->daddr, p, k, now);
+				k += udp_tap_handler(c, PIF_TAP, AF_INET,
+						     &seq->saddr, &seq->daddr,
+						     p, k, now);
 		}
 	}
 
@@ -807,7 +810,8 @@ resume:
 			tap_packet_debug(NULL, ip6h, NULL, proto, NULL, 1);
 
 			packet_add(pkt, l4_len, l4h);
-			icmp_tap_handler(c, AF_INET6, saddr, daddr, pkt, now);
+			icmp_tap_handler(c, PIF_TAP, AF_INET6,
+					 saddr, daddr, pkt, now);
 			continue;
 		}
 
@@ -883,14 +887,16 @@ append:
 			if (c->no_tcp)
 				continue;
 			for (k = 0; k < p->count; )
-				k += tcp_tap_handler(c, AF_INET6, &seq->saddr,
-						     &seq->daddr, p, k, now);
+				k += tcp_tap_handler(c, PIF_TAP, AF_INET6,
+						     &seq->saddr, &seq->daddr,
+						     p, k, now);
 		} else if (seq->protocol == IPPROTO_UDP) {
 			if (c->no_udp)
 				continue;
 			for (k = 0; k < p->count; )
-				k += udp_tap_handler(c, AF_INET6, &seq->saddr,
-						     &seq->daddr, p, k, now);
+				k += udp_tap_handler(c, PIF_TAP, AF_INET6,
+						     &seq->saddr, &seq->daddr,
+						     p, k, now);
 		}
 	}
 

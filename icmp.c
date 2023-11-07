@@ -148,6 +148,7 @@ void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref)
 /**
  * icmp_tap_handler() - Handle packets from tap
  * @c:		Execution context
+ * @pif:	pif on which the packet is arriving
  * @af:		Address family, AF_INET or AF_INET6
  * @saddr:	Source address
  * @daddr:	Destination address
@@ -156,13 +157,14 @@ void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref)
  *
  * Return: count of consumed packets (always 1, even if malformed)
  */
-int icmp_tap_handler(const struct ctx *c, int af,
+int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
 	size_t plen;
 
 	(void)saddr;
+	(void)pif;
 
 	if (af == AF_INET) {
 		struct sockaddr_in sa = {

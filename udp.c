@@ -787,6 +787,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
 /**
  * udp_tap_handler() - Handle packets from tap
  * @c:		Execution context
+ * @pif:	pif on which the packet is arriving
  * @af:		Address family, AF_INET or AF_INET6
  * @saddr:	Source address
  * @daddr:	Destination address
@@ -798,7 +799,8 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
  *
  * #syscalls sendmmsg
  */
-int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
+int udp_tap_handler(struct ctx *c, uint8_t pif,
+		    int af, const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
 	struct mmsghdr mm[UIO_MAXIOV];
@@ -813,6 +815,7 @@ int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 
 	(void)c;
 	(void)saddr;
+	(void)pif;
 
 	uh = packet_get(p, idx, 0, sizeof(*uh), NULL);
 	if (!uh)

@@ -2562,6 +2562,7 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
 /**
  * tcp_tap_handler() - Handle packets from tap and state transitions
  * @c:		Execution context
+ * @pif:	pif on which the packet is arriving
  * @af:		Address family, AF_INET or AF_INET6
  * @saddr:	Source address
  * @daddr:	Destination address
@@ -2571,7 +2572,8 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
  *
  * Return: count of consumed packets
  */
-int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
+int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
+		    const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
 	struct tcp_tap_conn *conn;
@@ -2580,6 +2582,8 @@ int tcp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 	int ack_due = 0;
 	char *opts;
 	int count;
+
+	(void)pif;
 
 	th = packet_get(p, idx, 0, sizeof(*th), &len);
 	if (!th)
