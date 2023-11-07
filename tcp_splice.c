@@ -152,8 +152,10 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 		}
 	}
 
-	if (flag == CLOSING)
-		tcp_splice_epoll_ctl(c, conn);
+	if (flag == CLOSING) {
+		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->a, NULL);
+		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->b, NULL);
+	}
 }
 
 #define conn_flag(c, conn, flag)					\
@@ -181,12 +183,6 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 	struct epoll_event ev_a = { .data.u64 = ref_a.u64 };
 	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
 	uint32_t events_a, events_b;
-
-	if (conn->flags & CLOSING) {
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->a, &ev_a);
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->b, &ev_b);
-		return 0;
-	}
 
 	tcp_splice_conn_epoll_events(conn->events, &events_a, &events_b);
 	ev_a.events = events_a;
