@@ -113,7 +113,7 @@ fail:
  *
  * Return: sequence number of request on success, terminates on error
  */
-static uint16_t nl_send(int s, void *req, uint16_t type,
+static uint32_t nl_send(int s, void *req, uint16_t type,
 		       uint16_t flags, ssize_t len)
 {
 	struct nlmsghdr *nh;
@@ -146,12 +146,12 @@ static uint16_t nl_send(int s, void *req, uint16_t type,
  *         > 0 @n if there are more responses to request @seq
  *     terminates if sequence numbers are out of sync
  */
-static int nl_status(const struct nlmsghdr *nh, ssize_t n, uint16_t seq)
+static int nl_status(const struct nlmsghdr *nh, ssize_t n, uint32_t seq)
 {
 	ASSERT(NLMSG_OK(nh, n));
 
 	if (nh->nlmsg_seq != seq)
-		die("netlink: Unexpected sequence number (%hu != %hu)",
+		die("netlink: Unexpected sequence number (%u != %u)",
 		    nh->nlmsg_seq, seq);
 
 	if (nh->nlmsg_type == NLMSG_DONE) {
@@ -229,7 +229,7 @@ static int nl_do(int s, void *req, uint16_t type, uint16_t flags, ssize_t len)
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
 	ssize_t status;
-	uint16_t seq;
+	uint32_t seq;
 
 	seq = nl_send(s, req, type, flags, len);
 	nl_foreach(nh, status, s, buf, seq)
@@ -259,7 +259,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	struct rtattr *rta;
 	char buf[NLBUFSIZ];
 	ssize_t status;
-	uint16_t seq;
+	uint32_t seq;
 	size_t na;
 
 	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
@@ -313,7 +313,7 @@ int nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 	bool found = false;
 	char buf[NLBUFSIZ];
 	ssize_t status;
-	uint16_t seq;
+	uint32_t seq;
 
 	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWROUTE) {
@@ -438,7 +438,7 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 	unsigned dup_routes = 0;
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
-	uint16_t seq;
+	uint32_t seq;
 	unsigned i;
 
 	seq = nl_send(s_src, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
@@ -550,7 +550,7 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
 	ssize_t status;
-	uint16_t seq;
+	uint32_t seq;
 
 	seq = nl_send(s, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
 	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWADDR) {
@@ -674,7 +674,7 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 	char buf[NLBUFSIZ];
 	struct nlmsghdr *nh;
 	ssize_t status;
-	uint16_t seq;
+	uint32_t seq;
 	int rc = 0;
 
 	seq = nl_send(s_src, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
@@ -729,7 +729,7 @@ int nl_link_get_mac(int s, unsigned int ifi, void *mac)
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
 	ssize_t status;
-	uint16_t seq;
+	uint32_t seq;
 
 	seq = nl_send(s, &req, RTM_GETLINK, 0, sizeof(req));
 	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWLINK) {
