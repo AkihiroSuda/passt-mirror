@@ -53,6 +53,7 @@ require {
 
 	class capability { sys_tty_config setuid setgid };
 	class cap_userns { setpcap sys_admin sys_ptrace };
+	class user_namespace create;
 }
 
 type passt_t;
@@ -92,6 +93,7 @@ allow syslogd_t self:cap_userns sys_ptrace;
 allow passt_t self:process setcap;
 allow passt_t self:capability { sys_tty_config setpcap net_bind_service setuid setgid};
 allow passt_t self:cap_userns { setpcap sys_admin sys_ptrace };
+allow passt_t self:user_namespace create;
 
 allow passt_t passwd_file_t:file read_file_perms;
 sssd_search_lib(passt_t)
