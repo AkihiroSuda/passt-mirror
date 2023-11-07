@@ -299,50 +299,35 @@ void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union)
 static int tcp_splice_connect_finish(const struct ctx *c,
 				     struct tcp_splice_conn *conn)
 {
-	int i;
+	int i = 0;
+	int side;
 
-	conn->pipe[0][0] = conn->pipe[1][0] = -1;
-	conn->pipe[0][1] = conn->pipe[1][1] = -1;
+	for (side = 0; side < SIDES; side++) {
+		conn->pipe[side][0] = conn->pipe[side][1] = -1;
 
-	for (i = 0; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
-		if (splice_pipe_pool[i][0] >= 0) {
-			SWAP(conn->pipe[0][0], splice_pipe_pool[i][0]);
-			SWAP(conn->pipe[0][1], splice_pipe_pool[i][1]);
-			break;
-		}
-	}
-	if (conn->pipe[0][0] < 0) {
-		if (pipe2(conn->pipe[0], O_NONBLOCK | O_CLOEXEC)) {
-			err("TCP (spliced): cannot create 0->1 pipe: %s",
-			    strerror(errno));
-			conn_flag(c, conn, CLOSING);
-			return -EIO;
+		for (; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
+			if (splice_pipe_pool[i][0] >= 0) {
+				SWAP(conn->pipe[side][0],
+				     splice_pipe_pool[i][0]);
+				SWAP(conn->pipe[side][1],
+				     splice_pipe_pool[i][1]);
+				break;
+			}
 		}
 
-		if (fcntl(conn->pipe[0][0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
-			trace("TCP (spliced): cannot set 0->1 pipe size to %lu",
-			      c->tcp.pipe_size);
-		}
-	}
+		if (conn->pipe[side][0] < 0) {
+			if (pipe2(conn->pipe[side], O_NONBLOCK | O_CLOEXEC)) {
+				err("TCP (spliced): cannot create %d->%d pipe: %s",
+				    side, !side, strerror(errno));
+				conn_flag(c, conn, CLOSING);
+				return -EIO;
+			}
 
-	for (; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
-		if (splice_pipe_pool[i][0] >= 0) {
-			SWAP(conn->pipe[1][0], splice_pipe_pool[i][0]);
-			SWAP(conn->pipe[1][1], splice_pipe_pool[i][1]);
-			break;
-		}
-	}
-	if (conn->pipe[1][0] < 0) {
-		if (pipe2(conn->pipe[1], O_NONBLOCK | O_CLOEXEC)) {
-			err("TCP (spliced): cannot create 1->0 pipe: %s",
-			    strerror(errno));
-			conn_flag(c, conn, CLOSING);
-			return -EIO;
-		}
-
-		if (fcntl(conn->pipe[1][0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
-			trace("TCP (spliced): cannot set 1->0 pipe size to %lu",
-			      c->tcp.pipe_size);
+			if (fcntl(conn->pipe[side][0], F_SETPIPE_SZ,
+				  c->tcp.pipe_size)) {
+				trace("TCP (spliced): cannot set %d->%d pipe size to %lu",
+				      side, !side, c->tcp.pipe_size);
+			}
 		}
 	}
 
