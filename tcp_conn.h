@@ -119,54 +119,47 @@ struct tcp_tap_conn {
 	uint32_t	seq_init_from_tap;
 };
 
+#define SIDES			2
 /**
  * struct tcp_splice_conn - Descriptor for a spliced TCP connection
  * @c:			Fields common with tcp_tap_conn
  * @in_epoll:		Is the connection in the epoll set?
- * @a:			File descriptor number of socket for accepted connection
- * @pipe_a_b:		Pipe ends for splice() from @a to @b
- * @b:			File descriptor number of peer connected socket
- * @pipe_b_a:		Pipe ends for splice() from @b to @a
+ * @s:			File descriptor for sockets
+ * @pipe:		File descriptors for pipes
  * @events:		Events observed/actions performed on connection
  * @flags:		Connection flags (attributes, not events)
- * @a_read:		Bytes read from @a (not fully written to @b in one shot)
- * @a_written:		Bytes written to @a (not fully written from one @b read)
- * @b_read:		Bytes read from @b (not fully written to @a in one shot)
- * @b_written:		Bytes written to @b (not fully written from one @a read)
+ * @read:		Bytes read (not fully written to other side in one shot)
+ * @written:		Bytes written (not fully written from one other side read)
 */
 struct tcp_splice_conn {
 	/* Must be first element to match tcp_tap_conn */
 	struct tcp_conn_common c;
 
 	bool in_epoll	:1;
-	int a;
-	int pipe_a_b[2];
-	int b;
-	int pipe_b_a[2];
+	int s[SIDES];
+	int pipe[SIDES][2];
 
 	uint8_t events;
 #define SPLICE_CLOSED			0
 #define SPLICE_CONNECT			BIT(0)
 #define SPLICE_ESTABLISHED		BIT(1)
-#define A_OUT_WAIT			BIT(2)
-#define B_OUT_WAIT			BIT(3)
-#define A_FIN_RCVD			BIT(4)
-#define B_FIN_RCVD			BIT(5)
-#define A_FIN_SENT			BIT(6)
-#define B_FIN_SENT			BIT(7)
+#define OUT_WAIT_0			BIT(2)
+#define OUT_WAIT_1			BIT(3)
+#define FIN_RCVD_0			BIT(4)
+#define FIN_RCVD_1			BIT(5)
+#define FIN_SENT_0			BIT(6)
+#define FIN_SENT_1			BIT(7)
 
 	uint8_t flags;
 #define SPLICE_V6			BIT(0)
-#define RCVLOWAT_SET_A			BIT(1)
-#define RCVLOWAT_SET_B			BIT(2)
-#define RCVLOWAT_ACT_A			BIT(3)
-#define RCVLOWAT_ACT_B			BIT(4)
+#define RCVLOWAT_SET_0			BIT(1)
+#define RCVLOWAT_SET_1			BIT(2)
+#define RCVLOWAT_ACT_0			BIT(3)
+#define RCVLOWAT_ACT_1			BIT(4)
 #define CLOSING				BIT(5)
 
-	uint32_t a_read;
-	uint32_t a_written;
-	uint32_t b_read;
-	uint32_t b_written;
+	uint32_t read[SIDES];
+	uint32_t written[SIDES];
 };
 
 /**

@@ -21,12 +21,12 @@
  *
  * - SPLICE_CONNECT:		connection accepted, connecting to target
  * - SPLICE_ESTABLISHED:	connection to target established
- * - A_OUT_WAIT:		pipe to accepted socket full, wait for EPOLLOUT
- * - B_OUT_WAIT:		pipe to target socket full, wait for EPOLLOUT
- * - A_FIN_RCVD:		FIN (EPOLLRDHUP) seen from accepted socket
- * - B_FIN_RCVD:		FIN (EPOLLRDHUP) seen from target socket
- * - A_FIN_RCVD:		FIN (write shutdown) sent to accepted socket
- * - B_FIN_RCVD:		FIN (write shutdown) sent to target socket
+ * - OUT_WAIT_0:		pipe to accepted socket full, wait for EPOLLOUT
+ * - OUT_WAIT_1:		pipe to target socket full, wait for EPOLLOUT
+ * - FIN_RCVD_0:		FIN (EPOLLRDHUP) seen from accepted socket
+ * - FIN_RCVD_1:		FIN (EPOLLRDHUP) seen from target socket
+ * - FIN_SENT_0:		FIN (write shutdown) sent to accepted socket
+ * - FIN_SENT_1:		FIN (write shutdown) sent to target socket
  *
  * #syscalls:pasta pipe2|pipe fcntl armv6l:fcntl64 armv7l:fcntl64 ppc64:fcntl64
  */
@@ -79,14 +79,14 @@ static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2];
 
 /* Display strings for connection events */
 static const char *tcp_splice_event_str[] __attribute((__unused__)) = {
-	"SPLICE_CONNECT", "SPLICE_ESTABLISHED", "A_OUT_WAIT", "B_OUT_WAIT",
-	"A_FIN_RCVD", "B_FIN_RCVD", "A_FIN_SENT", "B_FIN_SENT",
+	"SPLICE_CONNECT", "SPLICE_ESTABLISHED", "OUT_WAIT_0", "OUT_WAIT_1",
+	"FIN_RCVD_0", "FIN_RCVD_1", "FIN_SENT_0", "FIN_SENT_1",
 };
 
 /* Display strings for connection flags */
 static const char *tcp_splice_flag_str[] __attribute((__unused__)) = {
-	"SPLICE_V6", "RCVLOWAT_SET_A", "RCVLOWAT_SET_B", "RCVLOWAT_ACT_A",
-	"RCVLOWAT_ACT_B", "CLOSING",
+	"SPLICE_V6", "RCVLOWAT_SET_0", "RCVLOWAT_SET_1", "RCVLOWAT_ACT_0",
+	"RCVLOWAT_ACT_1", "CLOSING",
 };
 
 /* Forward declaration */
@@ -95,26 +95,24 @@ static int tcp_sock_refill_ns(void *arg);
 /**
  * tcp_splice_conn_epoll_events() - epoll events masks for given state
  * @events:	Connection event flags
- * @a:		Event for socket with accepted connection, set on return
- * @b:		Event for connection target socket, set on return
+ * @ev:		Events to fill in, 0 is accepted socket, 1 is connecting socket
  */
 static void tcp_splice_conn_epoll_events(uint16_t events,
-					 struct epoll_event *a,
-					 struct epoll_event *b)
+					 struct epoll_event ev[])
 {
-	a->events = b->events = 0;
+	ev[0].events = ev[1].events = 0;
 
 	if (events & SPLICE_ESTABLISHED) {
-		if (!(events & B_FIN_SENT))
-			a->events = EPOLLIN | EPOLLRDHUP;
-		if (!(events & A_FIN_SENT))
-			b->events = EPOLLIN | EPOLLRDHUP;
+		if (!(events & FIN_SENT_1))
+			ev[0].events = EPOLLIN | EPOLLRDHUP;
+		if (!(events & FIN_SENT_0))
+			ev[1].events = EPOLLIN | EPOLLRDHUP;
 	} else if (events & SPLICE_CONNECT) {
-		b->events = EPOLLOUT;
+		ev[1].events = EPOLLOUT;
 	}
 
-	a->events |= (events & A_OUT_WAIT) ? EPOLLOUT : 0;
-	b->events |= (events & B_OUT_WAIT) ? EPOLLOUT : 0;
+	ev[0].events |= (events & OUT_WAIT_0) ? EPOLLOUT : 0;
+	ev[1].events |= (events & OUT_WAIT_1) ? EPOLLOUT : 0;
 }
 
 /**
@@ -128,17 +126,17 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 				struct tcp_splice_conn *conn)
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref_a = { .type = EPOLL_TYPE_TCP, .fd = conn->a,
-				  .tcp.index = CONN_IDX(conn) };
-	union epoll_ref ref_b = { .type = EPOLL_TYPE_TCP, .fd = conn->b,
-				  .tcp.index = CONN_IDX(conn) };
-	struct epoll_event ev_a = { .data.u64 = ref_a.u64 };
-	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
+	union epoll_ref ref[SIDES] = {
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0], .tcp.index = CONN_IDX(conn) },
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1], .tcp.index = CONN_IDX(conn) }
+	};
+	struct epoll_event ev[SIDES] = { { .data.u64 = ref[0].u64 },
+					 { .data.u64 = ref[1].u64 } };
 
-	tcp_splice_conn_epoll_events(conn->events, &ev_a, &ev_b);
+	tcp_splice_conn_epoll_events(conn->events, ev);
 
-	if (epoll_ctl(c->epollfd, m, conn->a, &ev_a) ||
-	    epoll_ctl(c->epollfd, m, conn->b, &ev_b)) {
+	if (epoll_ctl(c->epollfd, m, conn->s[0], &ev[0]) ||
+	    epoll_ctl(c->epollfd, m, conn->s[1], &ev[1])) {
 		int ret = -errno;
 		err("TCP (spliced): index %li, ERROR on epoll_ctl(): %s",
 		    CONN_IDX(conn), strerror(errno));
@@ -184,8 +182,8 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (flag == CLOSING) {
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->a, NULL);
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->b, NULL);
+		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->s[0], NULL);
+		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, conn->s[1], NULL);
 	}
 }
 
@@ -263,26 +261,26 @@ void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union)
 
 	if (conn->events & SPLICE_ESTABLISHED) {
 		/* Flushing might need to block: don't recycle them. */
-		if (conn->pipe_a_b[0] != -1) {
-			close(conn->pipe_a_b[0]);
-			close(conn->pipe_a_b[1]);
-			conn->pipe_a_b[0] = conn->pipe_a_b[1] = -1;
+		if (conn->pipe[0][0] != -1) {
+			close(conn->pipe[0][0]);
+			close(conn->pipe[0][1]);
+			conn->pipe[0][0] = conn->pipe[0][1] = -1;
 		}
-		if (conn->pipe_b_a[0] != -1) {
-			close(conn->pipe_b_a[0]);
-			close(conn->pipe_b_a[1]);
-			conn->pipe_b_a[0] = conn->pipe_b_a[1] = -1;
+		if (conn->pipe[1][0] != -1) {
+			close(conn->pipe[1][0]);
+			close(conn->pipe[1][1]);
+			conn->pipe[1][0] = conn->pipe[1][1] = -1;
 		}
 	}
 
 	if (conn->events & SPLICE_CONNECT) {
-		close(conn->b);
-		conn->b = -1;
+		close(conn->s[1]);
+		conn->s[1] = -1;
 	}
 
-	close(conn->a);
-	conn->a = -1;
-	conn->a_read = conn->a_written = conn->b_read = conn->b_written = 0;
+	close(conn->s[0]);
+	conn->s[0] = -1;
+	conn->read[0] = conn->written[0] = conn->read[1] = conn->written[1] = 0;
 
 	conn->events = SPLICE_CLOSED;
 	conn->flags = 0;
@@ -303,47 +301,47 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 {
 	int i;
 
-	conn->pipe_a_b[0] = conn->pipe_b_a[0] = -1;
-	conn->pipe_a_b[1] = conn->pipe_b_a[1] = -1;
+	conn->pipe[0][0] = conn->pipe[1][0] = -1;
+	conn->pipe[0][1] = conn->pipe[1][1] = -1;
 
 	for (i = 0; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
 		if (splice_pipe_pool[i][0] >= 0) {
-			SWAP(conn->pipe_a_b[0], splice_pipe_pool[i][0]);
-			SWAP(conn->pipe_a_b[1], splice_pipe_pool[i][1]);
+			SWAP(conn->pipe[0][0], splice_pipe_pool[i][0]);
+			SWAP(conn->pipe[0][1], splice_pipe_pool[i][1]);
 			break;
 		}
 	}
-	if (conn->pipe_a_b[0] < 0) {
-		if (pipe2(conn->pipe_a_b, O_NONBLOCK | O_CLOEXEC)) {
-			err("TCP (spliced): cannot create a->b pipe: %s",
+	if (conn->pipe[0][0] < 0) {
+		if (pipe2(conn->pipe[0], O_NONBLOCK | O_CLOEXEC)) {
+			err("TCP (spliced): cannot create 0->1 pipe: %s",
 			    strerror(errno));
 			conn_flag(c, conn, CLOSING);
 			return -EIO;
 		}
 
-		if (fcntl(conn->pipe_a_b[0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
-			trace("TCP (spliced): cannot set a->b pipe size to %lu",
+		if (fcntl(conn->pipe[0][0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
+			trace("TCP (spliced): cannot set 0->1 pipe size to %lu",
 			      c->tcp.pipe_size);
 		}
 	}
 
 	for (; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
 		if (splice_pipe_pool[i][0] >= 0) {
-			SWAP(conn->pipe_b_a[0], splice_pipe_pool[i][0]);
-			SWAP(conn->pipe_b_a[1], splice_pipe_pool[i][1]);
+			SWAP(conn->pipe[1][0], splice_pipe_pool[i][0]);
+			SWAP(conn->pipe[1][1], splice_pipe_pool[i][1]);
 			break;
 		}
 	}
-	if (conn->pipe_b_a[0] < 0) {
-		if (pipe2(conn->pipe_b_a, O_NONBLOCK | O_CLOEXEC)) {
-			err("TCP (spliced): cannot create b->a pipe: %s",
+	if (conn->pipe[1][0] < 0) {
+		if (pipe2(conn->pipe[1], O_NONBLOCK | O_CLOEXEC)) {
+			err("TCP (spliced): cannot create 1->0 pipe: %s",
 			    strerror(errno));
 			conn_flag(c, conn, CLOSING);
 			return -EIO;
 		}
 
-		if (fcntl(conn->pipe_b_a[0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
-			trace("TCP (spliced): cannot set b->a pipe size to %lu",
+		if (fcntl(conn->pipe[1][0], F_SETPIPE_SZ, c->tcp.pipe_size)) {
+			trace("TCP (spliced): cannot set 1->0 pipe size to %lu",
 			      c->tcp.pipe_size);
 		}
 	}
@@ -379,12 +377,12 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 	const struct sockaddr *sa;
 	socklen_t sl;
 
-	conn->b = sock_conn;
+	conn->s[1] = sock_conn;
 
-	if (setsockopt(conn->b, SOL_TCP, TCP_QUICKACK,
+	if (setsockopt(conn->s[1], SOL_TCP, TCP_QUICKACK,
 		       &((int){ 1 }), sizeof(int))) {
 		trace("TCP (spliced): failed to set TCP_QUICKACK on socket %i",
-		      conn->b);
+		      conn->s[1]);
 	}
 
 	if (CONN_V6(conn)) {
@@ -395,7 +393,7 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 		sl = sizeof(addr4);
 	}
 
-	if (connect(conn->b, sa, sl)) {
+	if (connect(conn->s[1], sa, sl)) {
 		if (errno != EINPROGRESS) {
 			int ret = -errno;
 
@@ -473,13 +471,13 @@ static void tcp_splice_dir(struct tcp_splice_conn *conn, int ref_sock,
 {
 	if (!reverse) {
 		*from = ref_sock;
-		*to   = (*from == conn->a) ? conn->b : conn->a;
+		*to   = (*from == conn->s[0]) ? conn->s[1] : conn->s[0];
 	} else {
 		*to   = ref_sock;
-		*from = (*to   == conn->a) ? conn->b : conn->a;
+		*from = (*to   == conn->s[0]) ? conn->s[1] : conn->s[0];
 	}
 
-	*pipes = *from == conn->a ? conn->pipe_a_b : conn->pipe_b_a;
+	*pipes = *from == conn->s[0] ? conn->pipe[0] : conn->pipe[1];
 }
 
 /**
@@ -521,7 +519,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		trace("TCP (spliced): failed to set TCP_QUICKACK on %i", s);
 
 	conn->c.spliced = true;
-	conn->a = s;
+	conn->s[0] = s;
 
 	if (tcp_splice_new(c, conn, ref.port, ref.pif))
 		conn_flag(c, conn, CLOSING);
@@ -559,10 +557,10 @@ void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (events & EPOLLOUT) {
-		if (s == conn->a)
-			conn_event(c, conn, ~A_OUT_WAIT);
+		if (s == conn->s[0])
+			conn_event(c, conn, ~OUT_WAIT_0);
 		else
-			conn_event(c, conn, ~B_OUT_WAIT);
+			conn_event(c, conn, ~OUT_WAIT_1);
 
 		tcp_splice_dir(conn, s, 1, &from, &to, &pipes);
 	} else {
@@ -570,33 +568,33 @@ void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (events & EPOLLRDHUP) {
-		if (s == conn->a)
-			conn_event(c, conn, A_FIN_RCVD);
+		if (s == conn->s[0])
+			conn_event(c, conn, FIN_RCVD_0);
 		else
-			conn_event(c, conn, B_FIN_RCVD);
+			conn_event(c, conn, FIN_RCVD_1);
 	}
 
 	if (events & EPOLLHUP) {
-		if (s == conn->a)
-			conn_event(c, conn, A_FIN_SENT); /* Fake, but implied */
+		if (s == conn->s[0])
+			conn_event(c, conn, FIN_SENT_0); /* Fake, but implied */
 		else
-			conn_event(c, conn, B_FIN_SENT);
+			conn_event(c, conn, FIN_SENT_1);
 	}
 
 swap:
 	eof = 0;
 	never_read = 1;
 
-	if (from == conn->a) {
-		seq_read = &conn->a_read;
-		seq_write = &conn->a_written;
-		lowat_set_flag = RCVLOWAT_SET_A;
-		lowat_act_flag = RCVLOWAT_ACT_A;
+	if (from == conn->s[0]) {
+		seq_read = &conn->read[0];
+		seq_write = &conn->written[0];
+		lowat_set_flag = RCVLOWAT_SET_0;
+		lowat_act_flag = RCVLOWAT_ACT_0;
 	} else {
-		seq_read = &conn->b_read;
-		seq_write = &conn->b_written;
-		lowat_set_flag = RCVLOWAT_SET_B;
-		lowat_act_flag = RCVLOWAT_ACT_B;
+		seq_read = &conn->read[1];
+		seq_write = &conn->written[1];
+		lowat_set_flag = RCVLOWAT_SET_1;
+		lowat_act_flag = RCVLOWAT_ACT_1;
 	}
 
 	while (1) {
@@ -666,10 +664,10 @@ eintr:
 			if (never_read)
 				break;
 
-			if (to == conn->a)
-				conn_event(c, conn, A_OUT_WAIT);
+			if (to == conn->s[0])
+				conn_event(c, conn, OUT_WAIT_0);
 			else
-				conn_event(c, conn, B_OUT_WAIT);
+				conn_event(c, conn, OUT_WAIT_1);
 			break;
 		}
 
@@ -685,31 +683,31 @@ eintr:
 			break;
 	}
 
-	if ((conn->events & A_FIN_RCVD) && !(conn->events & B_FIN_SENT)) {
+	if ((conn->events & FIN_RCVD_0) && !(conn->events & FIN_SENT_1)) {
 		if (*seq_read == *seq_write && eof) {
-			shutdown(conn->b, SHUT_WR);
-			conn_event(c, conn, B_FIN_SENT);
+			shutdown(conn->s[1], SHUT_WR);
+			conn_event(c, conn, FIN_SENT_1);
 		}
 	}
 
-	if ((conn->events & B_FIN_RCVD) && !(conn->events & A_FIN_SENT)) {
+	if ((conn->events & FIN_RCVD_1) && !(conn->events & FIN_SENT_0)) {
 		if (*seq_read == *seq_write && eof) {
-			shutdown(conn->a, SHUT_WR);
-			conn_event(c, conn, A_FIN_SENT);
+			shutdown(conn->s[0], SHUT_WR);
+			conn_event(c, conn, FIN_SENT_0);
 		}
 	}
 
-	if (CONN_HAS(conn, A_FIN_SENT | B_FIN_SENT))
+	if (CONN_HAS(conn, FIN_SENT_0 | FIN_SENT_1))
 		goto close;
 
 	if ((events & (EPOLLIN | EPOLLOUT)) == (EPOLLIN | EPOLLOUT)) {
 		events = EPOLLIN;
 
 		SWAP(from, to);
-		if (pipes == conn->pipe_a_b)
-			pipes = conn->pipe_b_a;
+		if (pipes == conn->pipe[0])
+			pipes = conn->pipe[1];
 		else
-			pipes = conn->pipe_a_b;
+			pipes = conn->pipe[0];
 
 		goto swap;
 	}
@@ -843,26 +841,26 @@ void tcp_splice_timer(struct ctx *c, union tcp_conn *conn_union)
 		return;
 	}
 
-	if ( (conn->flags & RCVLOWAT_SET_A) &&
-	     !(conn->flags & RCVLOWAT_ACT_A)) {
-		if (setsockopt(conn->a, SOL_SOCKET, SO_RCVLOWAT,
+	if ( (conn->flags & RCVLOWAT_SET_0) &&
+	     !(conn->flags & RCVLOWAT_ACT_0)) {
+		if (setsockopt(conn->s[0], SOL_SOCKET, SO_RCVLOWAT,
 			       &((int){ 1 }), sizeof(int))) {
 			trace("TCP (spliced): can't set SO_RCVLOWAT on "
-			      "%i", conn->a);
+			      "%i", conn->s[0]);
 		}
-		conn_flag(c, conn, ~RCVLOWAT_SET_A);
+		conn_flag(c, conn, ~RCVLOWAT_SET_0);
 	}
 
-	if ( (conn->flags & RCVLOWAT_SET_B) &&
-	     !(conn->flags & RCVLOWAT_ACT_B)) {
-		if (setsockopt(conn->b, SOL_SOCKET, SO_RCVLOWAT,
+	if ( (conn->flags & RCVLOWAT_SET_1) &&
+	     !(conn->flags & RCVLOWAT_ACT_1)) {
+		if (setsockopt(conn->s[1], SOL_SOCKET, SO_RCVLOWAT,
 			       &((int){ 1 }), sizeof(int))) {
 			trace("TCP (spliced): can't set SO_RCVLOWAT on "
-			      "%i", conn->b);
+			      "%i", conn->s[1]);
 		}
-		conn_flag(c, conn, ~RCVLOWAT_SET_B);
+		conn_flag(c, conn, ~RCVLOWAT_SET_1);
 	}
 
-	conn_flag(c, conn, ~RCVLOWAT_ACT_A);
-	conn_flag(c, conn, ~RCVLOWAT_ACT_B);
+	conn_flag(c, conn, ~RCVLOWAT_ACT_0);
+	conn_flag(c, conn, ~RCVLOWAT_ACT_1);
 }
