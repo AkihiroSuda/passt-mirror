@@ -116,8 +116,41 @@ static void tcp_splice_conn_epoll_events(uint16_t events,
 	*b |= (events & B_OUT_WAIT) ? EPOLLOUT : 0;
 }
 
+/**
+ * tcp_splice_epoll_ctl() - Add/modify/delete epoll state from connection events
+ * @c:		Execution context
+ * @conn:	Connection pointer
+ *
+ * Return: 0 on success, negative error code on failure (not on deletion)
+ */
 static int tcp_splice_epoll_ctl(const struct ctx *c,
-				struct tcp_splice_conn *conn);
+				struct tcp_splice_conn *conn)
+{
+	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
+	union epoll_ref ref_a = { .type = EPOLL_TYPE_TCP, .fd = conn->a,
+				  .tcp.index = CONN_IDX(conn) };
+	union epoll_ref ref_b = { .type = EPOLL_TYPE_TCP, .fd = conn->b,
+				  .tcp.index = CONN_IDX(conn) };
+	struct epoll_event ev_a = { .data.u64 = ref_a.u64 };
+	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
+	uint32_t events_a, events_b;
+
+	tcp_splice_conn_epoll_events(conn->events, &events_a, &events_b);
+	ev_a.events = events_a;
+	ev_b.events = events_b;
+
+	if (epoll_ctl(c->epollfd, m, conn->a, &ev_a) ||
+	    epoll_ctl(c->epollfd, m, conn->b, &ev_b)) {
+		int ret = -errno;
+		err("TCP (spliced): index %li, ERROR on epoll_ctl(): %s",
+		    CONN_IDX(conn), strerror(errno));
+		return ret;
+	}
+
+	conn->in_epoll = true;
+
+	return 0;
+}
 
 /**
  * conn_flag_do() - Set/unset given flag, log, update epoll on CLOSING flag
@@ -164,42 +197,6 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 		      __func__, __LINE__);				\
 		conn_flag_do(c, conn, flag);				\
 	} while (0)
-
-/**
- * tcp_splice_epoll_ctl() - Add/modify/delete epoll state from connection events
- * @c:		Execution context
- * @conn:	Connection pointer
- *
- * Return: 0 on success, negative error code on failure (not on deletion)
- */
-static int tcp_splice_epoll_ctl(const struct ctx *c,
-				struct tcp_splice_conn *conn)
-{
-	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref_a = { .type = EPOLL_TYPE_TCP, .fd = conn->a,
-				  .tcp.index = CONN_IDX(conn) };
-	union epoll_ref ref_b = { .type = EPOLL_TYPE_TCP, .fd = conn->b,
-				  .tcp.index = CONN_IDX(conn) };
-	struct epoll_event ev_a = { .data.u64 = ref_a.u64 };
-	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
-	uint32_t events_a, events_b;
-
-	tcp_splice_conn_epoll_events(conn->events, &events_a, &events_b);
-	ev_a.events = events_a;
-	ev_b.events = events_b;
-
-	if (epoll_ctl(c->epollfd, m, conn->a, &ev_a) ||
-	    epoll_ctl(c->epollfd, m, conn->b, &ev_b)) {
-		int ret = -errno;
-		err("TCP (spliced): index %li, ERROR on epoll_ctl(): %s",
-		    CONN_IDX(conn), strerror(errno));
-		return ret;
-	}
-
-	conn->in_epoll = true;
-
-	return 0;
-}
 
 /**
  * conn_event_do() - Set and log connection events, update epoll state
