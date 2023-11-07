@@ -67,6 +67,8 @@ void vlogmsg(int pri, const char *format, va_list ap)
 			logfile_write(pri, format, ap2);
 		else if (!(setlogmask(0) & LOG_MASK(LOG_DEBUG)))
 			passt_vsyslog(pri, format, ap2);
+
+		va_end(ap2);
 	}
 
 	if ((setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) ||
