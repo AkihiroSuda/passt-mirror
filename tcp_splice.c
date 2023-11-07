@@ -835,30 +835,25 @@ void tcp_splice_init(struct ctx *c)
 void tcp_splice_timer(struct ctx *c, union tcp_conn *conn_union)
 {
 	struct tcp_splice_conn *conn = &conn_union->splice;
+	int side;
 
 	if (conn->flags & CLOSING) {
 		tcp_splice_destroy(c, conn_union);
 		return;
 	}
 
-	if ( (conn->flags & RCVLOWAT_SET_0) &&
-	     !(conn->flags & RCVLOWAT_ACT_0)) {
-		if (setsockopt(conn->s[0], SOL_SOCKET, SO_RCVLOWAT,
-			       &((int){ 1 }), sizeof(int))) {
-			trace("TCP (spliced): can't set SO_RCVLOWAT on "
-			      "%i", conn->s[0]);
-		}
-		conn_flag(c, conn, ~RCVLOWAT_SET_0);
-	}
+	for (side = 0; side < SIDES; side++) {
+		uint8_t set = side == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
+		uint8_t act = side == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
 
-	if ( (conn->flags & RCVLOWAT_SET_1) &&
-	     !(conn->flags & RCVLOWAT_ACT_1)) {
-		if (setsockopt(conn->s[1], SOL_SOCKET, SO_RCVLOWAT,
-			       &((int){ 1 }), sizeof(int))) {
-			trace("TCP (spliced): can't set SO_RCVLOWAT on "
-			      "%i", conn->s[1]);
+		if ((conn->flags & set) && !(conn->flags & act)) {
+			if (setsockopt(conn->s[side], SOL_SOCKET, SO_RCVLOWAT,
+				       &((int){ 1 }), sizeof(int))) {
+				trace("TCP (spliced): can't set SO_RCVLOWAT on "
+				      "%i", conn->s[side]);
+			}
+			conn_flag(c, conn, ~set);
 		}
-		conn_flag(c, conn, ~RCVLOWAT_SET_1);
 	}
 
 	conn_flag(c, conn, ~RCVLOWAT_ACT_0);
