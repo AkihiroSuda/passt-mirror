@@ -95,25 +95,26 @@ static int tcp_sock_refill_ns(void *arg);
 /**
  * tcp_splice_conn_epoll_events() - epoll events masks for given state
  * @events:	Connection event flags
- * @a:		Event mask for socket with accepted connection, set on return
- * @b:		Event mask for connection target socket, set on return
+ * @a:		Event for socket with accepted connection, set on return
+ * @b:		Event for connection target socket, set on return
  */
 static void tcp_splice_conn_epoll_events(uint16_t events,
-					 uint32_t *a, uint32_t *b)
+					 struct epoll_event *a,
+					 struct epoll_event *b)
 {
-	*a = *b = 0;
+	a->events = b->events = 0;
 
 	if (events & SPLICE_ESTABLISHED) {
 		if (!(events & B_FIN_SENT))
-			*a = EPOLLIN | EPOLLRDHUP;
+			a->events = EPOLLIN | EPOLLRDHUP;
 		if (!(events & A_FIN_SENT))
-			*b = EPOLLIN | EPOLLRDHUP;
+			b->events = EPOLLIN | EPOLLRDHUP;
 	} else if (events & SPLICE_CONNECT) {
-		*b = EPOLLOUT;
+		b->events = EPOLLOUT;
 	}
 
-	*a |= (events & A_OUT_WAIT) ? EPOLLOUT : 0;
-	*b |= (events & B_OUT_WAIT) ? EPOLLOUT : 0;
+	a->events |= (events & A_OUT_WAIT) ? EPOLLOUT : 0;
+	b->events |= (events & B_OUT_WAIT) ? EPOLLOUT : 0;
 }
 
 /**
@@ -133,11 +134,8 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 				  .tcp.index = CONN_IDX(conn) };
 	struct epoll_event ev_a = { .data.u64 = ref_a.u64 };
 	struct epoll_event ev_b = { .data.u64 = ref_b.u64 };
-	uint32_t events_a, events_b;
 
-	tcp_splice_conn_epoll_events(conn->events, &events_a, &events_b);
-	ev_a.events = events_a;
-	ev_b.events = events_b;
+	tcp_splice_conn_epoll_events(conn->events, &ev_a, &ev_b);
 
 	if (epoll_ctl(c->epollfd, m, conn->a, &ev_a) ||
 	    epoll_ctl(c->epollfd, m, conn->b, &ev_b)) {
