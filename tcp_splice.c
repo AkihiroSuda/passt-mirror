@@ -258,29 +258,25 @@ void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
 void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union)
 {
 	struct tcp_splice_conn *conn = &conn_union->splice;
+	int side;
 
-	if (conn->events & SPLICE_ESTABLISHED) {
-		/* Flushing might need to block: don't recycle them. */
-		if (conn->pipe[0][0] != -1) {
-			close(conn->pipe[0][0]);
-			close(conn->pipe[0][1]);
-			conn->pipe[0][0] = conn->pipe[0][1] = -1;
+	for (side = 0; side < SIDES; side++) {
+		if (conn->events & SPLICE_ESTABLISHED) {
+			/* Flushing might need to block: don't recycle them. */
+			if (conn->pipe[side][0] != -1) {
+				close(conn->pipe[side][0]);
+				close(conn->pipe[side][1]);
+				conn->pipe[side][0] = conn->pipe[side][1] = -1;
+			}
 		}
-		if (conn->pipe[1][0] != -1) {
-			close(conn->pipe[1][0]);
-			close(conn->pipe[1][1]);
-			conn->pipe[1][0] = conn->pipe[1][1] = -1;
+
+		if (side == 0 || conn->events & SPLICE_CONNECT) {
+			close(conn->s[side]);
+			conn->s[side] = -1;
 		}
-	}
 
-	if (conn->events & SPLICE_CONNECT) {
-		close(conn->s[1]);
-		conn->s[1] = -1;
+		conn->read[side] = conn->written[side] = 0;
 	}
-
-	close(conn->s[0]);
-	conn->s[0] = -1;
-	conn->read[0] = conn->written[0] = conn->read[1] = conn->written[1] = 0;
 
 	conn->events = SPLICE_CLOSED;
 	conn->flags = 0;
