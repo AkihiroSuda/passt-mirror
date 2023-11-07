@@ -969,7 +969,8 @@ int udp_tap_handler(struct ctx *c, int af, const void *saddr, const void *daddr,
 int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port)
 {
-	union udp_epoll_ref uref = { .u32 = 0 };
+	union udp_epoll_ref uref = { .splice = (c->mode == MODE_PASTA),
+				     .orig = true };
 	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	if (ns) {
@@ -980,8 +981,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 
 	if ((af == AF_INET || af == AF_UNSPEC) && c->ifi4) {
 		uref.v6 = 0;
-		uref.splice = (c->mode == MODE_PASTA);
-		uref.orig = true;
 
 		if (!ns) {
 			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP, addr,
@@ -1001,8 +1000,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 
 	if ((af == AF_INET6 || af == AF_UNSPEC) && c->ifi6) {
 		uref.v6 = 1;
-		uref.splice = (c->mode == MODE_PASTA);
-		uref.orig = true;
 
 		if (!ns) {
 			r6 = s = sock_l4(c, AF_INET6, IPPROTO_UDP, addr,
