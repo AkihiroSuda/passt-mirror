@@ -330,8 +330,6 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 			case EWOULDBLOCK:
 #endif
 			case EINTR:
-				i--;
-				break;
 			case ENOBUFS:
 			case ENOSPC:
 				break;
@@ -341,7 +339,7 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 		}
 	}
 
-	return n;
+	return i;
 }
 
 /**
