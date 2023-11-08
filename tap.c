@@ -321,7 +321,9 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 	size_t i;
 
 	for (i = 0; i < n; i++) {
-		if (write(c->fd_tap, iov[i].iov_base, iov[i].iov_len) < 0) {
+		ssize_t rc = write(c->fd_tap, iov[i].iov_base, iov[i].iov_len);
+
+		if (rc < 0) {
 			debug("tap write: %s", strerror(errno));
 
 			switch (errno) {
@@ -336,6 +338,10 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 			default:
 				die("Write error on tap device, exiting");
 			}
+		} else if ((size_t)rc < iov[i].iov_len) {
+			debug("short write on tuntap: %zd/%zu",
+			      rc, iov[i].iov_len);
+			break;
 		}
 	}
 
