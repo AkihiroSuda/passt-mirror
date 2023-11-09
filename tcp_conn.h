@@ -85,10 +85,9 @@ struct tcp_tap_conn {
 	uint8_t		flags;
 #define STALLED			BIT(0)
 #define LOCAL			BIT(1)
-#define WND_CLAMPED		BIT(2)
-#define ACTIVE_CLOSE		BIT(3)
-#define ACK_TO_TAP_DUE		BIT(4)
-#define ACK_FROM_TAP_DUE	BIT(5)
+#define ACTIVE_CLOSE		BIT(2)
+#define ACK_TO_TAP_DUE		BIT(3)
+#define ACK_FROM_TAP_DUE	BIT(4)
 
 
 #define TCP_MSS_BITS			14

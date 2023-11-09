@@ -46,8 +46,8 @@
  *   - avoiding port and address translations whenever possible
  *   - mirroring TCP dynamics by observation of socket parameters (TCP_INFO
  *     socket option) and TCP headers of packets coming from the tap interface,
- *     reapplying those parameters in both flow directions (including TCP_MSS,
- *     TCP_WINDOW_CLAMP socket options)
+ *     reapplying those parameters in both flow directions (including TCP_MSS
+ *     socket option)
  * - simplicity: only a small subset of TCP logic is implemented here and
  *   delegated as much as possible to the TCP implementations of guest and host
  *   kernel. This is achieved by:
@@ -236,12 +236,10 @@
  *     - update @seq_ack_from_tap from ack_seq in header
  *     - on two duplicated ACKs, reset @seq_to_tap to @seq_ack_from_tap, and
  *       resend with steps listed above
- *     - set TCP_WINDOW_CLAMP from TCP header from tap
  *
  * - from tap/guest to socket:
  *   - on packet from tap/guest:
  *     - set @ts_tap_act
- *     - set TCP_WINDOW_CLAMP from TCP header from tap
  *     - check seq from header against @seq_from_tap, if data is missing, send
  *       two ACKs with number @seq_ack_to_tap, discard packet
  *     - otherwise queue data to socket, set @seq_from_tap to seq from header
@@ -420,7 +418,7 @@ static const char *tcp_state_str[] __attribute((__unused__)) = {
 };
 
 static const char *tcp_flag_str[] __attribute((__unused__)) = {
-	"STALLED", "LOCAL", "WND_CLAMPED", "ACTIVE_CLOSE", "ACK_TO_TAP_DUE",
+	"STALLED", "LOCAL", "ACTIVE_CLOSE", "ACK_TO_TAP_DUE",
 	"ACK_FROM_TAP_DUE",
 };
 
@@ -1790,58 +1788,16 @@ static void tcp_get_tap_ws(struct tcp_tap_conn *conn,
 
 /**
  * tcp_tap_window_update() - Process an updated window from tap side
- * @c:		Execution context
  * @conn:	Connection pointer
  * @window:	Window value, host order, unscaled
  */
-static void tcp_tap_window_update(const struct ctx *c,
-				  struct tcp_tap_conn *conn, unsigned wnd)
+static void tcp_tap_window_update(struct tcp_tap_conn *conn, unsigned wnd)
 {
-	uint32_t prev_scaled = conn->wnd_from_tap << conn->ws_from_tap;
-	int s = conn->sock;
-
 	wnd = MIN(MAX_WINDOW, wnd << conn->ws_from_tap);
 	conn->wnd_from_tap = MIN(wnd >> conn->ws_from_tap, USHRT_MAX);
 
-	/* TODO: With (at least) Linux kernel versions 6.1 to 6.5, if we end up
-	 * with a zero-sized window on a TCP socket, dropping data (once
-	 * acknowledged by the guest) with recv() and MSG_TRUNC doesn't appear
-	 * to be enough to make the kernel advertise a non-zero window to the
-	 * sender. Forcing a TCP_WINDOW_CLAMP setting, even with the existing
-	 * value, fixes this.
-	 *
-	 * The STALLED flag on a connection is a sufficient indication that we
-	 * might have a zero-sized window on the socket, because it's set if we
-	 * exhausted the tap-side window, or if everything we receive from a
-	 * socket is already in flight to the guest.
-	 *
-	 * So, if STALLED is set, and we received a window value from the tap,
-	 * force a TCP_WINDOW_CLAMP setsockopt(). This should be investigated
-	 * further and fixed in the kernel instead, if confirmed.
-	 */
-	if (!(conn->flags & STALLED) && conn->flags & WND_CLAMPED) {
-		if (prev_scaled == wnd)
-			return;
-
-		/* Discard +/- 1% updates to spare some syscalls. */
-		/* TODO: cppcheck, starting from commit b4d455df487c ("Fix
-		 * 11349: FP negativeIndex for clamped array index (#4627)"),
-		 * reports wnd > prev_scaled as always being true, see also:
-		 *
-		 *	https://github.com/danmar/cppcheck/pull/4627
-		 *
-		 * drop this suppression once that's resolved.
-		 */
-		/* cppcheck-suppress [knownConditionTrueFalse, unmatchedSuppression] */
-		if ((wnd > prev_scaled && wnd * 99 / 100 < prev_scaled) ||
-		    (wnd < prev_scaled && wnd * 101 / 100 > prev_scaled))
-			return;
-	}
-
-	if (setsockopt(s, SOL_TCP, TCP_WINDOW_CLAMP, &wnd, sizeof(wnd)))
-		trace("TCP: failed to set TCP_WINDOW_CLAMP on socket %i", s);
-
-	conn_flag(c, conn, WND_CLAMPED);
+	/* FIXME: reflect the tap-side receiver's window back to the sock-side
+	 * sender by adjusting SO_RCVBUF? */
 }
 
 /**
@@ -2452,7 +2408,7 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 	if (ack && !tcp_sock_consume(conn, max_ack_seq))
 		tcp_update_seqack_from_tap(c, conn, max_ack_seq);
 
-	tcp_tap_window_update(c, conn, max_ack_seq_wnd);
+	tcp_tap_window_update(conn, max_ack_seq_wnd);
 
 	if (retr) {
 		trace("TCP: fast re-transmit, ACK: %u, previous sequence: %u",
@@ -2537,7 +2493,7 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
 				      const struct tcphdr *th,
 				      const char *opts, size_t optlen)
 {
-	tcp_tap_window_update(c, conn, ntohs(th->window));
+	tcp_tap_window_update(conn, ntohs(th->window));
 	tcp_get_tap_ws(conn, opts, optlen);
 
 	/* First value is not scaled */
@@ -2645,7 +2601,7 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 		if (!th->ack)
 			goto reset;
 
-		tcp_tap_window_update(c, conn, ntohs(th->window));
+		tcp_tap_window_update(conn, ntohs(th->window));
 
 		tcp_data_from_sock(c, conn);
 
@@ -2669,9 +2625,6 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 	if (count == -1)
 		goto reset;
 
-	/* Note: STALLED matters for tcp_tap_window_update(): unset it only
-	 * after processing data (and window) from the tap side
-	 */
 	conn_flag(c, conn, ~STALLED);
 
 	if (conn->seq_ack_to_tap != conn->seq_from_tap)
