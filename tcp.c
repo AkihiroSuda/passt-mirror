@@ -1789,19 +1789,19 @@ static void tcp_get_tap_ws(struct tcp_tap_conn *conn,
 }
 
 /**
- * tcp_clamp_window() - Set new window for connection, clamp on socket
+ * tcp_tap_window_update() - Process an updated window from tap side
  * @c:		Execution context
  * @conn:	Connection pointer
  * @window:	Window value, host order, unscaled
  */
-static void tcp_clamp_window(const struct ctx *c, struct tcp_tap_conn *conn,
-			     unsigned wnd)
+static void tcp_tap_window_update(const struct ctx *c,
+				  struct tcp_tap_conn *conn, unsigned wnd)
 {
 	uint32_t prev_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	int s = conn->sock;
 
-	wnd <<= conn->ws_from_tap;
-	wnd = MIN(MAX_WINDOW, wnd);
+	wnd = MIN(MAX_WINDOW, wnd << conn->ws_from_tap);
+	conn->wnd_from_tap = MIN(wnd >> conn->ws_from_tap, USHRT_MAX);
 
 	/* TODO: With (at least) Linux kernel versions 6.1 to 6.5, if we end up
 	 * with a zero-sized window on a TCP socket, dropping data (once
@@ -1838,7 +1838,6 @@ static void tcp_clamp_window(const struct ctx *c, struct tcp_tap_conn *conn,
 			return;
 	}
 
-	conn->wnd_from_tap = MIN(wnd >> conn->ws_from_tap, USHRT_MAX);
 	if (setsockopt(s, SOL_TCP, TCP_WINDOW_CLAMP, &wnd, sizeof(wnd)))
 		trace("TCP: failed to set TCP_WINDOW_CLAMP on socket %i", s);
 
@@ -2453,7 +2452,7 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 	if (ack && !tcp_sock_consume(conn, max_ack_seq))
 		tcp_update_seqack_from_tap(c, conn, max_ack_seq);
 
-	tcp_clamp_window(c, conn, max_ack_seq_wnd);
+	tcp_tap_window_update(c, conn, max_ack_seq_wnd);
 
 	if (retr) {
 		trace("TCP: fast re-transmit, ACK: %u, previous sequence: %u",
@@ -2538,7 +2537,7 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
 				      const struct tcphdr *th,
 				      const char *opts, size_t optlen)
 {
-	tcp_clamp_window(c, conn, ntohs(th->window));
+	tcp_tap_window_update(c, conn, ntohs(th->window));
 	tcp_get_tap_ws(conn, opts, optlen);
 
 	/* First value is not scaled */
@@ -2646,7 +2645,7 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 		if (!th->ack)
 			goto reset;
 
-		tcp_clamp_window(c, conn, ntohs(th->window));
+		tcp_tap_window_update(c, conn, ntohs(th->window));
 
 		tcp_data_from_sock(c, conn);
 
@@ -2670,8 +2669,8 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 	if (count == -1)
 		goto reset;
 
-	/* Note: STALLED matters for tcp_clamp_window(): unset it only after
-	 * processing data (and window) from the tap side
+	/* Note: STALLED matters for tcp_tap_window_update(): unset it only
+	 * after processing data (and window) from the tap side
 	 */
 	conn_flag(c, conn, ~STALLED);
 
