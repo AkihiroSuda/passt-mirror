@@ -50,6 +50,14 @@ td:empty { visibility: hidden; }
 </table>
 
 <style type="text/CSS">
+table.pasta_local td { border: 0px solid; padding: 6px; line-height: 1; }
+table.pasta_local td { text-align: right; }
+table.pasta_local th { text-align: center; font-weight: bold; }
+table.pasta_local tr:not(:first-of-type) td:not(:first-of-type) { font-family: monospace; font-weight: bolder; }
+table.pasta_local tr:nth-child(3n+0) { background-color: #112315; }
+table.pasta_local tr:not(:nth-child(3n+0)) td { background-color: #101010; }
+table.pasta_local td:nth-child(3n+2) { background-color: #603302; }
+table.pasta_local tr:nth-child(1) { background-color: #363e61; }
 table.pasta td { border: 0px solid; padding: 6px; line-height: 1; }
 table.pasta td { text-align: right; }
 table.pasta th { text-align: center; font-weight: bold; }
@@ -62,7 +70,7 @@ td:empty { visibility: hidden; }
 </style>
 
 </li><li><p>pasta: local connections/traffic</p>
-<table class="pasta" width="70%">
+<table class="pasta_local" width="70%">
 	<tr>
 		<th/>
 		<th id="perf_pasta_lo_tcp" colspan="__pasta_lo_tcp_cols__">TCP, __pasta_lo_tcp_threads__ at __pasta_lo_tcp_freq__ GHz</th>
