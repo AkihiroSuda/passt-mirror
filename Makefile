@@ -250,6 +250,12 @@ docs: README.md
 # - bugprone-assignment-in-if-condition
 #	Dubious value over the compiler's built-in warning.  Would
 #	increase verbosity.
+#
+# - misc-include-cleaner
+#	Wants to include headers which *directly* provide the things
+#	we use.  That sounds nice, but means it will often want a OS
+#	specific header instead of a mostly standard one, such as
+#	<linux/limits.h> instead of <limits.h>.
 
 clang-tidy: $(SRCS) $(HEADERS)
 	clang-tidy -checks=*,-modernize-*,\
@@ -275,7 +281,8 @@ clang-tidy: $(SRCS) $(HEADERS)
 	-readability-function-cognitive-complexity,\
 	-altera-struct-pack-align,\
 	-concurrency-mt-unsafe,\
-	-readability-identifier-length \
+	-readability-identifier-length,\
+	-misc-include-cleaner \
 	-config='{CheckOptions: [{key: bugprone-suspicious-string-compare.WarnOnImplicitComparison, value: "false"}]}' \
 	--warnings-as-errors=* $(SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
 
