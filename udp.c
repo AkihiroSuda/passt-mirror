@@ -1187,6 +1187,66 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 }
 
 /**
+ * udp_port_rebind() - Rebind ports to match forward maps
+ * @c:		Execution context
+ * @outbound:	True to remap outbound forwards, otherwise inbound
+ *
+ * Must be called in namespace context if @outbound is true.
+ */
+static void udp_port_rebind(struct ctx *c, bool outbound)
+{
+	const uint8_t *fmap
+		= outbound ? c->udp.fwd_out.f.map : c->udp.fwd_in.f.map;
+	const uint8_t *rmap
+		= outbound ? c->udp.fwd_in.f.map : c->udp.fwd_out.f.map;
+	struct udp_splice_port (*socks)[NUM_PORTS]
+		= outbound ? udp_splice_ns : udp_splice_init;
+	unsigned port;
+
+	for (port = 0; port < NUM_PORTS; port++) {
+		if (!bitmap_isset(fmap, port)) {
+			if (socks[V4][port].sock >= 0) {
+				close(socks[V4][port].sock);
+				socks[V4][port].sock = -1;
+			}
+
+			if (socks[V6][port].sock >= 0) {
+				close(socks[V6][port].sock);
+				socks[V6][port].sock = -1;
+			}
+
+			continue;
+		}
+
+		/* Don't loop back our own ports */
+		if (bitmap_isset(rmap, port))
+			continue;
+
+		if ((c->ifi4 && socks[V4][port].sock == -1) ||
+		    (c->ifi6 && socks[V6][port].sock == -1))
+			udp_sock_init(c, outbound, AF_UNSPEC, NULL, NULL, port);
+	}
+}
+
+/**
+ * udp_port_rebind_outbound() - Rebind ports in namespace
+ * @arg:	Execution context
+ *
+ * Called with NS_CALL()
+ *
+ * Return: 0
+ */
+static int udp_port_rebind_outbound(void *arg)
+{
+	struct ctx *c = (struct ctx *)arg;
+
+	ns_enter(c);
+	udp_port_rebind(c, true);
+
+	return 0;
+}
+
+/**
  * udp_timer() - Scan activity bitmaps for ports with associated timed events
  * @c:		Execution context
  * @ts:		Timestamp from caller
@@ -1196,6 +1256,20 @@ void udp_timer(struct ctx *c, const struct timespec *ts)
 	int n, t, v6 = 0;
 	unsigned int i;
 	long *word, tmp;
+
+	if (c->mode == MODE_PASTA) {
+		if (c->udp.fwd_out.f.mode == FWD_AUTO) {
+			port_fwd_scan_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
+					  &c->tcp.fwd_out);
+			NS_CALL(udp_port_rebind_outbound, c);
+		}
+
+		if (c->udp.fwd_in.f.mode == FWD_AUTO) {
+			port_fwd_scan_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
+					  &c->tcp.fwd_in);
+			udp_port_rebind(c, false);
+		}
+	}
 
 	if (!c->ifi4)
 		v6 = 1;
