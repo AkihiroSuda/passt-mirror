@@ -3151,13 +3151,13 @@ int tcp_init(struct ctx *c)
 }
 
 /**
- * tcp_port_do_rebind() - Rebind ports to match forward maps
+ * tcp_port_rebind() - Rebind ports to match forward maps
  * @c:		Execution context
  * @outbound:	True to remap outbound forwards, otherwise inbound
  *
  * Must be called in namespace context if @outbound is true.
  */
-static void tcp_port_do_rebind(struct ctx *c, bool outbound)
+static void tcp_port_rebind(struct ctx *c, bool outbound)
 {
 	const uint8_t *fmap = outbound ? c->tcp.fwd_out.map : c->tcp.fwd_in.map;
 	const uint8_t *rmap = outbound ? c->tcp.fwd_in.map : c->tcp.fwd_out.map;
@@ -3194,32 +3194,19 @@ static void tcp_port_do_rebind(struct ctx *c, bool outbound)
 }
 
 /**
- * struct tcp_port_rebind_arg - Arguments for tcp_port_rebind()
- * @c:			Execution context
- * @bind_in_ns:		Rebind ports in namespace, not in init
- */
-struct tcp_port_rebind_arg {
-	struct ctx *c;
-	int bind_in_ns;
-};
-
-/**
- * tcp_port_rebind() - Rebind ports in namespace or init
- * @arg:		See struct tcp_port_rebind_arg
+ * tcp_port_rebind_outbound() - Rebind ports in namespace
+ * @arg:	Execution context
+ *
+ * Called with NS_CALL()
  *
  * Return: 0
  */
-static int tcp_port_rebind(void *arg)
+static int tcp_port_rebind_outbound(void *arg)
 {
-	struct tcp_port_rebind_arg *a = (struct tcp_port_rebind_arg *)arg;
+	struct ctx *c = (struct ctx *)arg;
 
-	if (a->bind_in_ns) {
-		ns_enter(a->c);
-
-		tcp_port_do_rebind(a->c, true);
-	} else {
-		tcp_port_do_rebind(a->c, false);
-	}
+	ns_enter(c);
+	tcp_port_rebind(c, true);
 
 	return 0;
 }
@@ -3236,18 +3223,14 @@ void tcp_timer(struct ctx *c, const struct timespec *ts)
 	(void)ts;
 
 	if (c->mode == MODE_PASTA) {
-		struct tcp_port_rebind_arg rebind_arg = { c, 0 };
-
 		if (c->tcp.fwd_out.mode == FWD_AUTO) {
 			port_fwd_scan_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
-			rebind_arg.bind_in_ns = 1;
-			NS_CALL(tcp_port_rebind, &rebind_arg);
+			NS_CALL(tcp_port_rebind_outbound, c);
 		}
 
 		if (c->tcp.fwd_in.mode == FWD_AUTO) {
 			port_fwd_scan_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
-			rebind_arg.bind_in_ns = 0;
-			tcp_port_rebind(&rebind_arg);
+			tcp_port_rebind(c, false);
 		}
 	}
 
