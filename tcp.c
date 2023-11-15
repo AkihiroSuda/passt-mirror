@@ -3151,6 +3151,49 @@ int tcp_init(struct ctx *c)
 }
 
 /**
+ * tcp_port_do_rebind() - Rebind ports to match forward maps
+ * @c:		Execution context
+ * @outbound:	True to remap outbound forwards, otherwise inbound
+ *
+ * Must be called in namespace context if @outbound is true.
+ */
+static void tcp_port_do_rebind(struct ctx *c, bool outbound)
+{
+	const uint8_t *fmap = outbound ? c->tcp.fwd_out.map : c->tcp.fwd_in.map;
+	const uint8_t *rmap = outbound ? c->tcp.fwd_in.map : c->tcp.fwd_out.map;
+	int (*socks)[IP_VERSIONS] = outbound ? tcp_sock_ns : tcp_sock_init_ext;
+	unsigned port;
+
+	for (port = 0; port < NUM_PORTS; port++) {
+		if (!bitmap_isset(fmap, port)) {
+			if (socks[port][V4] >= 0) {
+				close(socks[port][V4]);
+				socks[port][V4] = -1;
+			}
+
+			if (socks[port][V6] >= 0) {
+				close(socks[port][V6]);
+				socks[port][V6] = -1;
+			}
+
+			continue;
+		}
+
+		/* Don't loop back our own ports */
+		if (bitmap_isset(rmap, port))
+			continue;
+
+		if ((c->ifi4 && socks[port][V4] == -1) ||
+		    (c->ifi6 && socks[port][V6] == -1)) {
+			if (outbound)
+				tcp_ns_sock_init(c, port);
+			else
+				tcp_sock_init(c, AF_UNSPEC, NULL, NULL, port);
+		}
+	}
+}
+
+/**
  * struct tcp_port_rebind_arg - Arguments for tcp_port_rebind()
  * @c:			Execution context
  * @bind_in_ns:		Rebind ports in namespace, not in init
@@ -3169,58 +3212,13 @@ struct tcp_port_rebind_arg {
 static int tcp_port_rebind(void *arg)
 {
 	struct tcp_port_rebind_arg *a = (struct tcp_port_rebind_arg *)arg;
-	unsigned port;
 
 	if (a->bind_in_ns) {
 		ns_enter(a->c);
 
-		for (port = 0; port < NUM_PORTS; port++) {
-			if (!bitmap_isset(a->c->tcp.fwd_out.map, port)) {
-				if (tcp_sock_ns[port][V4] >= 0) {
-					close(tcp_sock_ns[port][V4]);
-					tcp_sock_ns[port][V4] = -1;
-				}
-
-				if (tcp_sock_ns[port][V6] >= 0) {
-					close(tcp_sock_ns[port][V6]);
-					tcp_sock_ns[port][V6] = -1;
-				}
-
-				continue;
-			}
-
-			/* Don't loop back our own ports */
-			if (bitmap_isset(a->c->tcp.fwd_in.map, port))
-				continue;
-
-			if ((a->c->ifi4 && tcp_sock_ns[port][V4] == -1) ||
-			    (a->c->ifi6 && tcp_sock_ns[port][V6] == -1))
-				tcp_ns_sock_init(a->c, port);
-		}
+		tcp_port_do_rebind(a->c, true);
 	} else {
-		for (port = 0; port < NUM_PORTS; port++) {
-			if (!bitmap_isset(a->c->tcp.fwd_in.map, port)) {
-				if (tcp_sock_init_ext[port][V4] >= 0) {
-					close(tcp_sock_init_ext[port][V4]);
-					tcp_sock_init_ext[port][V4] = -1;
-				}
-
-				if (tcp_sock_init_ext[port][V6] >= 0) {
-					close(tcp_sock_init_ext[port][V6]);
-					tcp_sock_init_ext[port][V6] = -1;
-				}
-				continue;
-			}
-
-			/* Don't loop back our own ports */
-			if (bitmap_isset(a->c->tcp.fwd_out.map, port))
-				continue;
-
-			if ((a->c->ifi4 && tcp_sock_init_ext[port][V4] == -1) ||
-			    (a->c->ifi6 && tcp_sock_init_ext[port][V6] == -1))
-				tcp_sock_init(a->c, AF_UNSPEC, NULL, NULL,
-					      port);
-		}
+		tcp_port_do_rebind(a->c, false);
 	}
 
 	return 0;
