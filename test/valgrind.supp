@@ -3,7 +3,6 @@
    passt_recv_MSG_TRUNC_into_NULL_buffer
    Memcheck:Param
    socketcall.recvfrom(buf)
-   fun:recv
    ...
-   fun:tcp_sock_consume*
+   fun:tcp_sock_consume
 }

@@ -2097,6 +2097,15 @@ static void tcp_conn_from_tap(struct ctx *c,
  *
  * Return: 0 on success, negative error code from recv() on failure
  */
+#ifdef VALGRIND
+/* valgrind doesn't realise that passing a NULL buffer to recv() is ok if using
+ * MSG_TRUNC.  We have a suppression for this in the tests, but it relies on
+ * valgrind being able to see the tcp_sock_consume() stack frame, which it won't
+ * if this gets inlined.  This has a single caller making it a likely inlining
+ * candidate, and certain compiler versions will do so even at -O0.
+ */
+ __attribute__((noinline))
+#endif /* VALGRIND */
 static int tcp_sock_consume(const struct tcp_tap_conn *conn, uint32_t ack_seq)
 {
 	/* Simply ignore out-of-order ACKs: we already consumed the data we
