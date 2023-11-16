@@ -128,7 +128,7 @@ qrap: $(QRAP_SRCS) passt.h
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
 			    getpid gettid kill clock_gettime mmap	\
 			    munmap open unlink gettimeofday futex
-valgrind: FLAGS:=-g -O0 $(filter-out -O%,$(FLAGS)) -DVALGRIND
+valgrind: FLAGS += -g -DVALGRIND
 valgrind: all
 
 .PHONY: clean
