@@ -37,7 +37,8 @@ struct port_fwd {
 
 void port_fwd_scan_tcp(struct port_fwd *fwd, const struct port_fwd *rev);
 void port_fwd_scan_udp(struct port_fwd *fwd, const struct port_fwd *rev,
-		       const struct port_fwd *tcp);
+		       const struct port_fwd *tcp_fwd,
+		       const struct port_fwd *tcp_rev);
 void port_fwd_init(struct ctx *c);
 
 #endif /* PORT_FWD_H */

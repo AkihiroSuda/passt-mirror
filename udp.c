@@ -1260,13 +1260,13 @@ void udp_timer(struct ctx *c, const struct timespec *ts)
 	if (c->mode == MODE_PASTA) {
 		if (c->udp.fwd_out.f.mode == FWD_AUTO) {
 			port_fwd_scan_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
-					  &c->tcp.fwd_out);
+					  &c->tcp.fwd_out, &c->tcp.fwd_in);
 			NS_CALL(udp_port_rebind_outbound, c);
 		}
 
 		if (c->udp.fwd_in.f.mode == FWD_AUTO) {
 			port_fwd_scan_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
-					  &c->tcp.fwd_in);
+					  &c->tcp.fwd_in, &c->tcp.fwd_out);
 			udp_port_rebind(c, false);
 		}
 	}

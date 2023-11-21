@@ -325,6 +325,27 @@ int bitmap_isset(const uint8_t *map, int bit)
 	return !!(*word & BITMAP_BIT(bit));
 }
 
+/**
+ * bitmap_or() - Logical disjunction (OR) of two bitmaps
+ * @dst:	Pointer to result bitmap
+ * @size:	Size of bitmaps, in bytes
+ * @a:		First operand
+ * @b:		Second operand
+ */
+void bitmap_or(uint8_t *dst, size_t size, const uint8_t *a, const uint8_t *b)
+{
+	unsigned long *dw = (unsigned long *)dst;
+	unsigned long *aw = (unsigned long *)a;
+	unsigned long *bw = (unsigned long *)b;
+	size_t i;
+
+	for (i = 0; i < size / sizeof(long); i++, dw++, aw++, bw++)
+		*dw = *aw | *bw;
+
+	for (i = size / sizeof(long) * sizeof(long); i < size; i++)
+		dst[i] = a[i] | b[i];
+}
+
 /*
  * ns_enter() - Enter configured user (unless already joined) and network ns
  * @c:		Execution context

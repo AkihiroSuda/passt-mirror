@@ -86,22 +86,33 @@ void port_fwd_scan_tcp(struct port_fwd *fwd, const struct port_fwd *rev)
  * port_fwd_scan_tcp() - Scan /proc to update TCP forwarding map
  * @fwd:	Forwarding information to update
  * @rev:	Forwarding information for the reverse direction
- * @tcp:	Corresponding TCP forwarding information
+ * @tcp_fwd:	Corresponding TCP forwarding information
+ * @tcp_rev:	TCP forwarding information for the reverse direction
  */
 void port_fwd_scan_udp(struct port_fwd *fwd, const struct port_fwd *rev,
-		       const struct port_fwd *tcp)
+		       const struct port_fwd *tcp_fwd,
+		       const struct port_fwd *tcp_rev)
 {
+	uint8_t exclude[PORT_BITMAP_SIZE];
+
+	bitmap_or(exclude, PORT_BITMAP_SIZE, rev->map, tcp_rev->map);
+
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
-	procfs_scan_listen(fwd->scan4, UDP_LISTEN, fwd->map, rev->map);
-	procfs_scan_listen(fwd->scan6, UDP_LISTEN, fwd->map, rev->map);
+	procfs_scan_listen(fwd->scan4, UDP_LISTEN, fwd->map, exclude);
+	procfs_scan_listen(fwd->scan6, UDP_LISTEN, fwd->map, exclude);
 
 	/* Also forward UDP ports with the same numbers as bound TCP ports.
 	 * This is useful for a handful of protocols (e.g. iperf3) where a TCP
 	 * control port is used to set up transfers on a corresponding UDP
 	 * port.
+	 *
+	 * This means we need to skip numbers of TCP ports bound on the other
+	 * side, too. Otherwise, we would detect corresponding UDP ports as
+	 * bound and try to forward them from the opposite side, but it's
+	 * already us handling them.
 	 */
-	procfs_scan_listen(tcp->scan4, TCP_LISTEN, fwd->map, rev->map);
-	procfs_scan_listen(tcp->scan6, TCP_LISTEN, fwd->map, rev->map);
+	procfs_scan_listen(tcp_fwd->scan4, TCP_LISTEN, fwd->map, exclude);
+	procfs_scan_listen(tcp_fwd->scan6, TCP_LISTEN, fwd->map, exclude);
 }
 
 /**
@@ -126,7 +137,7 @@ void port_fwd_init(struct ctx *c)
 		c->udp.fwd_in.f.scan4 = open_in_ns(c, "/proc/net/udp", flags);
 		c->udp.fwd_in.f.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
 		port_fwd_scan_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
-				  &c->tcp.fwd_in);
+				  &c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
 	if (c->tcp.fwd_out.mode == FWD_AUTO) {
 		c->tcp.fwd_out.scan4 = open("/proc/net/tcp", flags);
@@ -137,6 +148,6 @@ void port_fwd_init(struct ctx *c)
 		c->udp.fwd_out.f.scan4 = open("/proc/net/udp", flags);
 		c->udp.fwd_out.f.scan6 = open("/proc/net/udp6", flags);
 		port_fwd_scan_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
-				  &c->tcp.fwd_out);
+				  &c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
 }
