@@ -203,11 +203,9 @@ pane_wait() {
 
 	__done=0
 	while
-		__l="$(tail -1 ${LOGDIR}/pane_${__lc}.log | tr -d [:cntrl:])"
+		__l="$(tail -1 ${LOGDIR}/pane_${__lc}.log | sed 's/[[][^a-zA-Z]*[a-zA-Z]//g')"
 		case ${__l} in
-		'$ ' | '# ' | '# # ' | *"$ " | *"# ") return ;;
-		*" #[m " | *" #[m [K" | *"]# ["*) return ;;
-		*' $ [6n' | *' # [6n' ) return ;;
+		*"$ " | *"# ") return ;;
 		esac
 	do sleep 0.1 || sleep 1; done
 }
