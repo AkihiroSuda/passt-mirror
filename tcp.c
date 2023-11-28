@@ -1693,7 +1693,6 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		*(uint16_t *)data = htons(MIN(USHRT_MAX, mss));
 
 		data += OPT_MSS_LEN - 2;
-		th->doff += OPT_MSS_LEN / 4;
 
 		conn->ws_to_tap = MIN(MAX_WS, tinfo.tcpi_snd_wscale);
 
