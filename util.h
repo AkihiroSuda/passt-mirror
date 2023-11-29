@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
+#include <signal.h>
 
 #include "log.h"
 

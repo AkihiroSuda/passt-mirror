@@ -17,6 +17,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sched.h>
+#include <unistd.h>
+#include <stdio.h>
 
 #include "util.h"
 #include "port_fwd.h"
