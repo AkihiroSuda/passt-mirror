@@ -101,7 +101,7 @@ void pcap(const char *pkt, size_t len)
 
 	gettimeofday(&tv, NULL);
 	if (pcap_frame(pkt, len, &tv) != 0)
-		debug("Cannot log packet, length %lu", len);
+		debug("Cannot log packet, length %zu", len);
 }
 
 /**
@@ -123,7 +123,7 @@ void pcap_multiple(const struct iovec *iov, unsigned int n, size_t offset)
 	for (i = 0; i < n; i++) {
 		if (pcap_frame((char *)iov[i].iov_base + offset,
 			       iov[i].iov_len - offset, &tv) != 0) {
-			debug("Cannot log packet, length %lu",
+			debug("Cannot log packet, length %zu",
 			      iov->iov_len - offset);
 			return;
 		}

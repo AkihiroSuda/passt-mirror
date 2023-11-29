@@ -130,7 +130,7 @@ static uint32_t nl_send(int s, void *req, uint16_t type,
 	if (n < 0)
 		die("netlink: Failed to send(): %s", strerror(errno));
 	else if (n < len)
-		die("netlink: Short send (%lu of %lu bytes)", n, len);
+		die("netlink: Short send (%zd of %zd bytes)", n, len);
 
 	return nh->nlmsg_seq;
 }

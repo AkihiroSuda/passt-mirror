@@ -191,7 +191,7 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 	memcpy(data, in, len);
 
 	if (tap_send(c, buf, len + (data - buf)) < 0)
-		debug("tap: failed to send %lu bytes (IPv4)", len);
+		debug("tap: failed to send %zu bytes (IPv4)", len);
 }
 
 /**
@@ -214,7 +214,7 @@ void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
 	csum_icmp4(icmp4h, icmp4h + 1, len - sizeof(*icmp4h));
 
 	if (tap_send(c, buf, len + (data - buf)) < 0)
-		debug("tap: failed to send %lu bytes (IPv4)", len);
+		debug("tap: failed to send %zu bytes (IPv4)", len);
 }
 
 /**
@@ -278,7 +278,7 @@ void tap_udp6_send(const struct ctx *c,
 	memcpy(data, in, len);
 
 	if (tap_send(c, buf, len + (data - buf)) < 1)
-		debug("tap: failed to send %lu bytes (IPv6)", len);
+		debug("tap: failed to send %zu bytes (IPv6)", len);
 }
 
 /**
@@ -302,7 +302,7 @@ void tap_icmp6_send(const struct ctx *c,
 	csum_icmp6(icmp6h, src, dst, icmp6h + 1, len - sizeof(*icmp6h));
 
 	if (tap_send(c, buf, len + (data - buf)) < 1)
-		debug("tap: failed to send %lu bytes (IPv6)", len);
+		debug("tap: failed to send %zu bytes (IPv6)", len);
 }
 
 /**
@@ -364,7 +364,7 @@ static void tap_send_remainder(const struct ctx *c, const struct iovec *iov,
 		ssize_t sent = send(c->fd_tap, base + offset, len - offset,
 				    MSG_NOSIGNAL);
 		if (sent < 0) {
-			err("tap: partial frame send (missing %lu bytes): %s",
+			err("tap: partial frame send (missing %zu bytes): %s",
 			    len - offset, strerror(errno));
 			return;
 		}
@@ -433,7 +433,7 @@ size_t tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
 		m = tap_send_frames_pasta(c, iov, n);
 
 	if (m < n)
-		debug("tap: failed to send %lu frames of %lu", n - m, n);
+		debug("tap: failed to send %zu frames of %zu", n - m, n);
 
 	pcap_multiple(iov, m, c->mode == MODE_PASST ? sizeof(uint32_t) : 0);
 

@@ -2570,7 +2570,8 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 		return 1;
 	}
 
-	trace("TCP: packet length %lu from tap for index %lu", len, CONN_IDX(conn));
+	trace("TCP: packet length %zu from tap for index %lu",
+	      len, CONN_IDX(conn));
 
 	if (th->rst) {
 		conn_event(c, conn, CLOSED);

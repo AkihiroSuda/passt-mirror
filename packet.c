@@ -36,7 +36,7 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 	size_t idx = p->count;
 
 	if (idx >= p->size) {
-		trace("add packet index %lu to pool with size %lu, %s:%i",
+		trace("add packet index %zu to pool with size %zu, %s:%i",
 		      idx, p->size, func, line);
 		return;
 	}
@@ -48,14 +48,14 @@ void packet_add_do(struct pool *p, size_t len, const char *start,
 	}
 
 	if (start + len > p->buf + p->buf_size) {
-		trace("add packet start %p, length: %lu, buffer end %p, %s:%i",
+		trace("add packet start %p, length: %zu, buffer end %p, %s:%i",
 		      (void *)start, len, (void *)(p->buf + p->buf_size),
 		      func, line);
 		return;
 	}
 
 	if (len > UINT16_MAX) {
-		trace("add packet length %lu, %s:%i", len, func, line);
+		trace("add packet length %zu, %s:%i", len, func, line);
 		return;
 	}
 
@@ -90,7 +90,7 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 {
 	if (idx >= p->size || idx >= p->count) {
 		if (func) {
-			trace("packet %lu from pool size: %lu, count: %lu, "
+			trace("packet %zu from pool size: %zu, count: %zu, "
 			      "%s:%i", idx, p->size, p->count, func, line);
 		}
 		return NULL;
@@ -98,7 +98,7 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 
 	if (len > UINT16_MAX || len + offset > UINT32_MAX) {
 		if (func) {
-			trace("packet data length %lu, offset %lu, %s:%i",
+			trace("packet data length %zu, offset %zu, %s:%i",
 			      len, offset, func, line);
 		}
 		return NULL;
@@ -106,7 +106,7 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 
 	if (p->pkt[idx].offset + len + offset > p->buf_size) {
 		if (func) {
-			trace("packet offset plus length %lu from size %lu, "
+			trace("packet offset plus length %lu from size %zu, "
 			      "%s:%i", p->pkt[idx].offset + len + offset,
 			      p->buf_size, func, line);
 		}
@@ -115,7 +115,7 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 
 	if (len + offset > p->pkt[idx].len) {
 		if (func) {
-			trace("data length %lu, offset %lu from length %u, "
+			trace("data length %zu, offset %zu from length %u, "
 			      "%s:%i", len, offset, p->pkt[idx].len,
 			      func, line);
 		}

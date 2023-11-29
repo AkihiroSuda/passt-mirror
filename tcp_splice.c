@@ -321,7 +321,7 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 
 			if (fcntl(conn->pipe[side][0], F_SETPIPE_SZ,
 				  c->tcp.pipe_size)) {
-				trace("TCP (spliced): cannot set %d->%d pipe size to %lu",
+				trace("TCP (spliced): cannot set %d->%d pipe size to %zu",
 				      side, !side, c->tcp.pipe_size);
 			}
 		}
@@ -554,7 +554,7 @@ retry:
 		readlen = splice(conn->s[fromside], NULL,
 				 conn->pipe[fromside][1], NULL, c->tcp.pipe_size,
 				 SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
-		trace("TCP (spliced): %li from read-side call", readlen);
+		trace("TCP (spliced): %zi from read-side call", readlen);
 		if (readlen < 0) {
 			if (errno == EINTR)
 				goto retry;
@@ -580,7 +580,7 @@ eintr:
 		written = splice(conn->pipe[fromside][0], NULL,
 				 conn->s[!fromside], NULL, to_write,
 				 SPLICE_F_MOVE | more | SPLICE_F_NONBLOCK);
-		trace("TCP (spliced): %li from write-side call (passed %lu)",
+		trace("TCP (spliced): %zi from write-side call (passed %zi)",
 		      written, to_write);
 
 		/* Most common case: skip updating counters. */
@@ -718,7 +718,7 @@ static void tcp_splice_pipe_refill(const struct ctx *c)
 
 		if (fcntl(splice_pipe_pool[i][0], F_SETPIPE_SZ,
 			  c->tcp.pipe_size)) {
-			trace("TCP (spliced): cannot set pool pipe size to %lu",
+			trace("TCP (spliced): cannot set pool pipe size to %zu",
 			      c->tcp.pipe_size);
 		}
 	}
