@@ -106,7 +106,7 @@ void *packet_get_do(const struct pool *p, size_t idx, size_t offset,
 
 	if (p->pkt[idx].offset + len + offset > p->buf_size) {
 		if (func) {
-			trace("packet offset plus length %lu from size %zu, "
+			trace("packet offset plus length %zu from size %zu, "
 			      "%s:%i", p->pkt[idx].offset + len + offset,
 			      p->buf_size, func, line);
 		}
