@@ -10,18 +10,8 @@
 #define TCP_CONN_H
 
 /**
- * struct tcp_conn_common - Common fields for spliced and non-spliced
- * @spliced:		Is this a spliced connection?
- */
-struct tcp_conn_common {
-	bool spliced	:1;
-};
-
-extern const char *tcp_common_flag_str[];
-
-/**
  * struct tcp_tap_conn - Descriptor for a TCP connection (not spliced)
- * @c:			Fields common with tcp_splice_conn
+ * @f:			Generic flow information
  * @in_epoll:		Is the connection in the epoll set?
  * @next_index:		Connection index of next item in hash chain, -1 for none
  * @tap_mss:		MSS advertised by tap/guest, rounded to 2 ^ TCP_MSS_BITS
@@ -46,8 +36,8 @@ extern const char *tcp_common_flag_str[];
  * @seq_init_from_tap:	Initial sequence number from tap
  */
 struct tcp_tap_conn {
-	/* Must be first element to match tcp_splice_conn */
-	struct tcp_conn_common c;
+	/* Must be first element */
+	struct flow_common f;
 
 	bool		in_epoll	:1;
 	int	 	next_index	:TCP_CONN_INDEX_BITS + 2;
@@ -121,7 +111,7 @@ struct tcp_tap_conn {
 #define SIDES			2
 /**
  * struct tcp_splice_conn - Descriptor for a spliced TCP connection
- * @c:			Fields common with tcp_tap_conn
+ * @f:			Generic flow information
  * @in_epoll:		Is the connection in the epoll set?
  * @s:			File descriptor for sockets
  * @pipe:		File descriptors for pipes
@@ -131,8 +121,8 @@ struct tcp_tap_conn {
  * @written:		Bytes written (not fully written from one other side read)
 */
 struct tcp_splice_conn {
-	/* Must be first element to match tcp_tap_conn */
-	struct tcp_conn_common c;
+	/* Must be first element */
+	struct flow_common f;
 
 	bool in_epoll	:1;
 	int s[SIDES];
@@ -168,7 +158,7 @@ struct tcp_splice_conn {
  * @splice:		Fields specific to spliced connections
 */
 union tcp_conn {
-	struct tcp_conn_common c;
+	struct flow_common f;
 	struct tcp_tap_conn tap;
 	struct tcp_splice_conn splice;
 };

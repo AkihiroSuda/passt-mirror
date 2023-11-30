@@ -299,6 +299,7 @@
 #include "tcp_splice.h"
 #include "log.h"
 #include "inany.h"
+#include "flow.h"
 
 #include "tcp_conn.h"
 
@@ -584,7 +585,7 @@ static inline struct tcp_tap_conn *conn_at_idx(int idx)
 {
 	if ((idx < 0) || (idx >= TCP_MAX_CONNS))
 		return NULL;
-	ASSERT(!(CONN(idx)->c.spliced));
+	ASSERT(CONN(idx)->f.type == FLOW_TCP);
 	return CONN(idx);
 }
 
@@ -1319,14 +1320,21 @@ void tcp_table_compact(struct ctx *c, union tcp_conn *hole)
 	from = tc + c->tcp.conn_count;
 	memcpy(hole, from, sizeof(*hole));
 
-	if (from->c.spliced)
-		tcp_splice_conn_update(c, &hole->splice);
-	else
+	switch (from->f.type) {
+	case FLOW_TCP:
 		tcp_tap_conn_update(c, &from->tap, &hole->tap);
+		break;
+	case FLOW_TCP_SPLICE:
+		tcp_splice_conn_update(c, &hole->splice);
+		break;
+	default:
+		die("Unexpected %s in tcp_table_compact()",
+		    FLOW_TYPE(&from->f));
+	}
 
-	debug("TCP: table compaction (spliced=%d): old index %li, new index %li, "
+	debug("TCP: table compaction (%s): old index %li, new index %li, "
 	      "from: %p, to: %p",
-	      from->c.spliced, CONN_IDX(from), CONN_IDX(hole),
+	      FLOW_TYPE(&from->f), CONN_IDX(from), CONN_IDX(hole),
 	      (void *)from, (void *)hole);
 
 	memset(from, 0, sizeof(*from));
@@ -1402,12 +1410,18 @@ void tcp_defer_handler(struct ctx *c)
 	tcp_l2_data_buf_flush(c);
 
 	for (conn = tc + c->tcp.conn_count - 1; conn >= tc; conn--) {
-		if (conn->c.spliced) {
-			if (conn->splice.flags & CLOSING)
-				tcp_splice_destroy(c, conn);
-		} else {
+		switch (conn->f.type) {
+		case FLOW_TCP:
 			if (conn->tap.events == CLOSED)
 				tcp_conn_destroy(c, conn);
+			break;
+		case FLOW_TCP_SPLICE:
+			if (conn->splice.flags & CLOSING)
+				tcp_splice_destroy(c, conn);
+			break;
+		default:
+			die("Unexpected %s in tcp_defer_handler()",
+			    FLOW_TYPE(&conn->f));
 		}
 	}
 }
@@ -2016,7 +2030,7 @@ static void tcp_conn_from_tap(struct ctx *c,
 	}
 
 	conn = CONN(c->tcp.conn_count++);
-	conn->c.spliced = false;
+	conn->f.type = FLOW_TCP;
 	conn->sock = s;
 	conn->timer = -1;
 	conn_event(c, conn, TAP_SYN_RCVD);
@@ -2726,7 +2740,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c,
 				   const struct sockaddr *sa,
 				   const struct timespec *now)
 {
-	conn->c.spliced = false;
+	conn->f.type = FLOW_TCP;
 	conn->sock = s;
 	conn->timer = -1;
 	conn->ws_to_tap = conn->ws_from_tap = 0;
@@ -2909,10 +2923,17 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
 	union tcp_conn *conn = tc + ref.tcp.index;
 
-	if (conn->c.spliced)
-		tcp_splice_sock_handler(c, &conn->splice, ref.fd, events);
-	else
+	switch (conn->f.type) {
+	case FLOW_TCP:
 		tcp_tap_sock_handler(c, &conn->tap, events);
+		break;
+	case FLOW_TCP_SPLICE:
+		tcp_splice_sock_handler(c, &conn->splice, ref.fd, events);
+		break;
+	default:
+		die("Unexpected %s in tcp_sock_handler_compact()",
+		    FLOW_TYPE(&conn->f));
+	}
 }
 
 /**
@@ -3244,11 +3265,17 @@ void tcp_timer(struct ctx *c, const struct timespec *ts)
 	}
 
 	for (conn = tc + c->tcp.conn_count - 1; conn >= tc; conn--) {
-		if (conn->c.spliced) {
-			tcp_splice_timer(c, conn);
-		} else {
+		switch (conn->f.type) {
+		case FLOW_TCP:
 			if (conn->tap.events == CLOSED)
 				tcp_conn_destroy(c, conn);
+			break;
+		case FLOW_TCP_SPLICE:
+			tcp_splice_timer(c, conn);
+			break;
+		default:
+			die("Unexpected %s in tcp_timer()",
+			    FLOW_TYPE(&conn->f));
 		}
 	}
 

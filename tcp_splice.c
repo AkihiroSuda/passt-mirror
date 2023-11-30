@@ -54,6 +54,7 @@
 #include "tcp_splice.h"
 #include "siphash.h"
 #include "inany.h"
+#include "flow.h"
 
 #include "tcp_conn.h"
 
@@ -476,7 +477,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	if (setsockopt(s, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
 		trace("TCP (spliced): failed to set TCP_QUICKACK on %i", s);
 
-	conn->c.spliced = true;
+	conn->f.type = FLOW_TCP_SPLICE;
 	conn->s[0] = s;
 
 	if (tcp_splice_new(c, conn, ref.port, ref.pif))
