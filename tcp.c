@@ -2758,10 +2758,10 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
  */
 void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 {
-	struct tcp_tap_conn *conn = conn_at_idx(ref.tcp.index);
 	struct itimerspec check_armed = { { 0 }, { 0 } };
+	struct tcp_tap_conn *conn = CONN(ref.tcp.index);
 
-	if (c->no_tcp || !conn)
+	if (c->no_tcp)
 		return;
 
 	/* We don't reset timers on ~ACK_FROM_TAP_DUE, ~ACK_TO_TAP_DUE. If the
