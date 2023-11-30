@@ -639,7 +639,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
-				.tcp.index = FLOW_IDX(conn) };
+				.flow = FLOW_IDX(conn) };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
 	if (conn->events == CLOSED) {
@@ -660,7 +660,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	if (conn->timer != -1) {
 		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP_TIMER,
 					  .fd = conn->sock,
-					  .tcp.index = FLOW_IDX(conn) };
+					  .flow = FLOW_IDX(conn) };
 		struct epoll_event ev_t = { .data.u64 = ref_t.u64,
 					    .events = EPOLLIN | EPOLLET };
 
@@ -688,7 +688,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	if (conn->timer == -1) {
 		union epoll_ref ref = { .type = EPOLL_TYPE_TCP_TIMER,
 					.fd = conn->sock,
-					.tcp.index = FLOW_IDX(conn) };
+					.flow = FLOW_IDX(conn) };
 		struct epoll_event ev = { .data.u64 = ref.u64,
 					  .events = EPOLLIN | EPOLLET };
 		int fd;
@@ -2759,7 +2759,7 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 {
 	struct itimerspec check_armed = { { 0 }, { 0 } };
-	struct tcp_tap_conn *conn = CONN(ref.tcp.index);
+	struct tcp_tap_conn *conn = CONN(ref.flow);
 
 	if (c->no_tcp)
 		return;
@@ -2873,7 +2873,7 @@ static void tcp_tap_sock_handler(struct ctx *c, struct tcp_tap_conn *conn,
  */
 void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
-	union flow *flow = flowtab + ref.tcp.index;
+	union flow *flow = FLOW(ref.flow);
 
 	switch (flow->f.type) {
 	case FLOW_TCP:

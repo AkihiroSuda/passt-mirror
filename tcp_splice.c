@@ -128,8 +128,8 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref[SIDES] = {
-		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0], .tcp.index = FLOW_IDX(conn) },
-		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1], .tcp.index = FLOW_IDX(conn) }
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0], .flow = FLOW_IDX(conn) },
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1], .flow = FLOW_IDX(conn) }
 	};
 	struct epoll_event ev[SIDES] = { { .data.u64 = ref[0].u64 },
 					 { .data.u64 = ref[1].u64 } };

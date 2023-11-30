@@ -76,8 +76,8 @@ enum epoll_type {
  * union epoll_ref - Breakdown of reference for epoll fd bookkeeping
  * @type:	Type of fd (tells us what to do with events)
  * @fd:		File descriptor number (implies < 2^24 total descriptors)
- * @tcp:	TCP-specific reference part (connected sockets)
- * @tcp_listen:	TCP-specific reference part (listening sockets)
+ * @flow:	Index of the flow this fd is linked to
+ * @tcp_listen:	TCP-specific reference part for listening sockets
  * @udp:	UDP-specific reference part
  * @icmp:	ICMP-specific reference part
  * @data:	Data handled by protocol handlers
@@ -90,7 +90,7 @@ union epoll_ref {
 #define FD_REF_MAX		((int)MAX_FROM_BITS(FD_REF_BITS))
 		int32_t		fd:FD_REF_BITS;
 		union {
-			union tcp_epoll_ref tcp;
+			uint32_t flow;
 			union tcp_listen_epoll_ref tcp_listen;
 			union udp_epoll_ref udp;
 			union icmp_epoll_ref icmp;
