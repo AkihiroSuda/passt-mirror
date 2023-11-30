@@ -781,6 +781,9 @@ static void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 		tcp_timer_ctl(c, conn);
 }
 
+static void tcp_hash_remove(const struct ctx *c,
+			    const struct tcp_tap_conn *conn);
+
 /**
  * conn_event_do() - Set and log connection events, update epoll state
  * @c:		Execution context
@@ -825,7 +828,9 @@ static void conn_event_do(const struct ctx *c, struct tcp_tap_conn *conn,
 		flow_dbg(conn, "%s",
 			 num == -1 	       ? "CLOSED" : tcp_event_str[num]);
 
-	if ((event == TAP_FIN_RCVD) && !(conn->events & SOCK_FIN_RCVD))
+	if (event == CLOSED)
+		tcp_hash_remove(c, conn);
+	else if ((event == TAP_FIN_RCVD) && !(conn->events & SOCK_FIN_RCVD))
 		conn_flag(c, conn, ACTIVE_CLOSE);
 	else
 		tcp_epoll_ctl(c, conn);
@@ -1150,7 +1155,7 @@ static int tcp_hash_match(const struct tcp_tap_conn *conn,
 			  const union inany_addr *faddr,
 			  in_port_t eport, in_port_t fport)
 {
-	if (conn->events != CLOSED && inany_equals(&conn->faddr, faddr) &&
+	if (inany_equals(&conn->faddr, faddr) &&
 	    conn->eport == eport && conn->fport == fport)
 		return 1;
 
@@ -1308,7 +1313,6 @@ static void tcp_conn_destroy(struct ctx *c, union flow *flow)
 	if (conn->timer != -1)
 		close(conn->timer);
 
-	tcp_hash_remove(c, conn);
 	flow_table_compact(c, flow);
 }
 
