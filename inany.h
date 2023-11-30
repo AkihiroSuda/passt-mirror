@@ -27,8 +27,10 @@ union inany_addr {
 	} v4mapped;
 	uint32_t u32[4];
 };
-static_assert(sizeof(union inany_addr) == sizeof(struct in6_addr));
-static_assert(_Alignof(union inany_addr) == _Alignof(uint32_t));
+static_assert(sizeof(union inany_addr) == sizeof(struct in6_addr),
+	      "union inany_addr is larger than an IPv6 address");
+static_assert(_Alignof(union inany_addr) == _Alignof(uint32_t),
+	      "union inany_addr has unexpected alignment");
 
 /** inany_v4 - Extract IPv4 address, if present, from IPv[46] address
  * @addr:	IPv4 or IPv6 address
