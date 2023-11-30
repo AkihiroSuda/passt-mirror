@@ -14,5 +14,5 @@ rm-f /etc/init.d/cloud-config
 rm-f /etc/init.d/cloud-final
 rm-f /etc/init.d/cloud-init
 rm-f /etc/init.d/cloud-init-local
-copy-in $PASST_FILES /root/
+$(for f in $PASST_FILES; do echo copy-in $f /root; done)
 EOF
