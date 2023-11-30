@@ -570,17 +570,16 @@ tcp6_l2_flags_buf[TCP_FRAMES_MEM];
 
 static unsigned int tcp6_l2_flags_buf_used;
 
-#define CONN(idx)		(&flowtab[(idx)].tcp)
-#define CONN_IDX(conn)		((union flow *)(conn) - flowtab)
+#define CONN(idx)		(&(FLOW(idx)->tcp))
 
 /** conn_at_idx() - Find a connection by index, if present
  * @idx:	Index of connection to lookup
  *
  * Return: pointer to connection, or NULL if @idx is out of bounds
  */
-static inline struct tcp_tap_conn *conn_at_idx(int idx)
+static inline struct tcp_tap_conn *conn_at_idx(unsigned idx)
 {
-	if ((idx < 0) || (idx >= FLOW_MAX))
+	if (idx >= FLOW_MAX)
 		return NULL;
 	ASSERT(CONN(idx)->f.type == FLOW_TCP);
 	return CONN(idx);
@@ -640,7 +639,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
-				.tcp.index = CONN_IDX(conn) };
+				.tcp.index = FLOW_IDX(conn) };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
 	if (conn->events == CLOSED) {
@@ -661,7 +660,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	if (conn->timer != -1) {
 		union epoll_ref ref_t = { .type = EPOLL_TYPE_TCP_TIMER,
 					  .fd = conn->sock,
-					  .tcp.index = CONN_IDX(conn) };
+					  .tcp.index = FLOW_IDX(conn) };
 		struct epoll_event ev_t = { .data.u64 = ref_t.u64,
 					    .events = EPOLLIN | EPOLLET };
 
@@ -689,7 +688,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 	if (conn->timer == -1) {
 		union epoll_ref ref = { .type = EPOLL_TYPE_TCP_TIMER,
 					.fd = conn->sock,
-					.tcp.index = CONN_IDX(conn) };
+					.tcp.index = FLOW_IDX(conn) };
 		struct epoll_event ev = { .data.u64 = ref.u64,
 					  .events = EPOLLIN | EPOLLET };
 		int fd;
@@ -725,7 +724,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		it.it_value.tv_sec = ACT_TIMEOUT;
 	}
 
-	debug("TCP: index %li, timer expires in %lu.%03lus", CONN_IDX(conn),
+	debug("TCP: index %u, timer expires in %lu.%03lus", FLOW_IDX(conn),
 	      it.it_value.tv_sec, it.it_value.tv_nsec / 1000 / 1000);
 
 	timerfd_settime(conn->timer, 0, &it, NULL);
@@ -748,7 +747,7 @@ static void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 
 		conn->flags &= flag;
 		if (flag_index >= 0) {
-			debug("TCP: index %li: %s dropped", CONN_IDX(conn),
+			debug("TCP: index %u: %s dropped", FLOW_IDX(conn),
 			      tcp_flag_str[flag_index]);
 		}
 	} else {
@@ -769,7 +768,7 @@ static void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 
 		conn->flags |= flag;
 		if (flag_index >= 0) {
-			debug("TCP: index %li: %s", CONN_IDX(conn),
+			debug("TCP: index %u: %s", FLOW_IDX(conn),
 			      tcp_flag_str[flag_index]);
 		}
 	}
@@ -819,12 +818,12 @@ static void conn_event_do(const struct ctx *c, struct tcp_tap_conn *conn,
 		new += 5;
 
 	if (prev != new) {
-		debug("TCP: index %li, %s: %s -> %s", CONN_IDX(conn),
+		debug("TCP: index %u, %s: %s -> %s", FLOW_IDX(conn),
 		      num == -1 	       ? "CLOSED" : tcp_event_str[num],
 		      prev == -1	       ? "CLOSED" : tcp_state_str[prev],
 		      (new == -1 || num == -1) ? "CLOSED" : tcp_state_str[new]);
 	} else {
-		debug("TCP: index %li, %s", CONN_IDX(conn),
+		debug("TCP: index %u, %s", FLOW_IDX(conn),
 		      num == -1 	       ? "CLOSED" : tcp_event_str[num]);
 	}
 
@@ -1204,11 +1203,11 @@ static void tcp_hash_insert(const struct ctx *c, struct tcp_tap_conn *conn)
 	int b;
 
 	b = tcp_hash(c, &conn->faddr, conn->eport, conn->fport);
-	conn->next_index = tc_hash[b] ? CONN_IDX(tc_hash[b]) : -1;
+	conn->next_index = tc_hash[b] ? FLOW_IDX(tc_hash[b]) : -1U;
 	tc_hash[b] = conn;
 
-	debug("TCP: hash table insert: index %li, sock %i, bucket: %i, next: "
-	      "%p", CONN_IDX(conn), conn->sock, b,
+	debug("TCP: hash table insert: index %u, sock %i, bucket: %i, next: "
+	      "%p", FLOW_IDX(conn), conn->sock, b,
 	      (void *)conn_at_idx(conn->next_index));
 }
 
@@ -1234,8 +1233,8 @@ static void tcp_hash_remove(const struct ctx *c,
 		}
 	}
 
-	debug("TCP: hash table remove: index %li, sock %i, bucket: %i, new: %p",
-	      CONN_IDX(conn), conn->sock, b,
+	debug("TCP: hash table remove: index %u, sock %i, bucket: %i, new: %p",
+	      FLOW_IDX(conn), conn->sock, b,
 	      (void *)(prev ? conn_at_idx(prev->next_index) : tc_hash[b]));
 }
 
@@ -1255,16 +1254,16 @@ static void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
 	     prev = entry, entry = conn_at_idx(entry->next_index)) {
 		if (entry == old) {
 			if (prev)
-				prev->next_index = CONN_IDX(new);
+				prev->next_index = FLOW_IDX(new);
 			else
 				tc_hash[b] = new;
 			break;
 		}
 	}
 
-	debug("TCP: hash table update: old index %li, new index %li, sock %i, "
+	debug("TCP: hash table update: old index %u, new index %u, sock %i, "
 	      "bucket: %i, old: %p, new: %p",
-	      CONN_IDX(old), CONN_IDX(new), new->sock, b,
+	      FLOW_IDX(old), FLOW_IDX(new), new->sock, b,
 	      (void *)old, (void *)new);
 
 	tcp_epoll_ctl(c, new);
@@ -1307,9 +1306,9 @@ void tcp_table_compact(struct ctx *c, union flow *hole)
 {
 	union flow *from;
 
-	if (CONN_IDX(hole) == --c->flow_count) {
-		debug("TCP: table compaction: maximum index was %li (%p)",
-		      CONN_IDX(hole), (void *)hole);
+	if (FLOW_IDX(hole) == --c->flow_count) {
+		debug("TCP: table compaction: maximum index was %u (%p)",
+		      FLOW_IDX(hole), (void *)hole);
 		memset(hole, 0, sizeof(*hole));
 		return;
 	}
@@ -1329,9 +1328,9 @@ void tcp_table_compact(struct ctx *c, union flow *hole)
 		    FLOW_TYPE(&from->f));
 	}
 
-	debug("TCP: table compaction (%s): old index %li, new index %li, "
+	debug("TCP: table compaction (%s): old index %u, new index %u, "
 	      "from: %p, to: %p",
-	      FLOW_TYPE(&from->f), CONN_IDX(from), CONN_IDX(hole),
+	      FLOW_TYPE(&from->f), FLOW_IDX(from), FLOW_IDX(hole),
 	      (void *)from, (void *)hole);
 
 	memset(from, 0, sizeof(*from));
@@ -1357,7 +1356,7 @@ static void tcp_conn_destroy(struct ctx *c, union flow *flow)
 static void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);
 #define tcp_rst(c, conn)						\
 	do {								\
-		debug("TCP: index %li, reset at %s:%i", CONN_IDX(conn), \
+		debug("TCP: index %u, reset at %s:%i", FLOW_IDX(conn),	\
 		      __func__, __LINE__);				\
 		tcp_rst_do(c, conn);					\
 	} while (0)
@@ -2580,8 +2579,8 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 		return 1;
 	}
 
-	trace("TCP: packet length %zu from tap for index %lu",
-	      len, CONN_IDX(conn));
+	trace("TCP: packet length %zu from tap for index %u",
+	      len, FLOW_IDX(conn));
 
 	if (th->rst) {
 		conn_event(c, conn, CLOSED);
@@ -2821,17 +2820,17 @@ void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 		tcp_timer_ctl(c, conn);
 	} else if (conn->flags & ACK_FROM_TAP_DUE) {
 		if (!(conn->events & ESTABLISHED)) {
-			debug("TCP: index %li, handshake timeout", CONN_IDX(conn));
+			debug("TCP: index %u, handshake timeout", FLOW_IDX(conn));
 			tcp_rst(c, conn);
 		} else if (CONN_HAS(conn, SOCK_FIN_SENT | TAP_FIN_ACKED)) {
-			debug("TCP: index %li, FIN timeout", CONN_IDX(conn));
+			debug("TCP: index %u, FIN timeout", FLOW_IDX(conn));
 			tcp_rst(c, conn);
 		} else if (conn->retrans == TCP_MAX_RETRANS) {
-			debug("TCP: index %li, retransmissions count exceeded",
-			      CONN_IDX(conn));
+			debug("TCP: index %u, retransmissions count exceeded",
+			      FLOW_IDX(conn));
 			tcp_rst(c, conn);
 		} else {
-			debug("TCP: index %li, ACK timeout, retry", CONN_IDX(conn));
+			debug("TCP: index %u, ACK timeout, retry", FLOW_IDX(conn));
 			conn->retrans++;
 			conn->seq_to_tap = conn->seq_ack_from_tap;
 			tcp_data_from_sock(c, conn);
@@ -2849,7 +2848,7 @@ void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 		 */
 		timerfd_settime(conn->timer, 0, &new, &old);
 		if (old.it_value.tv_sec == ACT_TIMEOUT) {
-			debug("TCP: index %li, activity timeout", CONN_IDX(conn));
+			debug("TCP: index %u, activity timeout", FLOW_IDX(conn));
 			tcp_rst(c, conn);
 		}
 	}

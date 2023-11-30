@@ -22,4 +22,29 @@ union flow {
 /* Global Flow Table */
 extern union flow flowtab[];
 
+
+/** flow_idx - Index of flow from common structure
+ * @f:	Common flow fields pointer
+ *
+ * Return: index of @f in the flow table
+ */
+static inline unsigned flow_idx(const struct flow_common *f)
+{
+	return (union flow *)f - flowtab;
+}
+
+/** FLOW_IDX - Find the index of a flow
+ * @f_:	Flow pointer, either union flow * or protocol specific
+ *
+ * Return: index of @f in the flow table
+ */
+#define FLOW_IDX(f_)		(flow_idx(&(f_)->f))
+
+/** FLOW - Flow entry at a given index
+ * @idx:	Flow index
+ *
+ * Return: pointer to entry @idx in the flow table
+ */
+#define FLOW(idx)		(&flowtab[(idx)])
+
 #endif /* FLOW_TABLE_H */

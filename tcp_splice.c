@@ -76,8 +76,7 @@ static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2];
 #define CONN_V6(x)			(x->flags & SPLICE_V6)
 #define CONN_V4(x)			(!CONN_V6(x))
 #define CONN_HAS(conn, set)		((conn->events & (set)) == (set))
-#define CONN(idx)			(&tc[(idx)].splice)
-#define CONN_IDX(conn)			((union flow *)(conn) - flowtab)
+#define CONN(idx)			(&FLOW(idx)->tcp_splice)
 
 /* Display strings for connection events */
 static const char *tcp_splice_event_str[] __attribute((__unused__)) = {
@@ -129,8 +128,8 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref[SIDES] = {
-		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0], .tcp.index = CONN_IDX(conn) },
-		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1], .tcp.index = CONN_IDX(conn) }
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0], .tcp.index = FLOW_IDX(conn) },
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1], .tcp.index = FLOW_IDX(conn) }
 	};
 	struct epoll_event ev[SIDES] = { { .data.u64 = ref[0].u64 },
 					 { .data.u64 = ref[1].u64 } };
@@ -140,8 +139,8 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 	if (epoll_ctl(c->epollfd, m, conn->s[0], &ev[0]) ||
 	    epoll_ctl(c->epollfd, m, conn->s[1], &ev[1])) {
 		int ret = -errno;
-		err("TCP (spliced): index %li, ERROR on epoll_ctl(): %s",
-		    CONN_IDX(conn), strerror(errno));
+		err("TCP (spliced): index %u, ERROR on epoll_ctl(): %s",
+		    FLOW_IDX(conn), strerror(errno));
 		return ret;
 	}
 
@@ -167,7 +166,7 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 		conn->flags &= flag;
 		if (flag_index >= 0) {
-			debug("TCP (spliced): index %li: %s dropped", CONN_IDX(conn),
+			debug("TCP (spliced): index %u: %s dropped", FLOW_IDX(conn),
 			      tcp_splice_flag_str[flag_index]);
 		}
 	} else {
@@ -178,7 +177,7 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 		conn->flags |= flag;
 		if (flag_index >= 0) {
-			debug("TCP (spliced): index %li: %s", CONN_IDX(conn),
+			debug("TCP (spliced): index %u: %s", FLOW_IDX(conn),
 			      tcp_splice_flag_str[flag_index]);
 		}
 	}
@@ -213,7 +212,7 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 		conn->events &= event;
 		if (flag_index >= 0) {
-			debug("TCP (spliced): index %li, ~%s", CONN_IDX(conn),
+			debug("TCP (spliced): index %u, ~%s", FLOW_IDX(conn),
 			      tcp_splice_event_str[flag_index]);
 		}
 	} else {
@@ -224,7 +223,7 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 		conn->events |= event;
 		if (flag_index >= 0) {
-			debug("TCP (spliced): index %li, %s", CONN_IDX(conn),
+			debug("TCP (spliced): index %u, %s", FLOW_IDX(conn),
 			      tcp_splice_event_str[flag_index]);
 		}
 	}
@@ -282,7 +281,7 @@ void tcp_splice_destroy(struct ctx *c, union flow *flow)
 
 	conn->events = SPLICE_CLOSED;
 	conn->flags = 0;
-	debug("TCP (spliced): index %li, CLOSED", CONN_IDX(conn));
+	debug("TCP (spliced): index %u, CLOSED", FLOW_IDX(conn));
 
 	tcp_table_compact(c, flow);
 }

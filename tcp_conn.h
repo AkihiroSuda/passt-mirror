@@ -40,7 +40,7 @@ struct tcp_tap_conn {
 	struct flow_common f;
 
 	bool		in_epoll	:1;
-	int	 	next_index	:FLOW_INDEX_BITS + 2;
+	unsigned 	next_index	:FLOW_INDEX_BITS + 2;
 
 #define TCP_RETRANS_BITS		3
 	unsigned int	retrans		:TCP_RETRANS_BITS;
