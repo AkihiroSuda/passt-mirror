@@ -302,14 +302,14 @@
 #include "flow.h"
 
 #include "tcp_conn.h"
+#include "flow_table.h"
 
 #define TCP_FRAMES_MEM			128
 #define TCP_FRAMES							\
 	(c->mode == MODE_PASST ? TCP_FRAMES_MEM : 1)
 
 #define TCP_HASH_TABLE_LOAD		70		/* % */
-#define TCP_HASH_TABLE_SIZE		(TCP_MAX_CONNS * 100 /		\
-					 TCP_HASH_TABLE_LOAD)
+#define TCP_HASH_TABLE_SIZE		(FLOW_MAX * 100 / TCP_HASH_TABLE_LOAD)
 
 #define MAX_WS				8
 #define MAX_WINDOW			(1 << (16 + (MAX_WS)))
@@ -570,11 +570,8 @@ tcp6_l2_flags_buf[TCP_FRAMES_MEM];
 
 static unsigned int tcp6_l2_flags_buf_used;
 
-/* TCP connections */
-union tcp_conn tc[TCP_MAX_CONNS];
-
-#define CONN(idx)		(&tc[(idx)].tap)
-#define CONN_IDX(conn)		((union tcp_conn *)(conn) - tc)
+#define CONN(idx)		(&flowtab[(idx)].tcp)
+#define CONN_IDX(conn)		((union flow *)(conn) - flowtab)
 
 /** conn_at_idx() - Find a connection by index, if present
  * @idx:	Index of connection to lookup
@@ -583,7 +580,7 @@ union tcp_conn tc[TCP_MAX_CONNS];
  */
 static inline struct tcp_tap_conn *conn_at_idx(int idx)
 {
-	if ((idx < 0) || (idx >= TCP_MAX_CONNS))
+	if ((idx < 0) || (idx >= FLOW_MAX))
 		return NULL;
 	ASSERT(CONN(idx)->f.type == FLOW_TCP);
 	return CONN(idx);
@@ -1306,26 +1303,26 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
  * @c:		Execution context
  * @hole:	Pointer to recently closed connection
  */
-void tcp_table_compact(struct ctx *c, union tcp_conn *hole)
+void tcp_table_compact(struct ctx *c, union flow *hole)
 {
-	union tcp_conn *from;
+	union flow *from;
 
-	if (CONN_IDX(hole) == --c->tcp.conn_count) {
+	if (CONN_IDX(hole) == --c->flow_count) {
 		debug("TCP: table compaction: maximum index was %li (%p)",
 		      CONN_IDX(hole), (void *)hole);
 		memset(hole, 0, sizeof(*hole));
 		return;
 	}
 
-	from = tc + c->tcp.conn_count;
+	from = flowtab + c->flow_count;
 	memcpy(hole, from, sizeof(*hole));
 
 	switch (from->f.type) {
 	case FLOW_TCP:
-		tcp_tap_conn_update(c, &from->tap, &hole->tap);
+		tcp_tap_conn_update(c, &from->tcp, &hole->tcp);
 		break;
 	case FLOW_TCP_SPLICE:
-		tcp_splice_conn_update(c, &hole->splice);
+		tcp_splice_conn_update(c, &hole->tcp_splice);
 		break;
 	default:
 		die("Unexpected %s in tcp_table_compact()",
@@ -1343,18 +1340,18 @@ void tcp_table_compact(struct ctx *c, union tcp_conn *hole)
 /**
  * tcp_conn_destroy() - Close sockets, trigger hash table removal and compaction
  * @c:		Execution context
- * @conn_union:	Connection pointer (container union)
+ * @flow:	Flow table entry for this connection
  */
-static void tcp_conn_destroy(struct ctx *c, union tcp_conn *conn_union)
+static void tcp_conn_destroy(struct ctx *c, union flow *flow)
 {
-	const struct tcp_tap_conn *conn = &conn_union->tap;
+	const struct tcp_tap_conn *conn = &flow->tcp;
 
 	close(conn->sock);
 	if (conn->timer != -1)
 		close(conn->timer);
 
 	tcp_hash_remove(c, conn);
-	tcp_table_compact(c, conn_union);
+	tcp_table_compact(c, flow);
 }
 
 static void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);
@@ -1404,24 +1401,24 @@ static void tcp_l2_data_buf_flush(const struct ctx *c)
  */
 void tcp_defer_handler(struct ctx *c)
 {
-	union tcp_conn *conn;
+	union flow *flow;
 
 	tcp_l2_flags_buf_flush(c);
 	tcp_l2_data_buf_flush(c);
 
-	for (conn = tc + c->tcp.conn_count - 1; conn >= tc; conn--) {
-		switch (conn->f.type) {
+	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
+		switch (flow->f.type) {
 		case FLOW_TCP:
-			if (conn->tap.events == CLOSED)
-				tcp_conn_destroy(c, conn);
+			if (flow->tcp.events == CLOSED)
+				tcp_conn_destroy(c, flow);
 			break;
 		case FLOW_TCP_SPLICE:
-			if (conn->splice.flags & CLOSING)
-				tcp_splice_destroy(c, conn);
+			if (flow->tcp_splice.flags & CLOSING)
+				tcp_splice_destroy(c, flow);
 			break;
 		default:
 			die("Unexpected %s in tcp_defer_handler()",
-			    FLOW_TYPE(&conn->f));
+			    FLOW_TYPE(&flow->f));
 		}
 	}
 }
@@ -2003,7 +2000,7 @@ static void tcp_conn_from_tap(struct ctx *c,
 
 	(void)saddr;
 
-	if (c->tcp.conn_count >= TCP_MAX_CONNS)
+	if (c->flow_count >= FLOW_MAX)
 		return;
 
 	if ((s = tcp_conn_pool_sock(pool)) < 0)
@@ -2029,7 +2026,7 @@ static void tcp_conn_from_tap(struct ctx *c,
 		}
 	}
 
-	conn = CONN(c->tcp.conn_count++);
+	conn = CONN(c->flow_count++);
 	conn->f.type = FLOW_TCP;
 	conn->sock = s;
 	conn->timer = -1;
@@ -2775,24 +2772,24 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 {
 	struct sockaddr_storage sa;
 	socklen_t sl = sizeof(sa);
-	union tcp_conn *conn;
+	union flow *flow;
 	int s;
 
-	if (c->no_tcp || c->tcp.conn_count >= TCP_MAX_CONNS)
+	if (c->no_tcp || c->flow_count >= FLOW_MAX)
 		return;
 
 	s = accept4(ref.fd, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
 		return;
 
-	conn = tc + c->tcp.conn_count++;
+	flow = flowtab + c->flow_count++;
 
 	if (c->mode == MODE_PASTA &&
-	    tcp_splice_conn_from_sock(c, ref.tcp_listen, &conn->splice,
+	    tcp_splice_conn_from_sock(c, ref.tcp_listen, &flow->tcp_splice,
 				      s, (struct sockaddr *)&sa))
 		return;
 
-	tcp_tap_conn_from_sock(c, ref.tcp_listen, &conn->tap, s,
+	tcp_tap_conn_from_sock(c, ref.tcp_listen, &flow->tcp, s,
 			       (struct sockaddr *)&sa, now);
 }
 
@@ -2921,18 +2918,18 @@ static void tcp_tap_sock_handler(struct ctx *c, struct tcp_tap_conn *conn,
  */
 void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
-	union tcp_conn *conn = tc + ref.tcp.index;
+	union flow *flow = flowtab + ref.tcp.index;
 
-	switch (conn->f.type) {
+	switch (flow->f.type) {
 	case FLOW_TCP:
-		tcp_tap_sock_handler(c, &conn->tap, events);
+		tcp_tap_sock_handler(c, &flow->tcp, events);
 		break;
 	case FLOW_TCP_SPLICE:
-		tcp_splice_sock_handler(c, &conn->splice, ref.fd, events);
+		tcp_splice_sock_handler(c, &flow->tcp_splice, ref.fd, events);
 		break;
 	default:
 		die("Unexpected %s in tcp_sock_handler_compact()",
-		    FLOW_TYPE(&conn->f));
+		    FLOW_TYPE(&flow->f));
 	}
 }
 
@@ -3248,7 +3245,7 @@ static int tcp_port_rebind_outbound(void *arg)
  */
 void tcp_timer(struct ctx *c, const struct timespec *ts)
 {
-	union tcp_conn *conn;
+	union flow *flow;
 
 	(void)ts;
 
@@ -3264,18 +3261,18 @@ void tcp_timer(struct ctx *c, const struct timespec *ts)
 		}
 	}
 
-	for (conn = tc + c->tcp.conn_count - 1; conn >= tc; conn--) {
-		switch (conn->f.type) {
+	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
+		switch (flow->f.type) {
 		case FLOW_TCP:
-			if (conn->tap.events == CLOSED)
-				tcp_conn_destroy(c, conn);
+			if (flow->tcp.events == CLOSED)
+				tcp_conn_destroy(c, flow);
 			break;
 		case FLOW_TCP_SPLICE:
-			tcp_splice_timer(c, conn);
+			tcp_splice_timer(c, flow);
 			break;
 		default:
 			die("Unexpected %s in tcp_timer()",
-			    FLOW_TYPE(&conn->f));
+			    FLOW_TYPE(&flow->f));
 		}
 	}
 

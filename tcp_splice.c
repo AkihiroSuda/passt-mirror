@@ -57,6 +57,7 @@
 #include "flow.h"
 
 #include "tcp_conn.h"
+#include "flow_table.h"
 
 #define MAX_PIPE_SIZE			(8UL * 1024 * 1024)
 #define TCP_SPLICE_PIPE_POOL_SIZE	32
@@ -76,7 +77,7 @@ static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2];
 #define CONN_V4(x)			(!CONN_V6(x))
 #define CONN_HAS(conn, set)		((conn->events & (set)) == (set))
 #define CONN(idx)			(&tc[(idx)].splice)
-#define CONN_IDX(conn)			((union tcp_conn *)(conn) - tc)
+#define CONN_IDX(conn)			((union flow *)(conn) - flowtab)
 
 /* Display strings for connection events */
 static const char *tcp_splice_event_str[] __attribute((__unused__)) = {
@@ -254,11 +255,11 @@ void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
 /**
  * tcp_splice_destroy() - Close spliced connection and pipes, clear
  * @c:		Execution context
- * @conn_union:	Spliced connection (container union)
+ * @flow:	Flow table entry
  */
-void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union)
+void tcp_splice_destroy(struct ctx *c, union flow *flow)
 {
-	struct tcp_splice_conn *conn = &conn_union->splice;
+	struct tcp_splice_conn *conn = &flow->tcp_splice;
 	int side;
 
 	for (side = 0; side < SIDES; side++) {
@@ -283,7 +284,7 @@ void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union)
 	conn->flags = 0;
 	debug("TCP (spliced): index %li, CLOSED", CONN_IDX(conn));
 
-	tcp_table_compact(c, conn_union);
+	tcp_table_compact(c, flow);
 }
 
 /**
@@ -775,15 +776,15 @@ void tcp_splice_init(struct ctx *c)
 /**
  * tcp_splice_timer() - Timer for spliced connections
  * @c:		Execution context
- * @conn_union:	Spliced connection (container union)
+ * @flow:	Flow table entry
  */
-void tcp_splice_timer(struct ctx *c, union tcp_conn *conn_union)
+void tcp_splice_timer(struct ctx *c, union flow *flow)
 {
-	struct tcp_splice_conn *conn = &conn_union->splice;
+	struct tcp_splice_conn *conn = &flow->tcp_splice;
 	int side;
 
 	if (conn->flags & CLOSING) {
-		tcp_splice_destroy(c, conn_union);
+		tcp_splice_destroy(c, flow);
 		return;
 	}
 

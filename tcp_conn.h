@@ -40,7 +40,7 @@ struct tcp_tap_conn {
 	struct flow_common f;
 
 	bool		in_epoll	:1;
-	int	 	next_index	:TCP_CONN_INDEX_BITS + 2;
+	int	 	next_index	:FLOW_INDEX_BITS + 2;
 
 #define TCP_RETRANS_BITS		3
 	unsigned int	retrans		:TCP_RETRANS_BITS;
@@ -151,21 +151,6 @@ struct tcp_splice_conn {
 	uint32_t written[SIDES];
 };
 
-/**
- * union tcp_conn - Descriptor for a TCP connection (spliced or non-spliced)
- * @c:			Fields common between all variants
- * @tap:		Fields specific to non-spliced connections
- * @splice:		Fields specific to spliced connections
-*/
-union tcp_conn {
-	struct flow_common f;
-	struct tcp_tap_conn tap;
-	struct tcp_splice_conn splice;
-};
-
-/* TCP connections */
-extern union tcp_conn tc[];
-
 /* Socket pools */
 #define TCP_SOCK_POOL_SIZE		32
 
@@ -173,9 +158,9 @@ extern int init_sock_pool4	[TCP_SOCK_POOL_SIZE];
 extern int init_sock_pool6	[TCP_SOCK_POOL_SIZE];
 
 void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new);
-void tcp_table_compact(struct ctx *c, union tcp_conn *hole);
-void tcp_splice_destroy(struct ctx *c, union tcp_conn *conn_union);
-void tcp_splice_timer(struct ctx *c, union tcp_conn *conn_union);
+void tcp_table_compact(struct ctx *c, union flow *hole);
+void tcp_splice_destroy(struct ctx *c, union flow *flow);
+void tcp_splice_timer(struct ctx *c, union flow *flow);
 int tcp_conn_pool_sock(int pool[]);
 int tcp_conn_new_sock(const struct ctx *c, sa_family_t af);
 void tcp_sock_refill_pool(const struct ctx *c, int pool[], int af);

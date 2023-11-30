@@ -33,4 +33,12 @@ struct flow_common {
 	uint8_t		type;
 };
 
+#define FLOW_INDEX_BITS		17	/* 128k - 1 */
+#define FLOW_MAX		MAX_FROM_BITS(FLOW_INDEX_BITS)
+
+#define FLOW_TABLE_PRESSURE		30	/* % of FLOW_MAX */
+#define FLOW_FILE_PRESSURE		30	/* % of c->nofile */
+
+union flow;
+
 #endif /* FLOW_H */

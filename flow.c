@@ -6,8 +6,16 @@
  */
 
 #include <stdint.h>
+#include <unistd.h>
+#include <string.h>
 
+#include "util.h"
+#include "passt.h"
+#include "siphash.h"
+#include "inany.h"
 #include "flow.h"
+#include "tcp_conn.h"
+#include "flow_table.h"
 
 const char *flow_type_str[] = {
 	[FLOW_TYPE_NONE]	= "<none>",
@@ -16,3 +24,6 @@ const char *flow_type_str[] = {
 };
 static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 	      "flow_type_str[] doesn't match enum flow_type");
+
+/* Global Flow Table */
+union flow flowtab[FLOW_MAX];
