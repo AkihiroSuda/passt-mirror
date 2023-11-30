@@ -39,6 +39,20 @@ struct flow_common {
 #define FLOW_TABLE_PRESSURE		30	/* % of FLOW_MAX */
 #define FLOW_FILE_PRESSURE		30	/* % of c->nofile */
 
+/**
+ * struct flow_sidx - ID for one side of a specific flow
+ * @side:	Side referenced (0 or 1)
+ * @flow:	Index of flow referenced
+ */
+typedef struct flow_sidx {
+	int		side :1;
+	unsigned	flow :FLOW_INDEX_BITS;
+} flow_sidx_t;
+static_assert(sizeof(flow_sidx_t) <= sizeof(uint32_t),
+	      "flow_sidx_t must fit within 32 bits");
+
+#define FLOW_SIDX_NONE ((flow_sidx_t){ .flow = FLOW_MAX })
+
 union flow;
 
 void flow_table_compact(struct ctx *c, union flow *hole);

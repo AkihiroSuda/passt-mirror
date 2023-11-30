@@ -47,4 +47,42 @@ static inline unsigned flow_idx(const struct flow_common *f)
  */
 #define FLOW(idx)		(&flowtab[(idx)])
 
+/** flow_at_sidx - Flow entry for a given sidx
+ * @sidx:	Flow & side index
+ *
+ * Return: pointer to the corresponding flow entry, or NULL
+ */
+static inline union flow *flow_at_sidx(flow_sidx_t sidx)
+{
+	if (sidx.flow >= FLOW_MAX)
+		return NULL;
+	return FLOW(sidx.flow);
+}
+
+/** flow_sidx_t - Index of one side of a flow from common structure
+ * @f:		Common flow fields pointer
+ * @side:	Which side to refer to (0 or 1)
+ *
+ * Return: index of @f and @side in the flow table
+ */
+static inline flow_sidx_t flow_sidx(const struct flow_common *f,
+				    int side)
+{
+	/* cppcheck-suppress [knownConditionTrueFalse, unmatchedSuppression] */
+	ASSERT(side == !!side);
+
+	return (flow_sidx_t){
+		.side = side,
+		.flow = flow_idx(f),
+	};
+}
+
+/** FLOW_SIDX - Find the index of one side of a flow
+ * @f_:		Flow pointer, either union flow * or protocol specific
+ * @side:	Which side to index (0 or 1)
+ *
+ * Return: index of @f and @side in the flow table
+ */
+#define FLOW_SIDX(f_, side)	(flow_sidx(&(f_)->f, (side)))
+
 #endif /* FLOW_TABLE_H */
