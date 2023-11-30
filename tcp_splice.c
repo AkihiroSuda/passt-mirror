@@ -249,7 +249,7 @@ void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
 void tcp_splice_destroy(struct ctx *c, union flow *flow)
 {
 	struct tcp_splice_conn *conn = &flow->tcp_splice;
-	int side;
+	unsigned side;
 
 	for (side = 0; side < SIDES; side++) {
 		if (conn->events & SPLICE_ESTABLISHED) {
@@ -286,8 +286,8 @@ void tcp_splice_destroy(struct ctx *c, union flow *flow)
 static int tcp_splice_connect_finish(const struct ctx *c,
 				     struct tcp_splice_conn *conn)
 {
+	unsigned side;
 	int i = 0;
-	int side;
 
 	for (side = 0; side < SIDES; side++) {
 		conn->pipe[side][0] = conn->pipe[side][1] = -1;
@@ -490,7 +490,8 @@ void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
 			     int s, uint32_t events)
 {
 	uint8_t lowat_set_flag, lowat_act_flag;
-	int fromside, eof, never_read;
+	int eof, never_read;
+	unsigned fromside;
 
 	if (conn->events == SPLICE_CLOSED)
 		return;
