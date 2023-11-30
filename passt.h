@@ -211,6 +211,7 @@ struct ip6_ctx {
  * @fd_tap:		AF_UNIX socket, tuntap device, or pre-opened socket
  * @mac:		Host MAC address
  * @mac_guest:		MAC address of guest or namespace, seen or configured
+ * @hash_secret:	128-bit secret for siphash functions
  * @ifi4:		Index of template interface for IPv4, 0 if IPv4 disabled
  * @ip:			IPv4 configuration
  * @dns_search:		DNS search list
@@ -265,6 +266,7 @@ struct ctx {
 	int fd_tap;
 	unsigned char mac[ETH_ALEN];
 	unsigned char mac_guest[ETH_ALEN];
+	uint64_t hash_secret[2];
 
 	unsigned int ifi4;
 	struct ip4_ctx ip4;

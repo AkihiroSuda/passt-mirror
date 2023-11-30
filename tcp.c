@@ -279,9 +279,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <sys/epoll.h>
-#ifdef HAS_GETRANDOM
-#include <sys/random.h>
-#endif
 #include <sys/socket.h>
 #include <sys/timerfd.h>
 #include <sys/types.h>
@@ -1172,7 +1169,7 @@ static int tcp_hash_match(const struct tcp_tap_conn *conn,
 static unsigned int tcp_hash(const struct ctx *c, const union inany_addr *faddr,
 			     in_port_t eport, in_port_t fport)
 {
-	struct siphash_state state = SIPHASH_INIT(c->tcp.hash_secret);
+	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
 	uint64_t hash;
 
 	inany_siphash_feed(&state, faddr);
@@ -1779,7 +1776,7 @@ static void tcp_tap_window_update(struct tcp_tap_conn *conn, unsigned wnd)
 static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 			 const struct timespec *now)
 {
-	struct siphash_state state = SIPHASH_INIT(c->tcp.hash_secret);
+	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
 	union inany_addr aany;
 	uint64_t hash;
 	uint32_t ns;
@@ -3087,34 +3084,6 @@ static void tcp_sock_refill_init(const struct ctx *c)
  */
 int tcp_init(struct ctx *c)
 {
-#ifndef HAS_GETRANDOM
-	int dev_random = open("/dev/random", O_RDONLY);
-	unsigned int random_read = 0;
-
-	while (dev_random && random_read < sizeof(c->tcp.hash_secret)) {
-		int ret = read(dev_random,
-			       (uint8_t *)&c->tcp.hash_secret + random_read,
-			       sizeof(c->tcp.hash_secret) - random_read);
-
-		if (ret == -1 && errno == EINTR)
-			continue;
-
-		if (ret <= 0)
-			break;
-
-		random_read += ret;
-	}
-	if (dev_random >= 0)
-		close(dev_random);
-	if (random_read < sizeof(c->tcp.hash_secret)) {
-#else
-	if (getrandom(&c->tcp.hash_secret, sizeof(c->tcp.hash_secret),
-		      GRND_RANDOM) < 0) {
-#endif /* !HAS_GETRANDOM */
-		perror("TCP initial sequence getrandom");
-		exit(EXIT_FAILURE);
-	}
-
 	if (c->ifi4)
 		tcp_sock4_iov_init(c);
 

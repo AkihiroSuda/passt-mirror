@@ -35,6 +35,9 @@
 #include <syslog.h>
 #include <sys/prctl.h>
 #include <netinet/if_ether.h>
+#ifdef HAS_GETRANDOM
+#include <sys/random.h>
+#endif
 
 #include "util.h"
 #include "passt.h"
@@ -101,6 +104,41 @@ static void post_handler(struct ctx *c, const struct timespec *now)
 	CALL_PROTO_HANDLER(c, now, icmp, ICMP);
 
 #undef CALL_PROTO_HANDLER
+}
+
+/**
+ * secret_init() - Create secret value for SipHash calculations
+ * @c:		Execution context
+ */
+static void secret_init(struct ctx *c)
+{
+#ifndef HAS_GETRANDOM
+	int dev_random = open("/dev/random", O_RDONLY);
+	unsigned int random_read = 0;
+
+	while (dev_random && random_read < sizeof(c->hash_secret)) {
+		int ret = read(dev_random,
+			       (uint8_t *)&c->hash_secret + random_read,
+			       sizeof(c->hash_secret) - random_read);
+
+		if (ret == -1 && errno == EINTR)
+			continue;
+
+		if (ret <= 0)
+			break;
+
+		random_read += ret;
+	}
+	if (dev_random >= 0)
+		close(dev_random);
+	if (random_read < sizeof(c->hash_secret)) {
+#else
+	if (getrandom(&c->hash_secret, sizeof(c->hash_secret),
+		      GRND_RANDOM) < 0) {
+#endif /* !HAS_GETRANDOM */
+		perror("TCP initial sequence getrandom");
+		exit(EXIT_FAILURE);
+	}
 }
 
 /**
@@ -236,6 +274,8 @@ int main(int argc, char **argv)
 	quit_fd = pasta_netns_quit_init(&c);
 
 	tap_sock_init(&c);
+
+	secret_init(&c);
 
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
