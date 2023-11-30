@@ -37,6 +37,7 @@ union epoll_ref;
 
 #include "pif.h"
 #include "packet.h"
+#include "flow.h"
 #include "icmp.h"
 #include "port_fwd.h"
 #include "tcp.h"
@@ -91,6 +92,7 @@ union epoll_ref {
 		int32_t		fd:FD_REF_BITS;
 		union {
 			uint32_t flow;
+			flow_sidx_t flowside;
 			union tcp_listen_epoll_ref tcp_listen;
 			union udp_epoll_ref udp;
 			union icmp_epoll_ref icmp;

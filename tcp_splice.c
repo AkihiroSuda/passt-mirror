@@ -128,8 +128,10 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref[SIDES] = {
-		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0], .flow = FLOW_IDX(conn) },
-		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1], .flow = FLOW_IDX(conn) }
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0],
+		  .flowside = FLOW_SIDX(conn, 0) },
+		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1],
+		  .flowside = FLOW_SIDX(conn, 1) }
 	};
 	struct epoll_event ev[SIDES] = { { .data.u64 = ref[0].u64 },
 					 { .data.u64 = ref[1].u64 } };
@@ -481,13 +483,13 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
  * tcp_splice_sock_handler() - Handler for socket mapped to spliced connection
  * @c:		Execution context
  * @conn:	Connection state
- * @s:		Socket fd on which an event has occurred
+ * @side:	Side of the connection on which an event has occurred
  * @events:	epoll events bitmap
  *
  * #syscalls:pasta splice
  */
 void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
-			     int s, uint32_t events)
+			     int side, uint32_t events)
 {
 	uint8_t lowat_set_flag, lowat_act_flag;
 	int eof, never_read;
@@ -507,30 +509,15 @@ void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (events & EPOLLOUT) {
-		if (s == conn->s[0]) {
-			conn_event(c, conn, ~OUT_WAIT_0);
-			fromside = 1;
-		} else {
-			conn_event(c, conn, ~OUT_WAIT_1);
-			fromside = 0;
-		}
+		fromside = !side;
+		conn_event(c, conn, side == 0 ? ~OUT_WAIT_0 : ~OUT_WAIT_1);
 	} else {
-		fromside = s == conn->s[0] ? 0 : 1;
+		fromside = side;
 	}
 
-	if (events & EPOLLRDHUP) {
-		if (s == conn->s[0])
-			conn_event(c, conn, FIN_RCVD_0);
-		else
-			conn_event(c, conn, FIN_RCVD_1);
-	}
-
-	if (events & EPOLLHUP) {
-		if (s == conn->s[0])
-			conn_event(c, conn, FIN_SENT_0); /* Fake, but implied */
-		else
-			conn_event(c, conn, FIN_SENT_1);
-	}
+	if (events & EPOLLRDHUP)
+		/* For side 0 this is fake, but implied */
+		conn_event(c, conn, side == 0 ? FIN_RCVD_0 : FIN_RCVD_1);
 
 swap:
 	eof = 0;

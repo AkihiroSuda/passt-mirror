@@ -45,7 +45,7 @@ struct flow_common {
  * @flow:	Index of flow referenced
  */
 typedef struct flow_sidx {
-	int		side :1;
+	unsigned	side :1;
 	unsigned	flow :FLOW_INDEX_BITS;
 } flow_sidx_t;
 static_assert(sizeof(flow_sidx_t) <= sizeof(uint32_t),

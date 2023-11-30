@@ -304,6 +304,10 @@
 #include "tcp_conn.h"
 #include "flow_table.h"
 
+/* Sides of a flow as we use them in "tap" connections */
+#define	SOCKSIDE	0
+#define	TAPSIDE		1
+
 #define TCP_FRAMES_MEM			128
 #define TCP_FRAMES							\
 	(c->mode == MODE_PASST ? TCP_FRAMES_MEM : 1)
@@ -639,7 +643,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
-				.flow = FLOW_IDX(conn) };
+				.flowside = FLOW_SIDX(conn, SOCKSIDE) };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
 	if (conn->events == CLOSED) {
@@ -2873,14 +2877,15 @@ static void tcp_tap_sock_handler(struct ctx *c, struct tcp_tap_conn *conn,
  */
 void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
-	union flow *flow = FLOW(ref.flow);
+	union flow *flow = FLOW(ref.flowside.flow);
 
 	switch (flow->f.type) {
 	case FLOW_TCP:
 		tcp_tap_sock_handler(c, &flow->tcp, events);
 		break;
 	case FLOW_TCP_SPLICE:
-		tcp_splice_sock_handler(c, &flow->tcp_splice, ref.fd, events);
+		tcp_splice_sock_handler(c, &flow->tcp_splice, ref.flowside.side,
+					events);
 		break;
 	default:
 		die("Unexpected %s in tcp_sock_handler_compact()",

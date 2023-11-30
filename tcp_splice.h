@@ -9,7 +9,7 @@
 struct tcp_splice_conn;
 
 void tcp_splice_sock_handler(struct ctx *c, struct tcp_splice_conn *conn,
-			     int s, uint32_t events);
+			     int side, uint32_t events);
 bool tcp_splice_conn_from_sock(const struct ctx *c,
 			       union tcp_listen_epoll_ref ref,
 			       struct tcp_splice_conn *conn, int s,
