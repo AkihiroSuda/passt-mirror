@@ -87,7 +87,7 @@ union epoll_ref {
 	struct {
 		enum epoll_type type:8;
 #define FD_REF_BITS		24
-#define FD_REF_MAX		MAX_FROM_BITS(FD_REF_BITS)
+#define FD_REF_MAX		((int)MAX_FROM_BITS(FD_REF_BITS))
 		int32_t		fd:FD_REF_BITS;
 		union {
 			union tcp_epoll_ref tcp;
