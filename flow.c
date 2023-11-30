@@ -27,3 +27,42 @@ static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 
 /* Global Flow Table */
 union flow flowtab[FLOW_MAX];
+
+/**
+ * flow_table_compact() - Perform compaction on flow table
+ * @c:		Execution context
+ * @hole:	Pointer to recently closed flow
+ */
+void flow_table_compact(struct ctx *c, union flow *hole)
+{
+	union flow *from;
+
+	if (FLOW_IDX(hole) == --c->flow_count) {
+		debug("flow: table compaction: maximum index was %u (%p)",
+		      FLOW_IDX(hole), (void *)hole);
+		memset(hole, 0, sizeof(*hole));
+		return;
+	}
+
+	from = flowtab + c->flow_count;
+	memcpy(hole, from, sizeof(*hole));
+
+	switch (from->f.type) {
+	case FLOW_TCP:
+		tcp_tap_conn_update(c, &from->tcp, &hole->tcp);
+		break;
+	case FLOW_TCP_SPLICE:
+		tcp_splice_conn_update(c, &hole->tcp_splice);
+		break;
+	default:
+		die("Unexpected %s in tcp_table_compact()",
+		    FLOW_TYPE(&from->f));
+	}
+
+	debug("flow: table compaction (%s): old index %u, new index %u, "
+	      "from: %p, to: %p",
+	      FLOW_TYPE(&from->f), FLOW_IDX(from), FLOW_IDX(hole),
+	      (void *)from, (void *)hole);
+
+	memset(from, 0, sizeof(*from));
+}

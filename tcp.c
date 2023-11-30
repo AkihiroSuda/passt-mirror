@@ -1244,8 +1244,9 @@ static void tcp_hash_remove(const struct ctx *c,
  * @old:	Old location of tcp_tap_conn
  * @new:	New location of tcp_tap_conn
  */
-static void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
-				struct tcp_tap_conn *new)
+void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
+			 struct tcp_tap_conn *new)
+
 {
 	struct tcp_tap_conn *entry, *prev = NULL;
 	int b = tcp_conn_hash(c, old);
@@ -1298,45 +1299,6 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
 }
 
 /**
- * tcp_table_compact() - Perform compaction on connection table
- * @c:		Execution context
- * @hole:	Pointer to recently closed connection
- */
-void tcp_table_compact(struct ctx *c, union flow *hole)
-{
-	union flow *from;
-
-	if (FLOW_IDX(hole) == --c->flow_count) {
-		debug("TCP: table compaction: maximum index was %u (%p)",
-		      FLOW_IDX(hole), (void *)hole);
-		memset(hole, 0, sizeof(*hole));
-		return;
-	}
-
-	from = flowtab + c->flow_count;
-	memcpy(hole, from, sizeof(*hole));
-
-	switch (from->f.type) {
-	case FLOW_TCP:
-		tcp_tap_conn_update(c, &from->tcp, &hole->tcp);
-		break;
-	case FLOW_TCP_SPLICE:
-		tcp_splice_conn_update(c, &hole->tcp_splice);
-		break;
-	default:
-		die("Unexpected %s in tcp_table_compact()",
-		    FLOW_TYPE(&from->f));
-	}
-
-	debug("TCP: table compaction (%s): old index %u, new index %u, "
-	      "from: %p, to: %p",
-	      FLOW_TYPE(&from->f), FLOW_IDX(from), FLOW_IDX(hole),
-	      (void *)from, (void *)hole);
-
-	memset(from, 0, sizeof(*from));
-}
-
-/**
  * tcp_conn_destroy() - Close sockets, trigger hash table removal and compaction
  * @c:		Execution context
  * @flow:	Flow table entry for this connection
@@ -1350,7 +1312,7 @@ static void tcp_conn_destroy(struct ctx *c, union flow *flow)
 		close(conn->timer);
 
 	tcp_hash_remove(c, conn);
-	tcp_table_compact(c, flow);
+	flow_table_compact(c, flow);
 }
 
 static void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);

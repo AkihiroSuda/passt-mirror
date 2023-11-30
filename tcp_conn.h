@@ -157,8 +157,9 @@ struct tcp_splice_conn {
 extern int init_sock_pool4	[TCP_SOCK_POOL_SIZE];
 extern int init_sock_pool6	[TCP_SOCK_POOL_SIZE];
 
+void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
+			 struct tcp_tap_conn *new);
 void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new);
-void tcp_table_compact(struct ctx *c, union flow *hole);
 void tcp_splice_destroy(struct ctx *c, union flow *flow);
 void tcp_splice_timer(struct ctx *c, union flow *flow);
 int tcp_conn_pool_sock(int pool[]);

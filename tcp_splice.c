@@ -283,7 +283,7 @@ void tcp_splice_destroy(struct ctx *c, union flow *flow)
 	conn->flags = 0;
 	debug("TCP (spliced): index %u, CLOSED", FLOW_IDX(conn));
 
-	tcp_table_compact(c, flow);
+	flow_table_compact(c, flow);
 }
 
 /**

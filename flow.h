@@ -41,4 +41,6 @@ struct flow_common {
 
 union flow;
 
+void flow_table_compact(struct ctx *c, union flow *hole);
+
 #endif /* FLOW_H */
