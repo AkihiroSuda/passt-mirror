@@ -139,8 +139,7 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 	if (epoll_ctl(c->epollfd, m, conn->s[0], &ev[0]) ||
 	    epoll_ctl(c->epollfd, m, conn->s[1], &ev[1])) {
 		int ret = -errno;
-		err("TCP (spliced): index %u, ERROR on epoll_ctl(): %s",
-		    FLOW_IDX(conn), strerror(errno));
+		flow_err(conn, "ERROR on epoll_ctl(): %s", strerror(errno));
 		return ret;
 	}
 
@@ -165,10 +164,9 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 			return;
 
 		conn->flags &= flag;
-		if (flag_index >= 0) {
-			debug("TCP (spliced): index %u: %s dropped", FLOW_IDX(conn),
-			      tcp_splice_flag_str[flag_index]);
-		}
+		if (flag_index >= 0)
+			flow_dbg(conn, "%s dropped",
+				 tcp_splice_flag_str[flag_index]);
 	} else {
 		int flag_index = fls(flag);
 
@@ -176,10 +174,8 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 			return;
 
 		conn->flags |= flag;
-		if (flag_index >= 0) {
-			debug("TCP (spliced): index %u: %s", FLOW_IDX(conn),
-			      tcp_splice_flag_str[flag_index]);
-		}
+		if (flag_index >= 0)
+			flow_dbg(conn, "%s", tcp_splice_flag_str[flag_index]);
 	}
 
 	if (flag == CLOSING) {
@@ -190,8 +186,7 @@ static void conn_flag_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 #define conn_flag(c, conn, flag)					\
 	do {								\
-		trace("TCP (spliced): flag at %s:%i",			\
-		      __func__, __LINE__);				\
+		flow_trace(conn, "flag at %s:%i", __func__, __LINE__);	\
 		conn_flag_do(c, conn, flag);				\
 	} while (0)
 
@@ -211,10 +206,8 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
 			return;
 
 		conn->events &= event;
-		if (flag_index >= 0) {
-			debug("TCP (spliced): index %u, ~%s", FLOW_IDX(conn),
-			      tcp_splice_event_str[flag_index]);
-		}
+		if (flag_index >= 0)
+			flow_dbg(conn, "~%s", tcp_splice_event_str[flag_index]);
 	} else {
 		int flag_index = fls(event);
 
@@ -222,10 +215,8 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
 			return;
 
 		conn->events |= event;
-		if (flag_index >= 0) {
-			debug("TCP (spliced): index %u, %s", FLOW_IDX(conn),
-			      tcp_splice_event_str[flag_index]);
-		}
+		if (flag_index >= 0)
+			flow_dbg(conn, "%s", tcp_splice_event_str[flag_index]);
 	}
 
 	if (tcp_splice_epoll_ctl(c, conn))
@@ -234,8 +225,7 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 #define conn_event(c, conn, event)					\
 	do {								\
-		trace("TCP (spliced): event at %s:%i",			\
-		      __func__, __LINE__);				\
+		flow_trace(conn, "event at %s:%i",__func__, __LINE__);	\
 		conn_event_do(c, conn, event);				\
 	} while (0)
 
@@ -281,7 +271,7 @@ void tcp_splice_destroy(struct ctx *c, union flow *flow)
 
 	conn->events = SPLICE_CLOSED;
 	conn->flags = 0;
-	debug("TCP (spliced): index %u, CLOSED", FLOW_IDX(conn));
+	flow_dbg(conn, "CLOSED");
 
 	flow_table_compact(c, flow);
 }
@@ -314,16 +304,17 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 
 		if (conn->pipe[side][0] < 0) {
 			if (pipe2(conn->pipe[side], O_NONBLOCK | O_CLOEXEC)) {
-				err("TCP (spliced): cannot create %d->%d pipe: %s",
-				    side, !side, strerror(errno));
+				flow_err(conn, "cannot create %d->%d pipe: %s",
+					 side, !side, strerror(errno));
 				conn_flag(c, conn, CLOSING);
 				return -EIO;
 			}
 
 			if (fcntl(conn->pipe[side][0], F_SETPIPE_SZ,
 				  c->tcp.pipe_size)) {
-				trace("TCP (spliced): cannot set %d->%d pipe size to %zu",
-				      side, !side, c->tcp.pipe_size);
+				flow_trace(conn,
+					   "cannot set %d->%d pipe size to %zu",
+					   side, !side, c->tcp.pipe_size);
 			}
 		}
 	}
@@ -363,8 +354,8 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 
 	if (setsockopt(conn->s[1], SOL_TCP, TCP_QUICKACK,
 		       &((int){ 1 }), sizeof(int))) {
-		trace("TCP (spliced): failed to set TCP_QUICKACK on socket %i",
-		      conn->s[1]);
+		flow_trace(conn, "failed to set TCP_QUICKACK on socket %i",
+			   conn->s[1]);
 	}
 
 	if (CONN_V6(conn)) {
@@ -475,7 +466,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	}
 
 	if (setsockopt(s, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
-		trace("TCP (spliced): failed to set TCP_QUICKACK on %i", s);
+		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s);
 
 	conn->f.type = FLOW_TCP_SPLICE;
 	conn->s[0] = s;
@@ -555,7 +546,7 @@ retry:
 		readlen = splice(conn->s[fromside], NULL,
 				 conn->pipe[fromside][1], NULL, c->tcp.pipe_size,
 				 SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
-		trace("TCP (spliced): %zi from read-side call", readlen);
+		flow_trace(conn, "%zi from read-side call", readlen);
 		if (readlen < 0) {
 			if (errno == EINTR)
 				goto retry;
@@ -581,8 +572,8 @@ eintr:
 		written = splice(conn->pipe[fromside][0], NULL,
 				 conn->s[!fromside], NULL, to_write,
 				 SPLICE_F_MOVE | more | SPLICE_F_NONBLOCK);
-		trace("TCP (spliced): %zi from write-side call (passed %zi)",
-		      written, to_write);
+		flow_trace(conn, "%zi from write-side call (passed %zi)",
+			   written, to_write);
 
 		/* Most common case: skip updating counters. */
 		if (readlen > 0 && readlen == written) {
@@ -794,8 +785,8 @@ void tcp_splice_timer(struct ctx *c, union flow *flow)
 		if ((conn->flags & set) && !(conn->flags & act)) {
 			if (setsockopt(conn->s[side], SOL_SOCKET, SO_RCVLOWAT,
 				       &((int){ 1 }), sizeof(int))) {
-				trace("TCP (spliced): can't set SO_RCVLOWAT on "
-				      "%i", conn->s[side]);
+				flow_trace(conn, "can't set SO_RCVLOWAT on %d",
+					   conn->s[side]);
 			}
 			conn_flag(c, conn, ~set);
 		}

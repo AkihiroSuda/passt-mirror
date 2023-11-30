@@ -43,4 +43,18 @@ union flow;
 
 void flow_table_compact(struct ctx *c, union flow *hole);
 
+void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
+	__attribute__((format(printf, 3, 4)));
+
+#define flow_log(f_, pri, ...)	flow_log_(&(f_)->f, (pri), __VA_ARGS__)
+
+#define flow_dbg(f, ...)	flow_log((f), LOG_DEBUG, __VA_ARGS__)
+#define flow_err(f, ...)	flow_log((f), LOG_ERR, __VA_ARGS__)
+
+#define flow_trace(f, ...)						\
+	do {								\
+		if (log_trace)						\
+			flow_dbg((f), __VA_ARGS__);			\
+	} while (0)
+
 #endif /* FLOW_H */
