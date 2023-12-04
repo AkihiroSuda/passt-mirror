@@ -920,7 +920,7 @@ static void tcp_get_sndbuf(struct tcp_tap_conn *conn)
  * tcp_sock_set_bufsize() - Set SO_RCVBUF and SO_SNDBUF to maximum values
  * @s:		Socket, can be -1 to avoid check in the caller
  */
-void tcp_sock_set_bufsize(const struct ctx *c, int s)
+static void tcp_sock_set_bufsize(const struct ctx *c, int s)
 {
 	int v = INT_MAX / 2; /* Kernel clamps and rounds, no need to check */
 
