@@ -49,11 +49,11 @@
 #include <arpa/inet.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <netinet/ip_icmp.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #include <linux/udp.h>
-#include <linux/icmp.h>
 #include <linux/icmpv6.h>
 
 /* Checksums are optional for UDP over IPv4, so we usually just set
