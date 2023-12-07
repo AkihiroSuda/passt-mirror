@@ -1160,18 +1160,15 @@ static int tcp_hash_match(const struct tcp_tap_conn *conn,
  * @eport:	Guest side endpoint port
  * @fport:	Guest side forwarding port
  *
- * Return: hash value, already modulo size of the hash table
+ * Return: hash value, needs to be adjusted for table size
  */
-static unsigned int tcp_hash(const struct ctx *c, const union inany_addr *faddr,
-			     in_port_t eport, in_port_t fport)
+static uint64_t tcp_hash(const struct ctx *c, const union inany_addr *faddr,
+			 in_port_t eport, in_port_t fport)
 {
 	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
-	uint64_t hash;
 
 	inany_siphash_feed(&state, faddr);
-	hash = siphash_final(&state, 20, (uint64_t)eport << 16 | fport);
-
-	return (unsigned int)(hash % TCP_HASH_TABLE_SIZE);
+	return siphash_final(&state, 20, (uint64_t)eport << 16 | fport);
 }
 
 /**
@@ -1179,10 +1176,10 @@ static unsigned int tcp_hash(const struct ctx *c, const union inany_addr *faddr,
  * @c:		Execution context
  * @conn:	Connection
  *
- * Return: hash value, already modulo size of the hash table
+ * Return: hash value, needs to be adjusted for table size
  */
-static unsigned int tcp_conn_hash(const struct ctx *c,
-				  const struct tcp_tap_conn *conn)
+static uint64_t tcp_conn_hash(const struct ctx *c,
+			      const struct tcp_tap_conn *conn)
 {
 	return tcp_hash(c, &conn->faddr, conn->eport, conn->fport);
 }
@@ -1199,7 +1196,7 @@ static inline unsigned tcp_hash_probe(const struct ctx *c,
 				      const struct tcp_tap_conn *conn)
 {
 	flow_sidx_t sidx = FLOW_SIDX(conn, TAPSIDE);
-	unsigned b = tcp_conn_hash(c, conn);
+	unsigned b = tcp_conn_hash(c, conn) % TCP_HASH_TABLE_SIZE;
 
 	/* Linear probing */
 	while (!flow_sidx_eq(tc_hash[b], FLOW_SIDX_NONE) &&
@@ -1242,7 +1239,7 @@ static void tcp_hash_remove(const struct ctx *c,
 	for (s = mod_sub(b, 1, TCP_HASH_TABLE_SIZE);
 	     (flow = flow_at_sidx(tc_hash[s]));
 	     s = mod_sub(s, 1, TCP_HASH_TABLE_SIZE)) {
-		unsigned h = tcp_conn_hash(c, &flow->tcp);
+		unsigned h = tcp_conn_hash(c, &flow->tcp) % TCP_HASH_TABLE_SIZE;
 
 		if (!mod_between(h, s, b, TCP_HASH_TABLE_SIZE)) {
 			/* tc_hash[s] can live in tc_hash[b]'s slot */
@@ -1298,7 +1295,7 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
 
 	inany_from_af(&aany, af, faddr);
 
-	b = tcp_hash(c, &aany, eport, fport);
+	b = tcp_hash(c, &aany, eport, fport) % TCP_HASH_TABLE_SIZE;
 	while ((flow = flow_at_sidx(tc_hash[b])) &&
 	       !tcp_hash_match(&flow->tcp, &aany, eport, fport))
 		b = mod_sub(b, 1, TCP_HASH_TABLE_SIZE);
