@@ -169,7 +169,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 	if (af == AF_INET) {
 		struct sockaddr_in sa = {
 			.sin_family = AF_INET,
-			.sin_addr = { .s_addr = htonl(INADDR_ANY) },
+			.sin_addr = IN4ADDR_ANY_INIT,
 		};
 		union icmp_epoll_ref iref;
 		struct icmphdr *ih;

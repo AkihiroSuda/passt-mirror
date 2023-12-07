@@ -122,6 +122,9 @@
 	(((struct in_addr *)(a))->s_addr == ((struct in_addr *)b)->s_addr)
 #define IN4ADDR_LOOPBACK_INIT \
 	{ .s_addr	= htonl_constant(INADDR_LOOPBACK) }
+#define IN4ADDR_ANY_INIT \
+	{ .s_addr	= htonl_constant(INADDR_ANY) }
+
 
 #define NS_FN_STACK_SIZE	(RLIMIT_STACK_VAL * 1024 / 8)
 int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
