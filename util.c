@@ -162,8 +162,6 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 	if (af == AF_INET) {
 		if (bind_addr)
 			addr4.sin_addr.s_addr = *(in_addr_t *)bind_addr;
-		else
-			addr4.sin_addr.s_addr = htonl(INADDR_ANY);
 
 		sa = (const struct sockaddr *)&addr4;
 		sl = sizeof(addr4);
@@ -174,8 +172,6 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 			if (!memcmp(bind_addr, &c->ip6.addr_ll,
 			    sizeof(c->ip6.addr_ll)))
 				addr6.sin6_scope_id = c->ifi6;
-		} else {
-			addr6.sin6_addr = in6addr_any;
 		}
 
 		sa = (const struct sockaddr *)&addr6;
