@@ -347,7 +347,7 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 	struct sockaddr_in addr4 = {
 		.sin_family = AF_INET,
 		.sin_port = htons(port),
-		.sin_addr = { .s_addr = htonl(INADDR_LOOPBACK) },
+		.sin_addr = IN4ADDR_LOOPBACK_INIT,
 	};
 	const struct sockaddr *sa;
 	socklen_t sl;

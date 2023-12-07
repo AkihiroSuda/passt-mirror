@@ -2976,7 +2976,7 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 		.port = port + c->tcp.fwd_out.delta[port],
 		.pif = PIF_SPLICE,
 	};
-	struct in_addr loopback = { htonl(INADDR_LOOPBACK) };
+	struct in_addr loopback = IN4ADDR_LOOPBACK_INIT;
 	int s;
 
 	ASSERT(c->mode == MODE_PASTA);

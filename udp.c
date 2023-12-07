@@ -429,7 +429,7 @@ int udp_splice_new(const struct ctx *c, int v6, in_port_t src, bool ns)
 		struct sockaddr_in addr4 = {
 			.sin_family = AF_INET,
 			.sin_port = htons(src),
-			.sin_addr = { .s_addr = htonl(INADDR_LOOPBACK) },
+			.sin_addr = IN4ADDR_LOOPBACK_INIT,
 		};
 		if (bind(s, (struct sockaddr *)&addr4, sizeof(addr4)))
 			goto fail;
@@ -1012,7 +1012,7 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			udp_tap_map[V4][uref.port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V4][port].sock = s < 0 ? -1 : s;
 		} else {
-			struct in_addr loopback = { htonl(INADDR_LOOPBACK) };
+			struct in_addr loopback = IN4ADDR_LOOPBACK_INIT;
 
 			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP, &loopback,
 					 ifname, port, uref.u32);
