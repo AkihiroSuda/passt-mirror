@@ -53,6 +53,17 @@ static_assert(sizeof(flow_sidx_t) <= sizeof(uint32_t),
 
 #define FLOW_SIDX_NONE ((flow_sidx_t){ .flow = FLOW_MAX })
 
+/**
+ * flow_sidx_eq() - Test if two sidx values are equal
+ * @a, @b:	sidx values
+ *
+ * Return: true iff @a and @b refer to the same side of the same flow
+ */
+static inline bool flow_sidx_eq(flow_sidx_t a, flow_sidx_t b)
+{
+	return (a.flow == b.flow) && (a.side == b.side);
+}
+
 union flow;
 
 void flow_table_compact(struct ctx *c, union flow *hole);
