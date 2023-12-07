@@ -870,8 +870,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 			union udp_epoll_ref uref = { .port = src };
 			const char *bind_if = NULL;
 
-			if (!IN6_IS_ADDR_LOOPBACK(&s_in.sin_addr) &&
-			    *c->ip6.ifname_out)
+			if (!IN6_IS_ADDR_LOOPBACK(&s_in.sin_addr))
 				bind_if = c->ip6.ifname_out;
 
 			if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out) &&
@@ -919,8 +918,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 			union udp_epoll_ref uref = { .v6 = 1, .port = src };
 			const char *bind_if = NULL;
 
-			if (!IN6_IS_ADDR_LOOPBACK(&s_in6.sin6_addr) &&
-			    *c->ip6.ifname_out)
+			if (!IN6_IS_ADDR_LOOPBACK(&s_in6.sin6_addr))
 				bind_if = c->ip6.ifname_out;
 
 			if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out) &&

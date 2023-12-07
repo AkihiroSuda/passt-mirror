@@ -187,7 +187,7 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(y)))
 		debug("Failed to set SO_REUSEADDR on socket %i", fd);
 
-	if (ifname) {
+	if (ifname && *ifname) {
 		/* Supported since kernel version 5.7, commit c427bfec18f2
 		 * ("net: core: enable SO_BINDTODEVICE for non-root users"). If
 		 * it's unsupported, don't bind the socket at all, because the
