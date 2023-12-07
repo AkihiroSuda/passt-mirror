@@ -161,7 +161,7 @@ int sock_l4(const struct ctx *c, int af, uint8_t proto,
 
 	if (af == AF_INET) {
 		if (bind_addr)
-			addr4.sin_addr.s_addr = *(in_addr_t *)bind_addr;
+			addr4.sin_addr = *(struct in_addr *)bind_addr;
 
 		sa = (const struct sockaddr *)&addr4;
 		sl = sizeof(addr4);

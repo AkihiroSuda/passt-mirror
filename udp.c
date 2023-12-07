@@ -866,8 +866,8 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 		debug("UDP from tap src=%hu dst=%hu, s=%d",
 		      src, dst, udp_tap_map[V4][src].sock);
 		if ((s = udp_tap_map[V4][src].sock) < 0) {
+			struct in_addr bind_addr = IN4ADDR_ANY_INIT;
 			union udp_epoll_ref uref = { .port = src };
-			in_addr_t bind_addr = { 0 };
 			const char *bind_if = NULL;
 
 			if (!IN6_IS_ADDR_LOOPBACK(&s_in.sin_addr) &&
@@ -876,7 +876,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 
 			if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out) &&
 			    !IN4_IS_ADDR_LOOPBACK(&s_in.sin_addr))
-				bind_addr = c->ip4.addr_out.s_addr;
+				bind_addr = c->ip4.addr_out;
 
 			s = sock_l4(c, AF_INET, IPPROTO_UDP, &bind_addr,
 				    bind_if, src, uref.u32);
