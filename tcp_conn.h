@@ -13,7 +13,6 @@
  * struct tcp_tap_conn - Descriptor for a TCP connection (not spliced)
  * @f:			Generic flow information
  * @in_epoll:		Is the connection in the epoll set?
- * @next_index:		Connection index of next item in hash chain, -1 for none
  * @tap_mss:		MSS advertised by tap/guest, rounded to 2 ^ TCP_MSS_BITS
  * @sock:		Socket descriptor number
  * @events:		Connection events, implying connection states
@@ -40,7 +39,6 @@ struct tcp_tap_conn {
 	struct flow_common f;
 
 	bool		in_epoll	:1;
-	unsigned 	next_index	:FLOW_INDEX_BITS + 2;
 
 #define TCP_RETRANS_BITS		3
 	unsigned int	retrans		:TCP_RETRANS_BITS;

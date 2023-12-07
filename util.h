@@ -227,6 +227,34 @@ int __daemon(int pidfile_fd, int devnull_fd);
 int fls(unsigned long x);
 int write_file(const char *path, const char *buf);
 
+/**
+ * mod_sub() - Modular arithmetic subtraction
+ * @a:		Minued, unsigned value < @m
+ * @b:		Subtrahend, unsigned value < @m
+ * @m:		Modulus, must be less than (UINT_MAX / 2)
+ *
+ * Returns (@a - @b) mod @m, correctly handling unsigned underflows.
+ */
+static inline unsigned mod_sub(unsigned a, unsigned b, unsigned m)
+{
+	if (a < b)
+		a += m;
+	return a - b;
+}
+
+/**
+ * mod_between() - Determine if a value is in a cyclic range
+ * @x, @i, @j:	Unsigned values < @m
+ * @m:		Modulus
+ *
+ * Returns true iff @x is in the cyclic range of values from @i..@j (mod @m),
+ * inclusive of @i, exclusive of @j.
+ */
+static inline bool mod_between(unsigned x, unsigned i, unsigned j, unsigned m)
+{
+	return mod_sub(x, i, m) < mod_sub(j, i, m);
+}
+
 /*
  * Workarounds for https://github.com/llvm/llvm-project/issues/58992
  *
