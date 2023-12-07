@@ -2908,7 +2908,7 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
  * Return: fd for the new listening socket, negative error code on failure
  */
 static int tcp_sock_init_af(const struct ctx *c, int af, in_port_t port,
-			    const struct in_addr *addr, const char *ifname)
+			    const void *addr, const char *ifname)
 {
 	union tcp_listen_epoll_ref tref = {
 		.port = port + c->tcp.fwd_in.delta[port],
