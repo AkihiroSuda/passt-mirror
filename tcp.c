@@ -2533,7 +2533,7 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 	optlen = MIN(optlen, ((1UL << 4) /* from doff width */ - 6) * 4UL);
 	opts = packet_get(p, idx, sizeof(*th), optlen, NULL);
 
-	conn = tcp_hash_lookup(c, af, daddr, htons(th->source), htons(th->dest));
+	conn = tcp_hash_lookup(c, af, daddr, ntohs(th->source), ntohs(th->dest));
 
 	/* New connection from tap */
 	if (!conn) {
