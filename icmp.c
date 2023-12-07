@@ -187,16 +187,12 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		iref.id = id = ntohs(ih->un.echo.id);
 
 		if ((s = icmp_id_map[V4][id].sock) <= 0) {
-			const struct in_addr *bind_addr = NULL;
 			const char *bind_if;
 
 			bind_if = *c->ip4.ifname_out ? c->ip4.ifname_out : NULL;
 
-			if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out))
-				bind_addr = &c->ip4.addr_out;
-
-			s = sock_l4(c, AF_INET, IPPROTO_ICMP, bind_addr,
-				    bind_if, id, iref.u32);
+			s = sock_l4(c, AF_INET, IPPROTO_ICMP,
+				    &c->ip4.addr_out, bind_if, id, iref.u32);
 			if (s < 0)
 				goto fail_sock;
 			if (s > FD_REF_MAX) {
@@ -241,16 +237,12 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 
 		iref.id = id = ntohs(ih->icmp6_identifier);
 		if ((s = icmp_id_map[V6][id].sock) <= 0) {
-			const struct in6_addr *bind_addr = NULL;
 			const char *bind_if;
 
 			bind_if = *c->ip6.ifname_out ? c->ip6.ifname_out : NULL;
 
-			if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out))
-				bind_addr = &c->ip6.addr_out;
-
-			s = sock_l4(c, AF_INET6, IPPROTO_ICMPV6, bind_addr,
-				    bind_if, id, iref.u32);
+			s = sock_l4(c, AF_INET6, IPPROTO_ICMPV6,
+				    &c->ip6.addr_out, bind_if, id, iref.u32);
 			if (s < 0)
 				goto fail_sock;
 			if (s > FD_REF_MAX) {
