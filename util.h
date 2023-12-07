@@ -111,9 +111,9 @@
 #endif
 
 #define IN4_IS_ADDR_UNSPECIFIED(a) \
-	((a)->s_addr == htonl(INADDR_ANY))
+	((a)->s_addr == htonl_constant(INADDR_ANY))
 #define IN4_IS_ADDR_BROADCAST(a) \
-	((a)->s_addr == htonl(INADDR_BROADCAST))
+	((a)->s_addr == htonl_constant(INADDR_BROADCAST))
 #define IN4_IS_ADDR_LOOPBACK(a) \
 	(ntohl((a)->s_addr) >> IN_CLASSA_NSHIFT == IN_LOOPBACKNET)
 #define IN4_IS_ADDR_MULTICAST(a) \
