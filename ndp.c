@@ -94,7 +94,7 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr)
 		ihr->icmp6_type = RA;
 		ihr->icmp6_code = 0;
 		ihr->icmp6_hop_limit = 255;
-		ihr->icmp6_rt_lifetime = htons(9000);
+		ihr->icmp6_rt_lifetime = htons(65535); /* RFC 8319 */
 		ihr->icmp6_addrconf_managed = 1;
 
 		p = (unsigned char *)(ihr + 1);
@@ -103,9 +103,9 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr)
 		*p++ = 4;			/* length */
 		*p++ = 64;			/* prefix length */
 		*p++ = 0xc0;			/* prefix flags: L, A */
-		*(uint32_t *)p = htonl(3600);	/* lifetime */
+		*(uint32_t *)p = (uint32_t)~0U;	/* lifetime */
 		p += 4;
-		*(uint32_t *)p = htonl(3600);	/* preferred lifetime */
+		*(uint32_t *)p = (uint32_t)~0U;	/* preferred lifetime */
 		p += 8;
 		memcpy(p, &c->ip6.addr, 8);	/* prefix */
 		p += 16;
@@ -126,7 +126,7 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr)
 			*p++ = 25;				/* RDNSS */
 			*p++ = 1 + 2 * n;			/* length */
 			p += 2;					/* reserved */
-			*(uint32_t *)p = htonl(60);		/* lifetime */
+			*(uint32_t *)p = (uint32_t)~0U;		/* lifetime */
 			p += 4;
 
 			for (i = 0; i < n; i++) {
@@ -142,7 +142,7 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr)
 			*p++ = 31;				/* DNSSL */
 			*p++ = (dns_s_len + 8 - 1) / 8 + 1;	/* length */
 			p += 2;					/* reserved */
-			*(uint32_t *)p = htonl(60);		/* lifetime */
+			*(uint32_t *)p = (uint32_t)~0U;		/* lifetime */
 			p += 4;
 
 			for (i = 0; i < n; i++) {
