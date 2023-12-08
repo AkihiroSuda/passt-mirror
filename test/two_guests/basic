@@ -39,9 +39,9 @@ test	DHCPv6: addresses
 sleep	2
 guest1	/sbin/dhclient -6 __IFNAME1__
 guest2	/sbin/dhclient -6 __IFNAME2__
-g1out	ADDR1_6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME1__").addr_info[] | select(.prefixlen == 128).local'
-g2out	ADDR2_6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME2__").addr_info[] | select(.prefixlen == 128).local'
-hout	HOST_ADDR6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__HOST_IFNAME6__").addr_info[] | select(.scope == "global").local'
+g1out	ADDR1_6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME1__").addr_info[] | select(.prefixlen == 128).local] | .[0]'
+g2out	ADDR2_6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME2__").addr_info[] | select(.prefixlen == 128).local] | .[0]'
+hout	HOST_ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__HOST_IFNAME6__").addr_info[] | select(.scope == "global").local] | .[0]'
 check	[ "__ADDR1_6__" = "__HOST_ADDR6__" ]
 check	[ "__ADDR2_6__" = "__HOST_ADDR6__" ]
 
