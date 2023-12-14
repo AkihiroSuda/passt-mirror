@@ -26,6 +26,9 @@ DIRS="${DIRS} /tmp /sbin /usr/share /var/log /var/lib /etc/ssh /run/sshd /root/.
 COPIES="${COPIES} small.bin,/root/small.bin medium.bin,/root/medium.bin big.bin,/root/big.bin"
 
 FIXUP="${FIXUP}"'
+	mv /sbin/* /usr/sbin || :
+	rm -rf /sbin
+	ln -s /usr/sbin /sbin
 	cat > /sbin/dhclient-script << EOF
 #!/bin/sh
 LOG=/var/log/dhclient-script.log
@@ -47,7 +50,6 @@ set >> \$LOG
 exit 0
 EOF
 	chmod 755 /sbin/dhclient-script
-	ln -s /sbin /usr/sbin
 	ln -s /bin /usr/bin
 	ln -s /run /var/run
 	:> /etc/fstab
