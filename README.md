@@ -341,19 +341,17 @@ speeding up local connections, and usually requiring NAT. _pasta_:
 * ⌚ drop-in replacement for VPNKit (rootless Docker)
 
 ### Availability
-* ✅ official [packages](https://gitlab.com/redhat/centos-stream/rpms/passt) for
-  CentOS Stream
-* ✅ official [packages](https://tracker.debian.org/pkg/passt) for Debian
-* ✅ official [packages](https://src.fedoraproject.org/rpms/passt) for Fedora
-* ✅ official [packages](https://packages.ubuntu.com/lunar/passt) for Ubuntu
-* ✅ unofficial [packages](https://aur.archlinux.org/packages/passt-git) for
-  Arch Linux
-* ✅ unofficial
-  [packages](https://copr.fedorainfracloud.org/coprs/sbrivio/passt/) for EPEL,
-  Mageia
-* 🛠 official
-  [packages](https://build.opensuse.org/package/show/Virtualization:containers/passt)
-  for openSUSE
+* official packages for:
+    * ✅ [Arch Linux](https://archlinux.org/packages/extra/x86_64/passt/) ([aarch64](https://archlinuxarm.org/packages/aarch64/passt), [i486](https://www.archlinux32.org/packages/?q=passt))
+    * ✅ [CentOS Stream]((https://gitlab.com/redhat/centos-stream/rpms/passt)
+    * ✅ [Debian](https://tracker.debian.org/pkg/passt)
+    * ✅ [Fedora](https://src.fedoraproject.org/rpms/passt)
+    * ✅ [Gentoo](https://packages.gentoo.org/packages/net-misc/passt)
+    * ✅ [Ubuntu](https://launchpad.net/ubuntu/+source/passt)
+    * ✅ [Void Linux](https://voidlinux.org/packages/?q=passt)
+* unofficial packages for:
+    * ✅ [EPEL, Mageia](https://copr.fedorainfracloud.org/coprs/sbrivio/passt/)
+    * 🛠 [openSUSE](https://build.opensuse.org/package/show/Virtualization:containers/passt)
 * ✅ unofficial [packages](https://passt.top/builds/latest/x86_64/) from x86_64
   static builds for other RPM-based distributions
 * ✅ unofficial [packages](https://passt.top/builds/latest/x86_64/) from x86_64
