@@ -727,8 +727,9 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		it.it_value.tv_sec = ACT_TIMEOUT;
 	}
 
-	flow_dbg(conn, "timer expires in %lu.%03lus", it.it_value.tv_sec,
-		 it.it_value.tv_nsec / 1000 / 1000);
+	flow_dbg(conn, "timer expires in %llu.%03llus",
+		 (unsigned long long)it.it_value.tv_sec,
+		 (unsigned long long)it.it_value.tv_nsec / 1000 / 1000);
 
 	timerfd_settime(conn->timer, 0, &it, NULL);
 }
