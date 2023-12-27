@@ -527,7 +527,7 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 }
 
 /**
- * nl_addr_get() - Get IP address for given interface and address family
+ * nl_addr_get() - Get most specific global address, given interface and family
  * @s:		Netlink socket
  * @ifi:	Interface index in outer network namespace
  * @af:		Address family
@@ -540,6 +540,7 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 		void *addr, int *prefix_len, void *addr_l)
 {
+	uint8_t prefix_max = 0, prefix_max_ll = 0;
 	struct req_t {
 		struct nlmsghdr nlh;
 		struct ifaddrmsg ifa;
@@ -566,17 +567,25 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 			if (rta->rta_type != IFA_ADDRESS)
 				continue;
 
-			if (af == AF_INET) {
+			if (af == AF_INET && ifa->ifa_prefixlen > prefix_max) {
 				memcpy(addr, RTA_DATA(rta), RTA_PAYLOAD(rta));
-				*prefix_len = ifa->ifa_prefixlen;
+
+				prefix_max = *prefix_len = ifa->ifa_prefixlen;
 			} else if (af == AF_INET6 && addr &&
-				   ifa->ifa_scope == RT_SCOPE_UNIVERSE) {
+				   ifa->ifa_scope == RT_SCOPE_UNIVERSE &&
+				   ifa->ifa_prefixlen > prefix_max) {
 				memcpy(addr, RTA_DATA(rta), RTA_PAYLOAD(rta));
+
+				prefix_max = ifa->ifa_prefixlen;
 			}
 
 			if (addr_l &&
-			    af == AF_INET6 && ifa->ifa_scope == RT_SCOPE_LINK)
+			    af == AF_INET6 && ifa->ifa_scope == RT_SCOPE_LINK &&
+			    ifa->ifa_prefixlen > prefix_max_ll) {
 				memcpy(addr_l, RTA_DATA(rta), RTA_PAYLOAD(rta));
+
+				prefix_max_ll = ifa->ifa_prefixlen;
+			}
 		}
 	}
 	return status;
