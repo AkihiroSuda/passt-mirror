@@ -406,13 +406,13 @@ upstream interface of the host, and the same default gateway as the default
 gateway of the host. Addresses are translated in case the guest is seen using a
 different address from the assigned one.
 
-For IPv6, the guest or namespace is assigned, via SLAAC, the same prefix as the
-upstream interface of the host, the same default route as the default route of
-the host, and, if a DHCPv6 client is running in the guest or namespace, also the
-same address as the upstream address of the host. This means that, with a DHCPv6
-client in the guest or namespace, addresses don't need to be translated. Should
-the client use a different address, the destination address is translated for
-packets going to the guest or to the namespace.
+For IPv6, the guest or namespace is assigned, via SLAAC, a prefix derived from
+the address of the upstream interface of the host, the same default route as the
+default route of the host, and, if a DHCPv6 client is running in the guest or
+namespace, also the same address as the upstream address of the host. This means
+that, with a DHCPv6 client in the guest or namespace, addresses don't need to be
+translated. Should the client use a different address, the destination address
+is translated for packets going to the guest or to the namespace.
 
 ### Local connections with _passt_
 
