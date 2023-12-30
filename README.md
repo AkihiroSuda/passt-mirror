@@ -343,7 +343,7 @@ speeding up local connections, and usually requiring NAT. _pasta_:
 ### Availability
 * official packages for:
     * ✅ [Arch Linux](https://archlinux.org/packages/extra/x86_64/passt/) ([aarch64](https://archlinuxarm.org/packages/aarch64/passt), [i486](https://www.archlinux32.org/packages/?q=passt))
-    * ✅ [CentOS Stream]((https://gitlab.com/redhat/centos-stream/rpms/passt)
+    * ✅ [CentOS Stream](https://gitlab.com/redhat/centos-stream/rpms/passt)
     * ✅ [Debian](https://tracker.debian.org/pkg/passt)
     * ✅ [Fedora](https://src.fedoraproject.org/rpms/passt)
     * ✅ [Gentoo](https://packages.gentoo.org/packages/net-misc/passt)
