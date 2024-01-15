@@ -426,10 +426,11 @@ search:
 int dhcpv6(struct ctx *c, const struct pool *p,
 	   const struct in6_addr *saddr, const struct in6_addr *daddr)
 {
-	struct opt_hdr *ia, *bad_ia, *client_id, *server_id;
-	struct in6_addr *src;
-	struct msg_hdr *mh;
-	struct udphdr *uh;
+	struct opt_hdr *ia, *bad_ia, *client_id;
+	const struct opt_hdr *server_id;
+	const struct in6_addr *src;
+	const struct msg_hdr *mh;
+	const struct udphdr *uh;
 	size_t mlen, n;
 
 	uh = packet_get(p, 0, 0, sizeof(*uh), &mlen);

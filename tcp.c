@@ -2296,7 +2296,7 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 
 	for (i = idx, iov_i = 0; i < (int)p->count; i++) {
 		uint32_t seq, seq_offset, ack_seq;
-		struct tcphdr *th;
+		const struct tcphdr *th;
 		char *data;
 		size_t off;
 
@@ -2517,10 +2517,10 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
 	struct tcp_tap_conn *conn;
+	const struct tcphdr *th;
 	size_t optlen, len;
-	struct tcphdr *th;
+	const char *opts;
 	int ack_due = 0;
-	char *opts;
 	int count;
 
 	(void)pif;
@@ -3038,7 +3038,7 @@ void tcp_ns_sock_init(const struct ctx *c, in_port_t port)
  */
 static int tcp_ns_socks_init(void *arg)
 {
-	struct ctx *c = (struct ctx *)arg;
+	const struct ctx *c = (const struct ctx *)arg;
 	unsigned port;
 
 	ns_enter(c);

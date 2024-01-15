@@ -412,8 +412,9 @@ static void get_dns(struct ctx *c)
 	int dns4_set, dns6_set, dnss_set, dns_set, fd;
 	struct fqdn *s = c->dns_search;
 	struct lineread resolvconf;
+	char *line, *end;
+	const char *p;
 	int line_len;
-	char *line, *p, *end;
 
 	dns4_set = !c->ifi4 || !IN4_IS_ADDR_UNSPECIFIED(dns4);
 	dns6_set = !c->ifi6 || !IN6_IS_ADDR_UNSPECIFIED(dns6);
@@ -1025,7 +1026,7 @@ static int conf_runas(char *opt, unsigned int *uid, unsigned int *gid)
 	if (*endptr) {
 #ifndef GLIBC_NO_STATIC_NSS
 		/* Not numeric, look up as a username */
-		struct passwd *pw;
+		const struct passwd *pw;
 		/* cppcheck-suppress getpwnamCalled */
 		if (!(pw = getpwnam(uopt)) || !(*uid = pw->pw_uid))
 			return -ENOENT;
@@ -1042,7 +1043,7 @@ static int conf_runas(char *opt, unsigned int *uid, unsigned int *gid)
 	if (*endptr) {
 #ifndef GLIBC_NO_STATIC_NSS
 		/* Not numeric, look up as a group name */
-		struct group *gr;
+		const struct group *gr;
 		/* cppcheck-suppress getgrnamCalled */
 		if (!(gr = getgrnam(gopt)))
 			return -ENOENT;
@@ -1086,7 +1087,7 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 	warn("Don't run as root. Changing to nobody...");
 	{
 #ifndef GLIBC_NO_STATIC_NSS
-		struct passwd *pw;
+		const struct passwd *pw;
 		/* cppcheck-suppress getpwnamCalled */
 		pw = getpwnam("nobody");
 		if (!pw) {
@@ -1173,14 +1174,15 @@ void conf(struct ctx *c, int argc, char **argv)
 	bool copy_addrs_opt = false, copy_routes_opt = false;
 	enum port_fwd_mode fwd_default = FWD_NONE;
 	bool v4_only = false, v6_only = false;
-	char *runas = NULL, *logfile = NULL;
 	struct in6_addr *dns6 = c->ip6.dns;
 	struct fqdn *dnss = c->dns_search;
 	struct in_addr *dns4 = c->ip4.dns;
 	unsigned int ifi4 = 0, ifi6 = 0;
+	const char *logfile = NULL;
 	const char *optstring;
 	int name, ret, b, i;
 	size_t logsize = 0;
+	char *runas = NULL;
 	uid_t uid;
 	gid_t gid;
 

@@ -127,7 +127,7 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 				struct tcp_splice_conn *conn)
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
-	union epoll_ref ref[SIDES] = {
+	const union epoll_ref ref[SIDES] = {
 		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[0],
 		  .flowside = FLOW_SIDX(conn, 0) },
 		{ .type = EPOLL_TYPE_TCP, .fd = conn->s[1],

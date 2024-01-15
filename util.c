@@ -48,8 +48,8 @@
 char *ipv6_l4hdr(const struct pool *p, int idx, size_t offset, uint8_t *proto,
 		 size_t *dlen)
 {
-	struct ipv6_opt_hdr *o;
-	struct ipv6hdr *ip6h;
+	const struct ipv6_opt_hdr *o;
+	const struct ipv6hdr *ip6h;
 	char *base;
 	int hdrlen;
 	uint8_t nh;

@@ -600,10 +600,10 @@ static int tap4_handler(struct ctx *c, const struct pool *in,
 resume:
 	for (seq_count = 0, seq = NULL; i < in->count; i++) {
 		size_t l2_len, l3_len, hlen, l4_len;
-		struct ethhdr *eh;
+		const struct ethhdr *eh;
+		const struct udphdr *uh;
 		struct iphdr *iph;
-		struct udphdr *uh;
-		char *l4h;
+		const char *l4h;
 
 		packet_get(in, i, 0, 0, &l2_len);
 
@@ -765,9 +765,9 @@ resume:
 	for (seq_count = 0, seq = NULL; i < in->count; i++) {
 		size_t l4_len, plen, check;
 		struct in6_addr *saddr, *daddr;
+		const struct ethhdr *eh;
+		const struct udphdr *uh;
 		struct ipv6hdr *ip6h;
-		struct ethhdr *eh;
-		struct udphdr *uh;
 		uint8_t proto;
 		char *l4h;
 
@@ -936,7 +936,7 @@ static void tap_sock_reset(struct ctx *c)
 void tap_handler_passt(struct ctx *c, uint32_t events,
 		       const struct timespec *now)
 {
-	struct ethhdr *eh;
+	const struct ethhdr *eh;
 	ssize_t n, rem;
 	char *p;
 

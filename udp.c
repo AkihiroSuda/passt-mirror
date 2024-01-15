@@ -821,10 +821,10 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 	struct iovec m[UIO_MAXIOV];
 	struct sockaddr_in6 s_in6;
 	struct sockaddr_in s_in;
+	const struct udphdr *uh;
 	struct sockaddr *sa;
 	int i, s, count = 0;
 	in_port_t src, dst;
-	struct udphdr *uh;
 	socklen_t sl;
 
 	(void)c;
@@ -1045,7 +1045,7 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
  * udp_sock_init_init() - Bind sockets in init namespace for inbound connections
  * @c:		Execution context
  */
-static void udp_sock_init_init(struct ctx *c)
+static void udp_sock_init_init(const struct ctx *c)
 {
 	unsigned dst;
 
@@ -1065,7 +1065,7 @@ static void udp_sock_init_init(struct ctx *c)
  */
 int udp_sock_init_ns(void *arg)
 {
-	struct ctx *c = (struct ctx *)arg;
+	const struct ctx *c = (const struct ctx *)arg;
 	unsigned dst;
 
 	ns_enter(c);

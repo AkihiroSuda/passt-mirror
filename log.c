@@ -222,7 +222,8 @@ void logfile_init(const char *name, const char *path, size_t size)
  */
 static void logfile_rotate_fallocate(int fd, const struct timespec *ts)
 {
-	char buf[BUFSIZ], *nl;
+	char buf[BUFSIZ];
+	const char *nl;
 	int n;
 
 	if (lseek(fd, 0, SEEK_SET) == -1)
@@ -260,7 +261,8 @@ static void logfile_rotate_fallocate(int fd, const struct timespec *ts)
 static void logfile_rotate_move(int fd, const struct timespec *ts)
 {
 	int header_len, write_offset, end, discard, n;
-	char buf[BUFSIZ], *nl;
+	char buf[BUFSIZ];
+	const char *nl;
 
 	header_len = snprintf(buf, BUFSIZ,
 			      "%s - log truncated at %lli.%04lli\n", log_header,

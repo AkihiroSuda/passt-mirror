@@ -25,7 +25,8 @@
 #ifdef __x86_64__
 void arch_avx2_exec(char **argv)
 {
-	char exe[PATH_MAX] = { 0 }, *p;
+	char exe[PATH_MAX] = { 0 };
+	const char *p;
 
 	if (readlink("/proc/self/exe", exe, PATH_MAX - 1) < 0) {
 		perror("readlink /proc/self/exe");

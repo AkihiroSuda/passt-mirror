@@ -275,10 +275,10 @@ static void opt_set_dns_search(const struct ctx *c, size_t max_len)
 int dhcp(const struct ctx *c, const struct pool *p)
 {
 	size_t mlen, len, offset = 0, opt_len, opt_off = 0;
+	const struct ethhdr *eh;
+	const struct iphdr *iph;
+	const struct udphdr *uh;
 	struct in_addr mask;
-	struct ethhdr *eh;
-	struct iphdr *iph;
-	struct udphdr *uh;
 	unsigned int i;
 	struct msg *m;
 
@@ -312,7 +312,8 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	offset += offsetof(struct msg, o);
 
 	while (opt_off + 2 < opt_len) {
-		uint8_t *olen, *type, *val;
+		const uint8_t *olen, *val;
+		uint8_t *type;
 
 		type = packet_get(p, 0, offset + opt_off,	1,	NULL);
 		olen = packet_get(p, 0, offset + opt_off + 1,	1,	NULL);

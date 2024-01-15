@@ -251,8 +251,8 @@ int main(int argc, char **argv)
 		}
 
 		if (!strcmp(argv[i], "-device") && i + 1 < argc) {
-			char *template = NULL;
-			char *p;
+			const char *template = NULL;
+			const char *p;
 
 			has_dev = 1;
 
