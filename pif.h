@@ -38,6 +38,7 @@ static inline const char *pif_type(enum pif_type pt)
 		return "?";
 }
 
+/* cppcheck-suppress unusedFunction */
 static inline const char *pif_name(uint8_t pif)
 {
 	return pif_type(pif);
