@@ -21,7 +21,7 @@ LINKS="${LINKS:-
 	 ash,dash,bash		/init
 	 ash,dash,bash		/bin/sh}"
 
-DIRS="${DIRS} /tmp /sbin /usr/share /var/log /var/lib /etc/ssh /run/sshd /root/.ssh"
+DIRS="${DIRS} /tmp /usr/sbin /usr/share /var/log /var/lib /etc/ssh /run/sshd /root/.ssh"
 
 COPIES="${COPIES} small.bin,/root/small.bin medium.bin,/root/medium.bin big.bin,/root/big.bin"
 
