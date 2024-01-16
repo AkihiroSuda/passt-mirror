@@ -134,6 +134,70 @@ unexpected:
 }
 
 /**
+ * icmp_ping_close() - Close and clean up a ping socket
+ * @c:		Execution context
+ * @id_sock:	Socket number and other info
+ */
+static void icmp_ping_close(const struct ctx *c, struct icmp_id_sock *id_sock)
+{
+	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, id_sock->sock, NULL);
+	close(id_sock->sock);
+	id_sock->sock = -1;
+	id_sock->seq = -1;
+}
+
+/**
+ * icmp_ping_new() - Prepare a new ping socket for a new id
+ * @c:		Execution context
+ * @id_sock:	Socket fd and other information
+ * @af:		Address family, AF_INET or AF_INET6
+ * @id:		ICMP id for the new socket
+ *
+ * Return: Newly opened ping socket fd, or -1 on failure
+ */
+static int icmp_ping_new(const struct ctx *c, struct icmp_id_sock *id_sock,
+			 int af, uint16_t id)
+{
+	uint8_t proto = af == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6;
+	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
+	union icmp_epoll_ref iref = { .id = id };
+	const void *bind_addr;
+	const char *bind_if;
+	int s;
+
+	if (af == AF_INET) {
+		bind_addr = &c->ip4.addr_out;
+		bind_if = c->ip4.ifname_out;
+	} else {
+		bind_addr = &c->ip6.addr_out;
+		bind_if = c->ip6.ifname_out;
+	}
+
+	s = sock_l4(c, af, proto, bind_addr, bind_if, 0, iref.u32);
+
+	if (s < 0) {
+		warn("Cannot open \"ping\" socket. You might need to:");
+		warn("  sysctl -w net.ipv4.ping_group_range=\"0 2147483647\"");
+		warn("...echo requests/replies will fail.");
+		goto cancel;
+	}
+
+	if (s > FD_REF_MAX)
+		goto cancel;
+
+	id_sock->sock = s;
+
+	debug("%s: new socket %i for echo ID %"PRIu16, pname, s, id);
+
+	return s;
+
+cancel:
+	if (s >= 0)
+		close(s);
+	return -1;
+}
+
+/**
  * icmp_tap_handler() - Handle packets from tap
  * @c:		Execution context
  * @pif:	pif on which the packet is arriving
@@ -149,7 +213,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
-	uint8_t proto = af == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6;
 	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
 	union {
 		struct sockaddr sa;
@@ -203,37 +266,9 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		ASSERT(0);
 	}
 
-	if ((s = id_sock->sock) < 0) {
-		union icmp_epoll_ref iref = { .id = id };
-		const void *bind_addr;
-		const char *bind_if;
-
-		if (af == AF_INET) {
-			bind_addr = &c->ip4.addr_out;
-			bind_if = c->ip4.ifname_out;
-		} else {
-			bind_addr = &c->ip6.addr_out;
-			bind_if = c->ip6.ifname_out;
-		}
-
-		s = sock_l4(c, af, proto, bind_addr, bind_if, 0, iref.u32);
-
-		if (s < 0) {
-			warn("Cannot open \"ping\" socket. You might need to:");
-			warn("  sysctl -w net.ipv4.ping_group_range=\"0 2147483647\"");
-			warn("...echo requests/replies will fail.");
+	if ((s = id_sock->sock) < 0)
+		if ((s = icmp_ping_new(c, id_sock, af, id)) < 0)
 			return 1;
-		}
-
-		if (s > FD_REF_MAX) {
-			close(s);
-			return 1;
-		}
-
-		id_sock->sock = s;
-
-		debug("%s: new socket %i for echo ID %"PRIu16, pname, s, id);
-	}
 
 	id_sock->ts = now->tv_sec;
 
@@ -260,10 +295,7 @@ static void icmp_timer_one(const struct ctx *c, struct icmp_id_sock *id_sock,
 	if (id_sock->sock < 0 || now->tv_sec - id_sock->ts <= ICMP_ECHO_TIMEOUT)
 		return;
 
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, id_sock->sock, NULL);
-	close(id_sock->sock);
-	id_sock->sock = -1;
-	id_sock->seq = -1;
+	icmp_ping_close(c, id_sock);
 }
 
 /**
