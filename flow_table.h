@@ -7,6 +7,8 @@
 #ifndef FLOW_TABLE_H
 #define FLOW_TABLE_H
 
+#include "tcp_conn.h"
+
 /**
  * union flow - Descriptor for a logical packet flow (e.g. connection)
  * @f:		Fields common between all variants

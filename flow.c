@@ -15,7 +15,6 @@
 #include "siphash.h"
 #include "inany.h"
 #include "flow.h"
-#include "tcp_conn.h"
 #include "flow_table.h"
 
 const char *flow_type_str[] = {

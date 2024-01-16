@@ -56,7 +56,6 @@
 #include "inany.h"
 #include "flow.h"
 
-#include "tcp_conn.h"
 #include "flow_table.h"
 
 #define MAX_PIPE_SIZE			(8UL * 1024 * 1024)

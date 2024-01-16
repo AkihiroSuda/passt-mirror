@@ -298,7 +298,6 @@
 #include "inany.h"
 #include "flow.h"
 
-#include "tcp_conn.h"
 #include "flow_table.h"
 
 /* Sides of a flow as we use them in "tap" connections */
