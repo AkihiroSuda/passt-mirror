@@ -1138,10 +1138,10 @@ int udp_init(struct ctx *c)
  * @v6:		Set for IPv6 connections
  * @type:	Socket type
  * @port:	Port number, host order
- * @ts:		Timestamp from caller
+ * @now:	Current timestamp
  */
 static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
-			  in_port_t port, const struct timespec *ts)
+			  in_port_t port, const struct timespec *now)
 {
 	struct udp_splice_port *sp;
 	struct udp_tap_port *tp;
@@ -1151,7 +1151,7 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 	case UDP_ACT_TAP:
 		tp = &udp_tap_map[v6 ? V6 : V4][port];
 
-		if (ts->tv_sec - tp->ts > UDP_CONN_TIMEOUT) {
+		if (now->tv_sec - tp->ts > UDP_CONN_TIMEOUT) {
 			sockp = &tp->sock;
 			tp->flags = 0;
 		}
@@ -1160,14 +1160,14 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 	case UDP_ACT_SPLICE_INIT:
 		sp = &udp_splice_init[v6 ? V6 : V4][port];
 
-		if (ts->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
+		if (now->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
 			sockp = &sp->sock;
 
 		break;
 	case UDP_ACT_SPLICE_NS:
 		sp = &udp_splice_ns[v6 ? V6 : V4][port];
 
-		if (ts->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
+		if (now->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
 			sockp = &sp->sock;
 
 		break;
@@ -1247,9 +1247,9 @@ static int udp_port_rebind_outbound(void *arg)
 /**
  * udp_timer() - Scan activity bitmaps for ports with associated timed events
  * @c:		Execution context
- * @ts:		Timestamp from caller
+ * @now:	Current timestamp
  */
-void udp_timer(struct ctx *c, const struct timespec *ts)
+void udp_timer(struct ctx *c, const struct timespec *now)
 {
 	int n, t, v6 = 0;
 	unsigned int i;
@@ -1279,7 +1279,7 @@ v6:
 			tmp = *word;
 			while ((n = ffsl(tmp))) {
 				tmp &= ~(1UL << (n - 1));
-				udp_timer_one(c, v6, t, i * 8 + n - 1, ts);
+				udp_timer_one(c, v6, t, i * 8 + n - 1, now);
 			}
 		}
 	}

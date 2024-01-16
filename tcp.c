@@ -3181,13 +3181,13 @@ static int tcp_port_rebind_outbound(void *arg)
 /**
  * tcp_timer() - Periodic tasks: port detection, closed connections, pool refill
  * @c:		Execution context
- * @ts:		Unused
+ * @now:	Current timestamp
  */
-void tcp_timer(struct ctx *c, const struct timespec *ts)
+void tcp_timer(struct ctx *c, const struct timespec *now)
 {
 	union flow *flow;
 
-	(void)ts;
+	(void)now;
 
 	if (c->mode == MODE_PASTA) {
 		if (c->tcp.fwd_out.mode == FWD_AUTO) {

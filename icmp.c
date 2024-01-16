@@ -275,14 +275,14 @@ fail_sock:
  * @c:		Execution context
  * @v6:		Set for IPv6 echo identifier bindings
  * @id:		Echo identifier, host order
- * @ts:		Timestamp from caller
+ * @now:	Current timestamp
  */
 static void icmp_timer_one(const struct ctx *c, int v6, uint16_t id,
-			   const struct timespec *ts)
+			   const struct timespec *now)
 {
 	struct icmp_id_sock *id_map = &icmp_id_map[v6 ? V6 : V4][id];
 
-	if (ts->tv_sec - id_map->ts <= ICMP_ECHO_TIMEOUT)
+	if (now->tv_sec - id_map->ts <= ICMP_ECHO_TIMEOUT)
 		return;
 
 	bitmap_clear(icmp_act[v6 ? V6 : V4], id);
@@ -296,9 +296,9 @@ static void icmp_timer_one(const struct ctx *c, int v6, uint16_t id,
 /**
  * icmp_timer() - Scan activity bitmap for identifiers with timed events
  * @c:		Execution context
- * @ts:		Timestamp from caller
+ * @now:	Current timestamp
  */
-void icmp_timer(const struct ctx *c, const struct timespec *ts)
+void icmp_timer(const struct ctx *c, const struct timespec *now)
 {
 	long *word, tmp;
 	unsigned int i;
@@ -310,7 +310,7 @@ v6:
 		tmp = *word;
 		while ((n = ffsl(tmp))) {
 			tmp &= ~(1UL << (n - 1));
-			icmp_timer_one(c, v6, i * 8 + n - 1, ts);
+			icmp_timer_one(c, v6, i * 8 + n - 1, now);
 		}
 	}
 

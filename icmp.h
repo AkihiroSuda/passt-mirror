@@ -15,7 +15,7 @@ void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref);
 int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now);
-void icmp_timer(const struct ctx *c, const struct timespec *ts);
+void icmp_timer(const struct ctx *c, const struct timespec *now);
 void icmp_init(void);
 
 /**

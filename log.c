@@ -216,11 +216,11 @@ void logfile_init(const char *name, const char *path, size_t size)
 /**
  * logfile_rotate_fallocate() - Write header, set log_written after fallocate()
  * @fd:		Log file descriptor
- * @ts:		Current timestamp
+ * @now:	Current timestamp
  *
  * #syscalls lseek ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
  */
-static void logfile_rotate_fallocate(int fd, const struct timespec *ts)
+static void logfile_rotate_fallocate(int fd, const struct timespec *now)
 {
 	char buf[BUFSIZ];
 	const char *nl;
@@ -233,8 +233,8 @@ static void logfile_rotate_fallocate(int fd, const struct timespec *ts)
 
 	n = snprintf(buf, BUFSIZ,
 		     "%s - log truncated at %lli.%04lli", log_header,
-		     (long long int)(ts->tv_sec - log_start),
-		     (long long int)(ts->tv_nsec / (100L * 1000)));
+		     (long long int)(now->tv_sec - log_start),
+		     (long long int)(now->tv_nsec / (100L * 1000)));
 
 	/* Avoid partial lines by padding the header with spaces */
 	nl = memchr(buf + n + 1, '\n', BUFSIZ - n - 1);
@@ -253,12 +253,12 @@ static void logfile_rotate_fallocate(int fd, const struct timespec *ts)
 /**
  * logfile_rotate_move() - Fallback: move recent entries toward start, then cut
  * @fd:		Log file descriptor
- * @ts:		Current timestamp
+ * @now:	Current timestamp
  *
  * #syscalls lseek ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
  * #syscalls ftruncate
  */
-static void logfile_rotate_move(int fd, const struct timespec *ts)
+static void logfile_rotate_move(int fd, const struct timespec *now)
 {
 	int header_len, write_offset, end, discard, n;
 	char buf[BUFSIZ];
@@ -266,8 +266,8 @@ static void logfile_rotate_move(int fd, const struct timespec *ts)
 
 	header_len = snprintf(buf, BUFSIZ,
 			      "%s - log truncated at %lli.%04lli\n", log_header,
-			      (long long int)(ts->tv_sec - log_start),
-			      (long long int)(ts->tv_nsec / (100L * 1000)));
+			      (long long int)(now->tv_sec - log_start),
+			      (long long int)(now->tv_nsec / (100L * 1000)));
 	if (lseek(fd, 0, SEEK_SET) == -1)
 		return;
 	if (write(fd, buf, header_len) == -1)
@@ -316,7 +316,7 @@ out:
 /**
  * logfile_rotate() - "Rotate" log file once it's full
  * @fd:		Log file descriptor
- * @ts:		Current timestamp
+ * @now:	Current timestamp
  *
  * Return: 0 on success, negative error code on failure
  *
@@ -324,7 +324,7 @@ out:
  *
  * fallocate() passed as EXTRA_SYSCALL only if FALLOC_FL_COLLAPSE_RANGE is there
  */
-static int logfile_rotate(int fd, const struct timespec *ts)
+static int logfile_rotate(int fd, const struct timespec *now)
 {
 	if (fcntl(fd, F_SETFL, O_RDWR /* Drop O_APPEND: explicit lseek() */))
 		return -errno;
@@ -332,10 +332,10 @@ static int logfile_rotate(int fd, const struct timespec *ts)
 #ifdef FALLOC_FL_COLLAPSE_RANGE
 	/* Only for Linux >= 3.15, extent-based ext4 or XFS, glibc >= 2.18 */
 	if (!fallocate(fd, FALLOC_FL_COLLAPSE_RANGE, 0, log_cut_size))
-		logfile_rotate_fallocate(fd, ts);
+		logfile_rotate_fallocate(fd, now);
 	else
 #endif
-		logfile_rotate_move(fd, ts);
+		logfile_rotate_move(fd, now);
 
 	if (fcntl(fd, F_SETFL, O_RDWR | O_APPEND))
 		return -errno;
@@ -351,16 +351,16 @@ static int logfile_rotate(int fd, const struct timespec *ts)
  */
 void logfile_write(int pri, const char *format, va_list ap)
 {
-	struct timespec ts;
+	struct timespec now;
 	char buf[BUFSIZ];
 	int n;
 
-	if (clock_gettime(CLOCK_REALTIME, &ts))
+	if (clock_gettime(CLOCK_REALTIME, &now))
 		return;
 
 	n = snprintf(buf, BUFSIZ, "%lli.%04lli: %s",
-		     (long long int)(ts.tv_sec - log_start),
-		     (long long int)(ts.tv_nsec / (100L * 1000)),
+		     (long long int)(now.tv_sec - log_start),
+		     (long long int)(now.tv_nsec / (100L * 1000)),
 		     logfile_prefix[pri]);
 
 	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
@@ -368,7 +368,7 @@ void logfile_write(int pri, const char *format, va_list ap)
 	if (format[strlen(format)] != '\n')
 		n += snprintf(buf + n, BUFSIZ - n, "\n");
 
-	if ((log_written + n >= log_size) && logfile_rotate(log_file, &ts))
+	if ((log_written + n >= log_size) && logfile_rotate(log_file, &now))
 		return;
 
 	if ((n = write(log_file, buf, n)) >= 0)

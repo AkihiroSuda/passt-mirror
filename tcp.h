@@ -20,7 +20,7 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
 int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
 		  const char *ifname, in_port_t port);
 int tcp_init(struct ctx *c);
-void tcp_timer(struct ctx *c, const struct timespec *ts);
+void tcp_timer(struct ctx *c, const struct timespec *now);
 void tcp_defer_handler(struct ctx *c);
 
 void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s);
