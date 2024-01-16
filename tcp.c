@@ -1303,13 +1303,16 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
 }
 
 /**
- * tcp_conn_destroy() - Close sockets, trigger hash table removal and compaction
+ * tcp_flow_defer() - Deferred per-flow handling (clean up closed connections)
  * @c:		Execution context
  * @flow:	Flow table entry for this connection
  */
-static void tcp_conn_destroy(struct ctx *c, union flow *flow)
+static void tcp_flow_defer(struct ctx *c, union flow *flow)
 {
 	const struct tcp_tap_conn *conn = &flow->tcp;
+
+	if (flow->tcp.events != CLOSED)
+		return;
 
 	close(conn->sock);
 	if (conn->timer != -1)
@@ -1372,12 +1375,10 @@ void tcp_defer_handler(struct ctx *c)
 	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
 		switch (flow->f.type) {
 		case FLOW_TCP:
-			if (flow->tcp.events == CLOSED)
-				tcp_conn_destroy(c, flow);
+			tcp_flow_defer(c, flow);
 			break;
 		case FLOW_TCP_SPLICE:
-			if (flow->tcp_splice.flags & CLOSING)
-				tcp_splice_destroy(c, flow);
+			tcp_splice_flow_defer(c, flow);
 			break;
 		default:
 			die("Unexpected %s in tcp_defer_handler()",
