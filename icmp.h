@@ -6,7 +6,7 @@
 #ifndef ICMP_H
 #define ICMP_H
 
-#define ICMP_TIMER_INTERVAL		1000 /* ms */
+#define ICMP_TIMER_INTERVAL		10000 /* ms */
 
 struct ctx;
 

@@ -56,9 +56,6 @@ struct icmp_id_sock {
 /* Indexed by ICMP echo identifier */
 static struct icmp_id_sock icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
 
-/* Bitmaps, activity monitoring needed for identifier */
-static uint8_t icmp_act[IP_VERSIONS][DIV_ROUND_UP(ICMP_NUM_IDS, 8)];
-
 /**
  * icmp_sock_handler() - Handle new data from IPv4 ICMP socket
  * @c:		Execution context
@@ -194,7 +191,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 			debug("ICMP: new socket %i for echo ID %i", s, id);
 		}
 		icmp_id_map[V4][id].ts = now->tv_sec;
-		bitmap_set(icmp_act[V4], id);
 
 		sa.sin_addr = *(struct in_addr *)daddr;
 		if (sendto(s, ih, sizeof(*ih) + plen, MSG_NOSIGNAL,
@@ -237,7 +233,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 			debug("ICMPv6: new socket %i for echo ID %i", s, id);
 		}
 		icmp_id_map[V6][id].ts = now->tv_sec;
-		bitmap_set(icmp_act[V6], id);
 
 		sa.sin6_addr = *(struct in6_addr *)daddr;
 		if (sendto(s, ih, sizeof(*ih) + plen, MSG_NOSIGNAL,
@@ -261,24 +256,19 @@ fail_sock:
 /**
  * icmp_timer_one() - Handler for timed events related to a given identifier
  * @c:		Execution context
- * @v6:		Set for IPv6 echo identifier bindings
- * @id:		Echo identifier, host order
+ * @id_sock:	Socket fd and activity timestamp
  * @now:	Current timestamp
  */
-static void icmp_timer_one(const struct ctx *c, int v6, uint16_t id,
+static void icmp_timer_one(const struct ctx *c, struct icmp_id_sock *id_sock,
 			   const struct timespec *now)
 {
-	struct icmp_id_sock *id_map = &icmp_id_map[v6 ? V6 : V4][id];
-
-	if (now->tv_sec - id_map->ts <= ICMP_ECHO_TIMEOUT)
+	if (id_sock->sock < 0 || now->tv_sec - id_sock->ts <= ICMP_ECHO_TIMEOUT)
 		return;
 
-	bitmap_clear(icmp_act[v6 ? V6 : V4], id);
-
-	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, id_map->sock, NULL);
-	close(id_map->sock);
-	id_map->sock = -1;
-	id_map->seq = -1;
+	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, id_sock->sock, NULL);
+	close(id_sock->sock);
+	id_sock->sock = -1;
+	id_sock->seq = -1;
 }
 
 /**
@@ -288,23 +278,11 @@ static void icmp_timer_one(const struct ctx *c, int v6, uint16_t id,
  */
 void icmp_timer(const struct ctx *c, const struct timespec *now)
 {
-	long *word, tmp;
 	unsigned int i;
-	int n, v6 = 0;
 
-v6:
-	word = (long *)icmp_act[v6 ? V6 : V4];
-	for (i = 0; i < ARRAY_SIZE(icmp_act); i += sizeof(long), word++) {
-		tmp = *word;
-		while ((n = ffsl(tmp))) {
-			tmp &= ~(1UL << (n - 1));
-			icmp_timer_one(c, v6, i * 8 + n - 1, now);
-		}
-	}
-
-	if (!v6) {
-		v6 = 1;
-		goto v6;
+	for (i = 0; i < ICMP_NUM_IDS; i++) {
+		icmp_timer_one(c, &icmp_id_map[V4][i], now);
+		icmp_timer_one(c, &icmp_id_map[V6][i], now);
 	}
 }
 
