@@ -51,6 +51,8 @@ enum epoll_type {
 	EPOLL_TYPE_NONE = 0,
 	/* Connected TCP sockets */
 	EPOLL_TYPE_TCP,
+	/* Connected TCP sockets (spliced) */
+	EPOLL_TYPE_TCP_SPLICE,
 	/* Listening TCP sockets */
 	EPOLL_TYPE_TCP_LISTEN,
 	/* timerfds used for TCP timers */

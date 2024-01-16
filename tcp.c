@@ -2804,14 +2804,18 @@ void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 }
 
 /**
- * tcp_tap_sock_handler() - Handle new data from non-spliced socket
+ * tcp_sock_handler() - Handle new data from non-spliced socket
  * @c:		Execution context
- * @conn:	Connection state
+ * @ref:	epoll reference
  * @events:	epoll events bitmap
  */
-static void tcp_tap_sock_handler(struct ctx *c, struct tcp_tap_conn *conn,
-				 uint32_t events)
+void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
+	struct tcp_tap_conn *conn = CONN(ref.flowside.flow);
+
+	ASSERT(conn->f.type == FLOW_TCP);
+	ASSERT(ref.flowside.side == SOCKSIDE);
+
 	if (conn->events == CLOSED)
 		return;
 
@@ -2855,30 +2859,6 @@ static void tcp_tap_sock_handler(struct ctx *c, struct tcp_tap_conn *conn,
 		if (events & EPOLLOUT)
 			tcp_connect_finish(c, conn);
 		/* Data? Check later */
-	}
-}
-
-/**
- * tcp_sock_handler() - Handle new data from socket, or timerfd event
- * @c:		Execution context
- * @ref:	epoll reference
- * @events:	epoll events bitmap
- */
-void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
-{
-	union flow *flow = FLOW(ref.flowside.flow);
-
-	switch (flow->f.type) {
-	case FLOW_TCP:
-		tcp_tap_sock_handler(c, &flow->tcp, events);
-		break;
-	case FLOW_TCP_SPLICE:
-		tcp_splice_sock_handler(c, &flow->tcp_splice, ref.flowside.side,
-					events);
-		break;
-	default:
-		die("Unexpected %s in tcp_sock_handler_compact()",
-		    FLOW_TYPE(&flow->f));
 	}
 }
 
