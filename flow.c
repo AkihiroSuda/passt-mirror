@@ -31,6 +31,24 @@ union flow flowtab[FLOW_MAX];
 /* Last time the flow timers ran */
 static struct timespec flow_timer_run;
 
+/** flow_log_ - Log flow-related message
+ * @f:		flow the message is related to
+ * @pri:	Log priority
+ * @fmt:	Format string
+ * @...:	printf-arguments
+ */
+void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
+{
+	char msg[BUFSIZ];
+	va_list args;
+
+	va_start(args, fmt);
+	(void)vsnprintf(msg, sizeof(msg), fmt, args);
+	va_end(args);
+
+	logmsg(pri, "Flow %u (%s): %s", flow_idx(f), FLOW_TYPE(f), msg);
+}
+
 /**
  * flow_table_compact() - Perform compaction on flow table
  * @c:		Execution context
@@ -68,24 +86,6 @@ void flow_table_compact(struct ctx *c, union flow *hole)
 	      (void *)from, (void *)hole);
 
 	memset(from, 0, sizeof(*from));
-}
-
-/** flow_log_ - Log flow-related message
- * @f:		flow the message is related to
- * @pri:	Log priority
- * @fmt:	Format string
- * @...:	printf-arguments
- */
-void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
-{
-	char msg[BUFSIZ];
-	va_list args;
-
-	va_start(args, fmt);
-	(void)vsnprintf(msg, sizeof(msg), fmt, args);
-	va_end(args);
-
-	logmsg(pri, "Flow %u (%s): %s", flow_idx(f), FLOW_TYPE(f), msg);
 }
 
 /**
