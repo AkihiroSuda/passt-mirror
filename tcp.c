@@ -1307,7 +1307,7 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
  * @c:		Execution context
  * @flow:	Flow table entry for this connection
  */
-void tcp_flow_defer(struct ctx *c, union flow *flow)
+void tcp_flow_defer(const struct ctx *c, union flow *flow)
 {
 	const struct tcp_tap_conn *conn = &flow->tcp;
 
@@ -1949,7 +1949,7 @@ static void tcp_conn_from_tap(struct ctx *c,
 
 	(void)saddr;
 
-	if (c->flow_count >= FLOW_MAX)
+	if (flow_count >= FLOW_MAX)
 		return;
 
 	if ((s = tcp_conn_pool_sock(pool)) < 0)
@@ -1975,7 +1975,7 @@ static void tcp_conn_from_tap(struct ctx *c,
 		}
 	}
 
-	conn = CONN(c->flow_count++);
+	conn = CONN(flow_count++);
 	conn->f.type = FLOW_TCP;
 	conn->sock = s;
 	conn->timer = -1;
@@ -2724,14 +2724,14 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	union flow *flow;
 	int s;
 
-	if (c->no_tcp || c->flow_count >= FLOW_MAX)
+	if (c->no_tcp || flow_count >= FLOW_MAX)
 		return;
 
 	s = accept4(ref.fd, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
 		return;
 
-	flow = flowtab + c->flow_count++;
+	flow = flowtab + flow_count++;
 
 	if (c->mode == MODE_PASTA &&
 	    tcp_splice_conn_from_sock(c, ref.tcp_listen, &flow->tcp_splice,

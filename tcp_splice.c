@@ -247,7 +247,7 @@ void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
  * @c:		Execution context
  * @flow:	Flow table entry for this connection
  */
-void tcp_splice_flow_defer(struct ctx *c, union flow *flow)
+void tcp_splice_flow_defer(const struct ctx *c, union flow *flow)
 {
 	struct tcp_splice_conn *conn = &flow->tcp_splice;
 	unsigned side;

@@ -22,6 +22,7 @@ union flow {
 };
 
 /* Global Flow Table */
+extern unsigned flow_count;
 extern union flow flowtab[];
 
 

@@ -26,6 +26,7 @@ static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 	      "flow_type_str[] doesn't match enum flow_type");
 
 /* Global Flow Table */
+unsigned flow_count;
 union flow flowtab[FLOW_MAX];
 
 /* Last time the flow timers ran */
@@ -54,18 +55,18 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
  * @c:		Execution context
  * @hole:	Pointer to recently closed flow
  */
-void flow_table_compact(struct ctx *c, union flow *hole)
+void flow_table_compact(const struct ctx *c, union flow *hole)
 {
 	union flow *from;
 
-	if (FLOW_IDX(hole) == --c->flow_count) {
+	if (FLOW_IDX(hole) == --flow_count) {
 		debug("flow: table compaction: maximum index was %u (%p)",
 		      FLOW_IDX(hole), (void *)hole);
 		memset(hole, 0, sizeof(*hole));
 		return;
 	}
 
-	from = flowtab + c->flow_count;
+	from = flowtab + flow_count;
 	memcpy(hole, from, sizeof(*hole));
 
 	switch (from->f.type) {
@@ -93,7 +94,7 @@ void flow_table_compact(struct ctx *c, union flow *hole)
  * @c:		Execution context
  * @now:	Current timestamp
  */
-void flow_defer_handler(struct ctx *c, const struct timespec *now)
+void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 {
 	bool timer = false;
 	union flow *flow;
@@ -103,7 +104,7 @@ void flow_defer_handler(struct ctx *c, const struct timespec *now)
 		flow_timer_run = *now;
 	}
 
-	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
+	for (flow = flowtab + flow_count - 1; flow >= flowtab; flow--) {
 		switch (flow->f.type) {
 		case FLOW_TCP:
 			tcp_flow_defer(c, flow);
