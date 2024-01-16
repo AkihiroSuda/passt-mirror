@@ -169,7 +169,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 	if (af == AF_INET) {
 		struct sockaddr_in sa = {
 			.sin_family = AF_INET,
-			.sin_addr = IN4ADDR_ANY_INIT,
 		};
 		union icmp_epoll_ref iref;
 		const struct icmphdr *ih;
@@ -213,7 +212,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 	} else if (af == AF_INET6) {
 		struct sockaddr_in6 sa = {
 			.sin6_family = AF_INET6,
-			.sin6_addr = IN6ADDR_ANY_INIT,
 			.sin6_scope_id = c->ifi6,
 		};
 		union icmp_epoll_ref iref;
