@@ -80,11 +80,12 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 	if (n < 0)
 		return;
 
-	id = ntohs(ih->un.echo.id);
 	seq = ntohs(ih->un.echo.sequence);
 
-	if (id != ref.icmp.id)
-		ih->un.echo.id = htons(ref.icmp.id);
+	/* Adjust the packet to have the ID the guest was using, rather than the
+	 * host chosen value */
+	id = ref.icmp.id;
+	ih->un.echo.id = htons(id);
 
 	if (c->mode == MODE_PASTA) {
 		if (icmp_id_map[V4][id].seq == seq)
@@ -119,15 +120,12 @@ void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref)
 	if (n < 0)
 		return;
 
-	id = ntohs(ih->icmp6_identifier);
 	seq = ntohs(ih->icmp6_sequence);
 
-	/* If bind() fails e.g. because of a broken SELinux policy,
-	 * this might happen. Fix up the identifier to match the sent
-	 * one.
-	 */
-	if (id != ref.icmp.id)
-		ih->icmp6_identifier = htons(ref.icmp.id);
+	/* Adjust the packet to have the ID the guest was using, rather than the
+	 * host chosen value */
+	id = ref.icmp.id;
+	ih->icmp6_identifier = htons(id);
 
 	/* In PASTA mode, we'll get any reply we send, discard them. */
 	if (c->mode == MODE_PASTA) {
@@ -183,7 +181,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 
 		if ((s = icmp_id_map[V4][id].sock) <= 0) {
 			s = sock_l4(c, AF_INET, IPPROTO_ICMP, &c->ip4.addr_out,
-				    c->ip4.ifname_out, id, iref.u32);
+				    c->ip4.ifname_out, 0, iref.u32);
 			if (s < 0)
 				goto fail_sock;
 			if (s > FD_REF_MAX) {
@@ -226,7 +224,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		if ((s = icmp_id_map[V6][id].sock) <= 0) {
 			s = sock_l4(c, AF_INET6, IPPROTO_ICMPV6,
 				    &c->ip6.addr_out,
-				    c->ip6.ifname_out, id, iref.u32);
+				    c->ip6.ifname_out, 0, iref.u32);
 			if (s < 0)
 				goto fail_sock;
 			if (s > FD_REF_MAX) {
