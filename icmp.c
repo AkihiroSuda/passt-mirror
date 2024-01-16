@@ -93,8 +93,7 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 		icmp_id_map[V4][id].seq = seq;
 	}
 
-	debug("ICMP: echo %s to tap, ID: %i, seq: %i",
-	      (ih->type == ICMP_ECHO) ? "request" : "reply", id, seq);
+	debug("ICMP: echo reply to tap, ID: %i, seq: %i", id, seq);
 
 	tap_icmp4_send(c, sr.sin_addr, tap_ip4_daddr(c), buf, n);
 }
@@ -138,8 +137,7 @@ void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref)
 		icmp_id_map[V6][id].seq = seq;
 	}
 
-	debug("ICMPv6: echo %s to tap, ID: %i, seq: %i",
-	      (ih->icmp6_type == 128) ? "request" : "reply", id, seq);
+	debug("ICMPv6: echo reply to tap, ID: %i, seq: %i", id, seq);
 
 	tap_icmp6_send(c, &sr.sin6_addr,
 		       tap_ip6_daddr(c, &sr.sin6_addr), buf, n);
@@ -178,7 +176,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		if (!ih)
 			return 1;
 
-		if (ih->type != ICMP_ECHO && ih->type != ICMP_ECHOREPLY)
+		if (ih->type != ICMP_ECHO)
 			return 1;
 
 		iref.id = id = ntohs(ih->un.echo.id);
@@ -205,8 +203,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 			   (struct sockaddr *)&sa, sizeof(sa)) < 0) {
 			debug("ICMP: failed to relay request to socket");
 		} else {
-			debug("ICMP: echo %s to socket, ID: %i, seq: %i",
-			      (ih->type == ICMP_ECHO) ? "request" : "reply",
+			debug("ICMP: echo request to socket, ID: %i, seq: %i",
 			      id, ntohs(ih->un.echo.sequence));
 		}
 	} else if (af == AF_INET6) {
@@ -222,7 +219,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		if (!ih)
 			return 1;
 
-		if (ih->icmp6_type != 128 && ih->icmp6_type != 129)
+		if (ih->icmp6_type != ICMPV6_ECHO_REQUEST)
 			return 1;
 
 		iref.id = id = ntohs(ih->icmp6_identifier);
@@ -249,8 +246,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 			   (struct sockaddr *)&sa, sizeof(sa)) < 1) {
 			debug("ICMPv6: failed to relay request to socket");
 		} else {
-			debug("ICMPv6: echo %s to socket, ID: %i, seq: %i",
-			      (ih->icmp6_type == 128) ? "request" : "reply",
+			debug("ICMPv6: echo request to socket, ID: %i, seq: %i",
 			      id, ntohs(ih->icmp6_sequence));
 		}
 	}
