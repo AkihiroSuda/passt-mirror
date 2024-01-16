@@ -70,7 +70,7 @@ enum epoll_type {
 	/* socket listening for qemu socket connections */
 	EPOLL_TYPE_TAP_LISTEN,
 
-	EPOLL_TYPE_MAX = EPOLL_TYPE_TAP_LISTEN,
+	EPOLL_NUM_TYPES,
 };
 
 /**
@@ -115,7 +115,7 @@ extern char pkt_buf		[PKT_BUF_BYTES];
 
 extern char *epoll_type_str[];
 #define EPOLL_TYPE_STR(n)						\
-	(((uint8_t)(n) <= EPOLL_TYPE_MAX && epoll_type_str[(n)]) ?	\
+	(((uint8_t)(n) < EPOLL_NUM_TYPES && epoll_type_str[(n)]) ?	\
 	                                    epoll_type_str[(n)] : "?")
 
 #include <resolv.h>	/* For MAXNS below */

@@ -59,7 +59,7 @@
 
 char pkt_buf[PKT_BUF_BYTES]	__attribute__ ((aligned(PAGE_SIZE)));
 
-char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
+char *epoll_type_str[] = {
 	[EPOLL_TYPE_TCP]	= "connected TCP socket",
 	[EPOLL_TYPE_TCP_LISTEN]	= "listening TCP socket",
 	[EPOLL_TYPE_TCP_TIMER]	= "TCP timer",
@@ -71,6 +71,8 @@ char *epoll_type_str[EPOLL_TYPE_MAX + 1] = {
 	[EPOLL_TYPE_TAP_PASST]	= "connected qemu socket",
 	[EPOLL_TYPE_TAP_LISTEN]	= "listening qemu socket",
 };
+static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
+	      "epoll_type_str[] doesn't match enum epoll_type");
 
 /**
  * post_handler() - Run periodic and deferred tasks for L4 protocol handlers
