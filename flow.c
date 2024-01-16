@@ -28,6 +28,9 @@ static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 /* Global Flow Table */
 union flow flowtab[FLOW_MAX];
 
+/* Last time the flow timers ran */
+static struct timespec flow_timer_run;
+
 /**
  * flow_table_compact() - Perform compaction on flow table
  * @c:		Execution context
@@ -86,12 +89,19 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 }
 
 /**
- * flow_defer_handler() - Handler for per-flow deferred tasks
+ * flow_defer_handler() - Handler for per-flow deferred and timed tasks
  * @c:		Execution context
+ * @now:	Current timestamp
  */
-void flow_defer_handler(struct ctx *c)
+void flow_defer_handler(struct ctx *c, const struct timespec *now)
 {
+	bool timer = false;
 	union flow *flow;
+
+	if (timespec_diff_ms(now, &flow_timer_run) >= FLOW_TIMER_INTERVAL) {
+		timer = true;
+		flow_timer_run = *now;
+	}
 
 	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
 		switch (flow->f.type) {
@@ -100,6 +110,8 @@ void flow_defer_handler(struct ctx *c)
 			break;
 		case FLOW_TCP_SPLICE:
 			tcp_splice_flow_defer(c, flow);
+			if (timer)
+				tcp_splice_timer(c, flow);
 			break;
 		default:
 			/* Assume other flow types don't need any handling */

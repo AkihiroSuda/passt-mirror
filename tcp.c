@@ -3171,8 +3171,6 @@ static int tcp_port_rebind_outbound(void *arg)
  */
 void tcp_timer(struct ctx *c, const struct timespec *now)
 {
-	union flow *flow;
-
 	(void)now;
 
 	if (c->mode == MODE_PASTA) {
@@ -3186,10 +3184,6 @@ void tcp_timer(struct ctx *c, const struct timespec *now)
 			tcp_port_rebind(c, false);
 		}
 	}
-
-	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--)
-		if (flow->f.type == FLOW_TCP_SPLICE)
-			tcp_splice_timer(c, flow);
 
 	tcp_sock_refill_init(c);
 	if (c->mode == MODE_PASTA)
