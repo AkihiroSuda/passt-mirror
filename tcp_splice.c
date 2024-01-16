@@ -755,15 +755,12 @@ void tcp_splice_init(struct ctx *c)
  * @c:		Execution context
  * @flow:	Flow table entry
  */
-void tcp_splice_timer(struct ctx *c, union flow *flow)
+void tcp_splice_timer(const struct ctx *c, union flow *flow)
 {
 	struct tcp_splice_conn *conn = &flow->tcp_splice;
 	int side;
 
-	if (conn->flags & CLOSING) {
-		tcp_splice_destroy(c, flow);
-		return;
-	}
+	ASSERT(!(conn->flags & CLOSING));
 
 	for (side = 0; side < SIDES; side++) {
 		uint8_t set = side == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;

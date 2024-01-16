@@ -3201,20 +3201,9 @@ void tcp_timer(struct ctx *c, const struct timespec *now)
 		}
 	}
 
-	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
-		switch (flow->f.type) {
-		case FLOW_TCP:
-			if (flow->tcp.events == CLOSED)
-				tcp_conn_destroy(c, flow);
-			break;
-		case FLOW_TCP_SPLICE:
+	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--)
+		if (flow->f.type == FLOW_TCP_SPLICE)
 			tcp_splice_timer(c, flow);
-			break;
-		default:
-			die("Unexpected %s in tcp_timer()",
-			    FLOW_TYPE(&flow->f));
-		}
-	}
 
 	tcp_sock_refill_init(c);
 	if (c->mode == MODE_PASTA)
