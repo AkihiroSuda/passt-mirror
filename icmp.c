@@ -172,7 +172,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 			.sin_addr = IN4ADDR_ANY_INIT,
 		};
 		union icmp_epoll_ref iref;
-		struct icmphdr *ih;
+		const struct icmphdr *ih;
 		int id, s;
 
 		ih = packet_get(p, 0, 0, sizeof(*ih), &plen);
@@ -181,8 +181,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 
 		if (ih->type != ICMP_ECHO && ih->type != ICMP_ECHOREPLY)
 			return 1;
-
-		sa.sin_port = ih->un.echo.id;
 
 		iref.id = id = ntohs(ih->un.echo.id);
 
@@ -219,7 +217,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 			.sin6_scope_id = c->ifi6,
 		};
 		union icmp_epoll_ref iref;
-		struct icmp6hdr *ih;
+		const struct icmp6hdr *ih;
 		int id, s;
 
 		ih = packet_get(p, 0, 0, sizeof(struct icmp6hdr), &plen);
@@ -228,8 +226,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 
 		if (ih->icmp6_type != 128 && ih->icmp6_type != 129)
 			return 1;
-
-		sa.sin6_port = ih->icmp6_identifier;
 
 		iref.id = id = ntohs(ih->icmp6_identifier);
 		if ((s = icmp_id_map[V6][id].sock) <= 0) {
