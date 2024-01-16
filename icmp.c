@@ -154,102 +154,102 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
+	uint8_t proto = af == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6;
+	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sa4;
+		struct sockaddr_in6 sa6;
+	} sa = { .sa.sa_family = af };
+	const socklen_t sl = af == AF_INET ? sizeof(sa.sa4) : sizeof(sa.sa6);
+	struct icmp_id_sock *id_sock;
+	uint16_t id, seq;
 	size_t plen;
+	void *pkt;
+	int s;
 
 	(void)saddr;
 	(void)pif;
 
 	if (af == AF_INET) {
-		struct sockaddr_in sa = {
-			.sin_family = AF_INET,
-		};
-		union icmp_epoll_ref iref;
 		const struct icmphdr *ih;
-		int id, s;
 
-		ih = packet_get(p, 0, 0, sizeof(*ih), &plen);
-		if (!ih)
+		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &plen)))
 			return 1;
+
+		ih =  (struct icmphdr *)pkt;
+		plen += sizeof(*ih);
 
 		if (ih->type != ICMP_ECHO)
 			return 1;
 
-		iref.id = id = ntohs(ih->un.echo.id);
-
-		if ((s = icmp_id_map[V4][id].sock) < 0) {
-			s = sock_l4(c, AF_INET, IPPROTO_ICMP, &c->ip4.addr_out,
-				    c->ip4.ifname_out, 0, iref.u32);
-			if (s < 0)
-				goto fail_sock;
-			if (s > FD_REF_MAX) {
-				close(s);
-				return 1;
-			}
-
-			icmp_id_map[V4][id].sock = s;
-
-			debug("ICMP: new socket %i for echo ID %i", s, id);
-		}
-		icmp_id_map[V4][id].ts = now->tv_sec;
-
-		sa.sin_addr = *(struct in_addr *)daddr;
-		if (sendto(s, ih, sizeof(*ih) + plen, MSG_NOSIGNAL,
-			   (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-			debug("ICMP: failed to relay request to socket");
-		} else {
-			debug("ICMP: echo request to socket, ID: %i, seq: %i",
-			      id, ntohs(ih->un.echo.sequence));
-		}
+		id = ntohs(ih->un.echo.id);
+		id_sock = &icmp_id_map[V4][id];
+		seq = ntohs(ih->un.echo.sequence);
+		sa.sa4.sin_addr = *(struct in_addr *)daddr;
 	} else if (af == AF_INET6) {
-		struct sockaddr_in6 sa = {
-			.sin6_family = AF_INET6,
-			.sin6_scope_id = c->ifi6,
-		};
-		union icmp_epoll_ref iref;
 		const struct icmp6hdr *ih;
-		int id, s;
 
-		ih = packet_get(p, 0, 0, sizeof(struct icmp6hdr), &plen);
-		if (!ih)
+		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &plen)))
 			return 1;
+
+		ih = (struct icmp6hdr *)pkt;
+		plen += sizeof(*ih);
 
 		if (ih->icmp6_type != ICMPV6_ECHO_REQUEST)
 			return 1;
 
-		iref.id = id = ntohs(ih->icmp6_identifier);
-		if ((s = icmp_id_map[V6][id].sock) < 0) {
-			s = sock_l4(c, AF_INET6, IPPROTO_ICMPV6,
-				    &c->ip6.addr_out,
-				    c->ip6.ifname_out, 0, iref.u32);
-			if (s < 0)
-				goto fail_sock;
-			if (s > FD_REF_MAX) {
-				close(s);
-				return 1;
-			}
-
-			icmp_id_map[V6][id].sock = s;
-
-			debug("ICMPv6: new socket %i for echo ID %i", s, id);
-		}
-		icmp_id_map[V6][id].ts = now->tv_sec;
-
-		sa.sin6_addr = *(struct in6_addr *)daddr;
-		if (sendto(s, ih, sizeof(*ih) + plen, MSG_NOSIGNAL,
-			   (struct sockaddr *)&sa, sizeof(sa)) < 1) {
-			debug("ICMPv6: failed to relay request to socket");
-		} else {
-			debug("ICMPv6: echo request to socket, ID: %i, seq: %i",
-			      id, ntohs(ih->icmp6_sequence));
-		}
+		id = ntohs(ih->icmp6_identifier);
+		id_sock = &icmp_id_map[V6][id];
+		seq = ntohs(ih->icmp6_sequence);
+		sa.sa6.sin6_addr = *(struct in6_addr *)daddr;
+		sa.sa6.sin6_scope_id = c->ifi6;
+	} else {
+		ASSERT(0);
 	}
 
-	return 1;
+	if ((s = id_sock->sock) < 0) {
+		union icmp_epoll_ref iref = { .id = id };
+		const void *bind_addr;
+		const char *bind_if;
 
-fail_sock:
-	warn("Cannot open \"ping\" socket. You might need to:");
-	warn("  sysctl -w net.ipv4.ping_group_range=\"0 2147483647\"");
-	warn("...echo requests/replies will fail.");
+		if (af == AF_INET) {
+			bind_addr = &c->ip4.addr_out;
+			bind_if = c->ip4.ifname_out;
+		} else {
+			bind_addr = &c->ip6.addr_out;
+			bind_if = c->ip6.ifname_out;
+		}
+
+		s = sock_l4(c, af, proto, bind_addr, bind_if, 0, iref.u32);
+
+		if (s < 0) {
+			warn("Cannot open \"ping\" socket. You might need to:");
+			warn("  sysctl -w net.ipv4.ping_group_range=\"0 2147483647\"");
+			warn("...echo requests/replies will fail.");
+			return 1;
+		}
+
+		if (s > FD_REF_MAX) {
+			close(s);
+			return 1;
+		}
+
+		id_sock->sock = s;
+
+		debug("%s: new socket %i for echo ID %"PRIu16, pname, s, id);
+	}
+
+	id_sock->ts = now->tv_sec;
+
+	if (sendto(s, pkt, plen, MSG_NOSIGNAL, &sa.sa, sl) < 0) {
+		debug("%s: failed to relay request to socket: %s",
+		      pname, strerror(errno));
+	} else {
+		debug("%s: echo request to socket, ID: %"PRIu16", seq: %"PRIu16,
+		      pname, id, seq);
+	}
+
 	return 1;
 }
 
