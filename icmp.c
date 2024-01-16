@@ -179,7 +179,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 
 		iref.id = id = ntohs(ih->un.echo.id);
 
-		if ((s = icmp_id_map[V4][id].sock) <= 0) {
+		if ((s = icmp_id_map[V4][id].sock) < 0) {
 			s = sock_l4(c, AF_INET, IPPROTO_ICMP, &c->ip4.addr_out,
 				    c->ip4.ifname_out, 0, iref.u32);
 			if (s < 0)
@@ -221,7 +221,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
 			return 1;
 
 		iref.id = id = ntohs(ih->icmp6_identifier);
-		if ((s = icmp_id_map[V6][id].sock) <= 0) {
+		if ((s = icmp_id_map[V6][id].sock) < 0) {
 			s = sock_l4(c, AF_INET6, IPPROTO_ICMPV6,
 				    &c->ip6.addr_out,
 				    c->ip6.ifname_out, 0, iref.u32);
@@ -277,7 +277,7 @@ static void icmp_timer_one(const struct ctx *c, int v6, uint16_t id,
 
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, id_map->sock, NULL);
 	close(id_map->sock);
-	id_map->sock = 0;
+	id_map->sock = -1;
 	id_map->seq = -1;
 }
 
@@ -315,6 +315,8 @@ void icmp_init(void)
 {
 	unsigned i;
 
-	for (i = 0; i < ICMP_NUM_IDS; i++)
+	for (i = 0; i < ICMP_NUM_IDS; i++) {
 		icmp_id_map[V4][i].seq = icmp_id_map[V6][i].seq = -1;
+		icmp_id_map[V4][i].sock = icmp_id_map[V6][i].sock = -1;
+	}
 }
