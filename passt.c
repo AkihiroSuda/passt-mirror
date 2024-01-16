@@ -392,10 +392,10 @@ loop:
 			udp_sock_handler(&c, ref, eventmask, &now);
 			break;
 		case EPOLL_TYPE_ICMP:
-			icmp_sock_handler(&c, ref);
+			icmp_sock_handler(&c, AF_INET, ref);
 			break;
 		case EPOLL_TYPE_ICMPV6:
-			icmpv6_sock_handler(&c, ref);
+			icmp_sock_handler(&c, AF_INET6, ref);
 			break;
 		default:
 			/* Can't happen */

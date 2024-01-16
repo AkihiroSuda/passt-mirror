@@ -57,85 +57,64 @@ struct icmp_id_sock {
 static struct icmp_id_sock icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
 
 /**
- * icmp_sock_handler() - Handle new data from IPv4 ICMP socket
+ * icmp_sock_handler() - Handle new data from ICMP or ICMPv6 socket
  * @c:		Execution context
+ * @af:		Address family (AF_INET or AF_INET6)
  * @ref:	epoll reference
  */
-void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
+void icmp_sock_handler(const struct ctx *c, int af, union epoll_ref ref)
 {
+	struct icmp_id_sock *const id_sock = af == AF_INET
+		? &icmp_id_map[V4][ref.icmp.id] : &icmp_id_map[V6][ref.icmp.id];
+	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
 	char buf[USHRT_MAX];
-	struct icmphdr *ih = (struct icmphdr *)buf;
-	struct sockaddr_in sr;
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sa4;
+		struct sockaddr_in6 sa6;
+	} sr;
 	socklen_t sl = sizeof(sr);
-	uint16_t seq, id;
+	uint16_t seq;
 	ssize_t n;
 
 	if (c->no_icmp)
 		return;
 
-	n = recvfrom(ref.fd, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
+	n = recvfrom(ref.fd, buf, sizeof(buf), 0, &sr.sa, &sl);
 	if (n < 0)
 		return;
 
-	seq = ntohs(ih->un.echo.sequence);
+	if (af == AF_INET) {
+		struct icmphdr *ih4 = (struct icmphdr *)buf;
 
-	/* Adjust the packet to have the ID the guest was using, rather than the
-	 * host chosen value */
-	id = ref.icmp.id;
-	ih->un.echo.id = htons(id);
+		/* Adjust packet back to guest-side ID */
+		ih4->un.echo.id = htons(ref.icmp.id);
+		seq = ntohs(ih4->un.echo.sequence);
+	} else if (af == AF_INET6) {
+		struct icmp6hdr *ih6 = (struct icmp6hdr *)buf;
 
-	if (c->mode == MODE_PASTA) {
-		if (icmp_id_map[V4][id].seq == seq)
-			return;
-
-		icmp_id_map[V4][id].seq = seq;
+		/* Adjust packet back to guest-side ID */
+		ih6->icmp6_identifier = htons(ref.icmp.id);
+		seq = ntohs(ih6->icmp6_sequence);
+	} else {
+		ASSERT(0);
 	}
-
-	debug("ICMP: echo reply to tap, ID: %i, seq: %i", id, seq);
-
-	tap_icmp4_send(c, sr.sin_addr, tap_ip4_daddr(c), buf, n);
-}
-
-/**
- * icmpv6_sock_handler() - Handle new data from ICMPv6 socket
- * @c:		Execution context
- * @ref:	epoll reference
- */
-void icmpv6_sock_handler(const struct ctx *c, union epoll_ref ref)
-{
-	char buf[USHRT_MAX];
-	struct icmp6hdr *ih = (struct icmp6hdr *)buf;
-	struct sockaddr_in6 sr;
-	socklen_t sl = sizeof(sr);
-	uint16_t seq, id;
-	ssize_t n;
-
-	if (c->no_icmp)
-		return;
-
-	n = recvfrom(ref.fd, buf, sizeof(buf), 0, (struct sockaddr *)&sr, &sl);
-	if (n < 0)
-		return;
-
-	seq = ntohs(ih->icmp6_sequence);
-
-	/* Adjust the packet to have the ID the guest was using, rather than the
-	 * host chosen value */
-	id = ref.icmp.id;
-	ih->icmp6_identifier = htons(id);
 
 	/* In PASTA mode, we'll get any reply we send, discard them. */
 	if (c->mode == MODE_PASTA) {
-		if (icmp_id_map[V6][id].seq == seq)
+		if (id_sock->seq == seq)
 			return;
 
-		icmp_id_map[V6][id].seq = seq;
+		id_sock->seq = seq;
 	}
 
-	debug("ICMPv6: echo reply to tap, ID: %i, seq: %i", id, seq);
-
-	tap_icmp6_send(c, &sr.sin6_addr,
-		       tap_ip6_daddr(c, &sr.sin6_addr), buf, n);
+	debug("%s: echo reply to tap, ID: %"PRIu16", seq: %"PRIu16, pname,
+	      ref.icmp.id, seq);
+	if (af == AF_INET)
+		tap_icmp4_send(c, sr.sa4.sin_addr, tap_ip4_daddr(c), buf, n);
+	else if (af == AF_INET6)
+		tap_icmp6_send(c, &sr.sa6.sin6_addr,
+			       tap_ip6_daddr(c, &sr.sa6.sin6_addr), buf, n);
 }
 
 /**
