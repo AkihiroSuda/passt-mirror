@@ -1307,7 +1307,7 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
  * @c:		Execution context
  * @flow:	Flow table entry for this connection
  */
-static void tcp_flow_defer(struct ctx *c, union flow *flow)
+void tcp_flow_defer(struct ctx *c, union flow *flow)
 {
 	const struct tcp_tap_conn *conn = &flow->tcp;
 
@@ -1365,26 +1365,11 @@ static void tcp_l2_data_buf_flush(const struct ctx *c)
  * tcp_defer_handler() - Handler for TCP deferred tasks
  * @c:		Execution context
  */
+/* cppcheck-suppress [constParameterPointer, unmatchedSuppression] */
 void tcp_defer_handler(struct ctx *c)
 {
-	union flow *flow;
-
 	tcp_l2_flags_buf_flush(c);
 	tcp_l2_data_buf_flush(c);
-
-	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
-		switch (flow->f.type) {
-		case FLOW_TCP:
-			tcp_flow_defer(c, flow);
-			break;
-		case FLOW_TCP_SPLICE:
-			tcp_splice_flow_defer(c, flow);
-			break;
-		default:
-			die("Unexpected %s in tcp_defer_handler()",
-			    FLOW_TYPE(&flow->f));
-		}
-	}
 }
 
 /**

@@ -103,6 +103,7 @@ static void post_handler(struct ctx *c, const struct timespec *now)
 	/* NOLINTNEXTLINE(bugprone-branch-clone): intervals can be the same */
 	CALL_PROTO_HANDLER(c, now, icmp, ICMP);
 
+	flow_defer_handler(c);
 #undef CALL_PROTO_HANDLER
 }
 

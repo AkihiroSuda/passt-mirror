@@ -84,3 +84,26 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 
 	logmsg(pri, "Flow %u (%s): %s", flow_idx(f), FLOW_TYPE(f), msg);
 }
+
+/**
+ * flow_defer_handler() - Handler for per-flow deferred tasks
+ * @c:		Execution context
+ */
+void flow_defer_handler(struct ctx *c)
+{
+	union flow *flow;
+
+	for (flow = flowtab + c->flow_count - 1; flow >= flowtab; flow--) {
+		switch (flow->f.type) {
+		case FLOW_TCP:
+			tcp_flow_defer(c, flow);
+			break;
+		case FLOW_TCP_SPLICE:
+			tcp_splice_flow_defer(c, flow);
+			break;
+		default:
+			/* Assume other flow types don't need any handling */
+			;
+		}
+	}
+}

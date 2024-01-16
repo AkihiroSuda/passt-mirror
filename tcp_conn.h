@@ -158,6 +158,7 @@ extern int init_sock_pool6	[TCP_SOCK_POOL_SIZE];
 void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
 			 struct tcp_tap_conn *new);
 void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new);
+void tcp_flow_defer(struct ctx *c, union flow *flow);
 void tcp_splice_flow_defer(struct ctx *c, union flow *flow);
 void tcp_splice_timer(const struct ctx *c, union flow *flow);
 int tcp_conn_pool_sock(int pool[]);
