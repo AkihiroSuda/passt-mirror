@@ -86,15 +86,24 @@ void icmp_sock_handler(const struct ctx *c, int af, union epoll_ref ref)
 		     pname, strerror(errno));
 		return;
 	}
+	if (sr.sa.sa_family != af)
+		goto unexpected;
 
 	if (af == AF_INET) {
 		struct icmphdr *ih4 = (struct icmphdr *)buf;
+
+		if ((size_t)n < sizeof(*ih4) || ih4->type != ICMP_ECHOREPLY)
+			goto unexpected;
 
 		/* Adjust packet back to guest-side ID */
 		ih4->un.echo.id = htons(ref.icmp.id);
 		seq = ntohs(ih4->un.echo.sequence);
 	} else if (af == AF_INET6) {
 		struct icmp6hdr *ih6 = (struct icmp6hdr *)buf;
+
+		if ((size_t)n < sizeof(*ih6) ||
+		    ih6->icmp6_type != ICMPV6_ECHO_REPLY)
+			goto unexpected;
 
 		/* Adjust packet back to guest-side ID */
 		ih6->icmp6_identifier = htons(ref.icmp.id);
@@ -118,6 +127,10 @@ void icmp_sock_handler(const struct ctx *c, int af, union epoll_ref ref)
 	else if (af == AF_INET6)
 		tap_icmp6_send(c, &sr.sa6.sin6_addr,
 			       tap_ip6_daddr(c, &sr.sa6.sin6_addr), buf, n);
+	return;
+
+unexpected:
+	warn("%s: Unexpected packet on ping socket", pname);
 }
 
 /**
