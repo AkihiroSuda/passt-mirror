@@ -88,4 +88,7 @@ static inline flow_sidx_t flow_sidx(const struct flow_common *f,
  */
 #define FLOW_SIDX(f_, side)	(flow_sidx(&(f_)->f, (side)))
 
+union flow *flow_alloc(void);
+void flow_alloc_cancel(union flow *flow);
+
 #endif /* FLOW_TABLE_H */

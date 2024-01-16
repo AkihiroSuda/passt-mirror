@@ -1944,17 +1944,18 @@ static void tcp_conn_from_tap(struct ctx *c,
 	};
 	const struct sockaddr *sa;
 	struct tcp_tap_conn *conn;
+	union flow *flow;
 	socklen_t sl;
 	int s, mss;
 
 	(void)saddr;
 
-	if (flow_count >= FLOW_MAX)
+	if (!(flow = flow_alloc()))
 		return;
 
 	if ((s = tcp_conn_pool_sock(pool)) < 0)
 		if ((s = tcp_conn_new_sock(c, af)) < 0)
-			return;
+			goto cancel;
 
 	if (!c->no_map_gw) {
 		if (af == AF_INET && IN4_ARE_ADDR_EQUAL(daddr, &c->ip4.gw))
@@ -1969,13 +1970,11 @@ static void tcp_conn_from_tap(struct ctx *c,
 			.sin6_addr = c->ip6.addr_ll,
 			.sin6_scope_id = c->ifi6,
 		};
-		if (bind(s, (struct sockaddr *)&addr6_ll, sizeof(addr6_ll))) {
-			close(s);
-			return;
-		}
+		if (bind(s, (struct sockaddr *)&addr6_ll, sizeof(addr6_ll)))
+			goto cancel;
 	}
 
-	conn = CONN(flow_count++);
+	conn = &flow->tcp;
 	conn->f.type = FLOW_TCP;
 	conn->sock = s;
 	conn->timer = -1;
@@ -2047,6 +2046,12 @@ static void tcp_conn_from_tap(struct ctx *c,
 	}
 
 	tcp_epoll_ctl(c, conn);
+	return;
+
+cancel:
+	if (s >= 0)
+		close(s);
+	flow_alloc_cancel(flow);
 }
 
 /**
@@ -2724,14 +2729,12 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	union flow *flow;
 	int s;
 
-	if (c->no_tcp || flow_count >= FLOW_MAX)
+	if (c->no_tcp || !(flow = flow_alloc()))
 		return;
 
 	s = accept4(ref.fd, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
-		return;
-
-	flow = flowtab + flow_count++;
+		goto cancel;
 
 	if (c->mode == MODE_PASTA &&
 	    tcp_splice_conn_from_sock(c, ref.tcp_listen, &flow->tcp_splice,
@@ -2740,6 +2743,10 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 
 	tcp_tap_conn_from_sock(c, ref.tcp_listen, &flow->tcp, s,
 			       (struct sockaddr *)&sa, now);
+	return;
+
+cancel:
+	flow_alloc_cancel(flow);
 }
 
 /**

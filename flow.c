@@ -51,6 +51,32 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 }
 
 /**
+ * flow_alloc() - Allocate a new flow
+ *
+ * Return: pointer to an unused flow entry, or NULL if the table is full
+ */
+union flow *flow_alloc(void)
+{
+	if (flow_count >= FLOW_MAX)
+		return NULL;
+
+	return &flowtab[flow_count++];
+}
+
+/**
+ * flow_alloc_cancel() - Free a newly allocated flow
+ * @flow:	Flow to deallocate
+ *
+ * @flow must be the last flow allocated by flow_alloc()
+ */
+void flow_alloc_cancel(union flow *flow)
+{
+	ASSERT(FLOW_IDX(flow) == flow_count - 1);
+	memset(flow, 0, sizeof(*flow));
+	flow_count--;
+}
+
+/**
  * flow_table_compact() - Perform compaction on flow table
  * @c:		Execution context
  * @hole:	Pointer to recently closed flow
