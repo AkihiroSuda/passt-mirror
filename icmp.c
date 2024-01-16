@@ -81,8 +81,11 @@ void icmp_sock_handler(const struct ctx *c, int af, union epoll_ref ref)
 		return;
 
 	n = recvfrom(ref.fd, buf, sizeof(buf), 0, &sr.sa, &sl);
-	if (n < 0)
+	if (n < 0) {
+		warn("%s: recvfrom() error on ping socket: %s",
+		     pname, strerror(errno));
 		return;
+	}
 
 	if (af == AF_INET) {
 		struct icmphdr *ih4 = (struct icmphdr *)buf;
