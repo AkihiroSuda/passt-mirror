@@ -244,16 +244,17 @@ void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
 
 /**
  * tcp_splice_flow_defer() - Deferred per-flow handling (clean up closed)
- * @c:		Execution context
  * @flow:	Flow table entry for this connection
+ *
+ * Return: true if the flow is ready to free, false otherwise
  */
-void tcp_splice_flow_defer(const struct ctx *c, union flow *flow)
+bool tcp_splice_flow_defer(union flow *flow)
 {
 	struct tcp_splice_conn *conn = &flow->tcp_splice;
 	unsigned side;
 
 	if (!(flow->tcp_splice.flags & CLOSING))
-		return;
+		return false;
 
 	for (side = 0; side < SIDES; side++) {
 		if (conn->events & SPLICE_ESTABLISHED) {
@@ -277,7 +278,7 @@ void tcp_splice_flow_defer(const struct ctx *c, union flow *flow)
 	conn->flags = 0;
 	flow_dbg(conn, "CLOSED");
 
-	flow_table_compact(c, flow);
+	return true;
 }
 
 /**

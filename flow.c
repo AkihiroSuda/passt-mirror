@@ -81,7 +81,7 @@ void flow_alloc_cancel(union flow *flow)
  * @c:		Execution context
  * @hole:	Pointer to recently closed flow
  */
-void flow_table_compact(const struct ctx *c, union flow *hole)
+static void flow_table_compact(const struct ctx *c, union flow *hole)
 {
 	union flow *from;
 
@@ -131,18 +131,23 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 	}
 
 	for (flow = flowtab + flow_count - 1; flow >= flowtab; flow--) {
+		bool closed = false;
+
 		switch (flow->f.type) {
 		case FLOW_TCP:
-			tcp_flow_defer(c, flow);
+			closed = tcp_flow_defer(flow);
 			break;
 		case FLOW_TCP_SPLICE:
-			tcp_splice_flow_defer(c, flow);
-			if (timer)
+			closed = tcp_splice_flow_defer(flow);
+			if (!closed && timer)
 				tcp_splice_timer(c, flow);
 			break;
 		default:
 			/* Assume other flow types don't need any handling */
 			;
 		}
+
+		if (closed)
+			flow_table_compact(c, flow);
 	}
 }

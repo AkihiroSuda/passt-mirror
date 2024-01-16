@@ -68,7 +68,6 @@ static inline bool flow_sidx_eq(flow_sidx_t a, flow_sidx_t b)
 
 union flow;
 
-void flow_table_compact(const struct ctx *c, union flow *hole);
 void flow_defer_handler(const struct ctx *c, const struct timespec *now);
 
 void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)

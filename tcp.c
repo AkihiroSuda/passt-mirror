@@ -1304,21 +1304,22 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
 
 /**
  * tcp_flow_defer() - Deferred per-flow handling (clean up closed connections)
- * @c:		Execution context
  * @flow:	Flow table entry for this connection
+ *
+ * Return: true if the flow is ready to free, false otherwise
  */
-void tcp_flow_defer(const struct ctx *c, union flow *flow)
+bool tcp_flow_defer(union flow *flow)
 {
 	const struct tcp_tap_conn *conn = &flow->tcp;
 
 	if (flow->tcp.events != CLOSED)
-		return;
+		return false;
 
 	close(conn->sock);
 	if (conn->timer != -1)
 		close(conn->timer);
 
-	flow_table_compact(c, flow);
+	return true;
 }
 
 static void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);
