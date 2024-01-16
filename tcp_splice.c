@@ -232,17 +232,6 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 
 /**
- * tcp_splice_conn_update() - Update tcp_splice_conn when being moved in the table
- * @c:		Execution context
- * @new:	New location of tcp_splice_conn
- */
-void tcp_splice_conn_update(const struct ctx *c, struct tcp_splice_conn *new)
-{
-	if (tcp_splice_epoll_ctl(c, new))
-		conn_flag(c, new, CLOSING);
-}
-
-/**
  * tcp_splice_flow_defer() - Deferred per-flow handling (clean up closed)
  * @flow:	Flow table entry for this connection
  *

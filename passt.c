@@ -285,6 +285,8 @@ int main(int argc, char **argv)
 
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
+	flow_init();
+
 	if ((!c.no_udp && udp_init(&c)) || (!c.no_tcp && tcp_init(&c)))
 		exit(EXIT_FAILURE);
 

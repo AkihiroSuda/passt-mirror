@@ -10,6 +10,19 @@
 #include "tcp_conn.h"
 
 /**
+ * struct flow_free_cluster - Information about a cluster of free entries
+ * @f:		Generic flow information
+ * @n:		Number of entries in the free cluster (including this one)
+ * @next:	Index of next free cluster
+ */
+struct flow_free_cluster {
+	/* Must be first element */
+	struct flow_common f;
+	unsigned n;
+	unsigned next;
+};
+
+/**
  * union flow - Descriptor for a logical packet flow (e.g. connection)
  * @f:		Fields common between all variants
  * @tcp:	Fields for non-spliced TCP connections
@@ -17,12 +30,13 @@
 */
 union flow {
 	struct flow_common f;
+	struct flow_free_cluster free;
 	struct tcp_tap_conn tcp;
 	struct tcp_splice_conn tcp_splice;
 };
 
 /* Global Flow Table */
-extern unsigned flow_count;
+extern unsigned flow_first_free;
 extern union flow flowtab[];
 
 

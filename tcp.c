@@ -1252,29 +1252,6 @@ static void tcp_hash_remove(const struct ctx *c,
 }
 
 /**
- * tcp_tap_conn_update() - Update tcp_tap_conn when being moved in the table
- * @c:		Execution context
- * @old:	Old location of tcp_tap_conn
- * @new:	New location of tcp_tap_conn
- */
-void tcp_tap_conn_update(const struct ctx *c, struct tcp_tap_conn *old,
-			 struct tcp_tap_conn *new)
-
-{
-	unsigned b = tcp_hash_probe(c, old);
-
-	if (!flow_at_sidx(tc_hash[b]))
-		return; /* Not in hash table, nothing to update */
-
-	tc_hash[b] = FLOW_SIDX(new, TAPSIDE);
-
-	debug("TCP: hash table update: old index %u, new index %u, sock %i, "
-	      "bucket: %u", FLOW_IDX(old), FLOW_IDX(new), new->sock, b);
-
-	tcp_epoll_ctl(c, new);
-}
-
-/**
  * tcp_hash_lookup() - Look up connection given remote address and ports
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
