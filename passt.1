@@ -171,8 +171,10 @@ Assign IPv4 \fIaddr\fR as default gateway via DHCP (option 3), or IPv6
 \fIaddr\fR as source for NDP Router Advertisement and DHCPv6 messages.
 This option can be specified zero (for defaults) to two times (once for IPv4,
 once for IPv6).
-By default, IPv4 and IPv6 addresses are taken from the host interface with the
-first default route for the corresponding IP version.
+By default, IPv4 and IPv6 gateways are taken from the host interface with the
+first default route for the corresponding IP version. If the default route is a
+multipath one, the gateway is the first nexthop router returned by the kernel
+which has the highest weight in the set of paths.
 
 Note: these addresses are also used as source address for packets directed to
 the guest or to the target namespace having a loopback or local source address,

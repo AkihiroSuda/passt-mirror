@@ -271,16 +271,58 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			if (rta->rta_type != RTA_OIF)
-				continue;
+			if (rta->rta_type == RTA_OIF) {
+				ifi = *(unsigned int *)RTA_DATA(rta);
+			} else if (rta->rta_type == RTA_MULTIPATH) {
+				struct rtnexthop *rtnh;
 
-			ifi = *(unsigned int *)RTA_DATA(rta);
+				rtnh = (struct rtnexthop *)RTA_DATA(rta);
+				ifi = rtnh->rtnh_ifindex;
+			}
 		}
 	}
+
 	if (status < 0)
 		warn("netlink: RTM_GETROUTE failed: %s", strerror(-status));
 
 	return ifi;
+}
+
+/**
+ * nl_route_get_def_multipath() - Get lowest-weight route from nexthop list
+ * @rta:	Routing netlink attribute with type RTA_MULTIPATH
+ * @gw:		Default gateway to fill
+ *
+ * Return: true if a gateway was found, false otherwise
+ */
+bool nl_route_get_def_multipath(struct rtattr *rta, void *gw)
+{
+	struct rtnexthop *rtnh;
+	bool found = false;
+	int hops = -1;
+
+	for (rtnh = (struct rtnexthop *)RTA_DATA(rta);
+	     RTNH_OK(rtnh, RTA_PAYLOAD(rta)); rtnh = RTNH_NEXT(rtnh)) {
+		size_t len = rtnh->rtnh_len - sizeof(*rtnh);
+		struct rtattr *rta_inner;
+
+		if (rtnh->rtnh_hops < hops)
+			continue;
+
+		hops = rtnh->rtnh_hops;
+
+		for (rta_inner = RTNH_DATA(rtnh); RTA_OK(rta_inner, len);
+		     rta_inner = RTA_NEXT(rta_inner, len)) {
+
+			if (rta_inner->rta_type != RTA_GATEWAY)
+				continue;
+
+			memcpy(gw, RTA_DATA(rta_inner), RTA_PAYLOAD(rta_inner));
+			found = true;
+		}
+	}
+
+	return found;
 }
 
 /**
@@ -326,6 +368,9 @@ int nl_route_get_def(int s, unsigned int ifi, sa_family_t af, void *gw)
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
+			if (rta->rta_type == RTA_MULTIPATH)
+				found = nl_route_get_def_multipath(rta, gw);
+
 			if (rta->rta_type != RTA_GATEWAY)
 				continue;
 
