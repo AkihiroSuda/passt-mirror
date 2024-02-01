@@ -251,9 +251,6 @@ int main(int argc, char **argv)
 
 	__openlog(log_name, 0, LOG_DAEMON);
 
-	/* Meaning we don't know yet: log everything. LOG_EMERG is unused */
-	__setlogmask(LOG_MASK(LOG_EMERG));
-
 	c.epollfd = epoll_create1(EPOLL_CLOEXEC);
 	if (c.epollfd == -1) {
 		perror("epoll_create1");
@@ -322,8 +319,8 @@ int main(int argc, char **argv)
 	if (isolate_prefork(&c))
 		die("Failed to sandbox process, exiting");
 
-	/* Once the log mask is not LOG_EMERG, we will no longer
-	 * log to stderr if there was a log file specified.
+	/* Once the log mask is not LOG_EARLY, we will no longer log to stderr
+	 * if there was a log file specified.
 	 */
 	if (c.debug)
 		__setlogmask(LOG_UPTO(LOG_DEBUG));

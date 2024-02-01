@@ -30,9 +30,12 @@
 #include "util.h"
 #include "passt.h"
 
+/* LOG_EARLY means we don't know yet: log everything. LOG_EMERG is unused */
+#define LOG_EARLY		LOG_MASK(LOG_EMERG)
+
 static int	log_sock = -1;		/* Optional socket to system logger */
 static char	log_ident[BUFSIZ];	/* Identifier string for openlog() */
-static int	log_mask;		/* Current log priority mask */
+static int	log_mask = LOG_EARLY;	/* Current log priority mask */
 static int	log_opt;		/* Options for openlog() */
 
 static int	log_file = -1;		/* Optional log file descriptor */
@@ -45,34 +48,33 @@ static time_t	log_start;		/* Start timestamp */
 int		log_trace;		/* --trace mode enabled */
 int		log_to_stdout;		/* Print to stdout instead of stderr */
 
-#define BEFORE_DAEMON		(setlogmask(0) == LOG_MASK(LOG_EMERG))
-
 void vlogmsg(int pri, const char *format, va_list ap)
 {
+	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
+	bool early_print = LOG_PRI(log_mask) == LOG_EARLY;
 	FILE *out = log_to_stdout ? stdout : stderr;
 	struct timespec tp;
 
-	if (setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) {
+	if (debug_print) {
 		clock_gettime(CLOCK_REALTIME, &tp);
 		fprintf(out, "%lli.%04lli: ",
 			(long long int)tp.tv_sec - log_start,
 			(long long int)tp.tv_nsec / (100L * 1000));
 	}
 
-	if ((LOG_MASK(LOG_PRI(pri)) & log_mask) || BEFORE_DAEMON) {
+	if ((log_mask & LOG_MASK(LOG_PRI(pri))) || early_print) {
 		va_list ap2;
 
 		va_copy(ap2, ap); /* Don't clobber ap, we need it again */
 		if (log_file != -1)
 			logfile_write(pri, format, ap2);
-		else if (!(setlogmask(0) & LOG_MASK(LOG_DEBUG)))
+		else if (!(log_mask & LOG_MASK(LOG_DEBUG)))
 			passt_vsyslog(pri, format, ap2);
 
 		va_end(ap2);
 	}
 
-	if ((setlogmask(0) & LOG_MASK(LOG_DEBUG) && log_file == -1) ||
-	    (BEFORE_DAEMON && !(log_opt & LOG_PERROR))) {
+	if (debug_print || (early_print && !(log_opt & LOG_PERROR))) {
 		(void)vfprintf(out, format, ap);
 		if (format[strlen(format)] != '\n')
 			fprintf(out, "\n");
