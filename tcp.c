@@ -2365,7 +2365,6 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 		flow_trace(conn,
 			   "fast re-transmit, ACK: %u, previous sequence: %u",
 			   max_ack_seq, conn->seq_to_tap);
-		conn->seq_ack_from_tap = max_ack_seq;
 		conn->seq_to_tap = max_ack_seq;
 		tcp_data_from_sock(c, conn);
 	}
