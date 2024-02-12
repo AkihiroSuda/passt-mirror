@@ -1042,29 +1042,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 }
 
 /**
- * udp_sock_init_ns() - Bind sockets in namespace for outbound connections
- * @arg:	Execution context
- *
- * Return: 0
- */
-int udp_sock_init_ns(void *arg)
-{
-	const struct ctx *c = (const struct ctx *)arg;
-	unsigned dst;
-
-	ns_enter(c);
-
-	for (dst = 0; dst < NUM_PORTS; dst++) {
-		if (!bitmap_isset(c->udp.fwd_out.f.map, dst))
-			continue;
-
-		udp_sock_init(c, 1, AF_UNSPEC, NULL, NULL, dst);
-	}
-
-	return 0;
-}
-
-/**
  * udp_splice_iov_init() - Set up buffers and descriptors for recvmmsg/sendmmsg
  */
 static void udp_splice_iov_init(void)
@@ -1088,31 +1065,6 @@ static void udp_splice_iov_init(void)
 		mh6->msg_iov = &udp6_iov_splice[i];
 		mh4->msg_iovlen = mh6->msg_iovlen = 1;
 	}
-}
-
-/**
- * udp_init() - Initialise per-socket data, and sockets in namespace
- * @c:		Execution context
- *
- * Return: 0
- */
-int udp_init(struct ctx *c)
-{
-	if (c->ifi4)
-		udp_sock4_iov_init(c);
-
-	if (c->ifi6)
-		udp_sock6_iov_init(c);
-
-	udp_invert_portmap(&c->udp.fwd_in);
-	udp_invert_portmap(&c->udp.fwd_out);
-
-	if (c->mode == MODE_PASTA) {
-		udp_splice_iov_init();
-		NS_CALL(udp_sock_init_ns, c);
-	}
-
-	return 0;
 }
 
 /**
@@ -1271,4 +1223,29 @@ v6:
 		v6 = 1;
 		goto v6;
 	}
+}
+
+/**
+ * udp_init() - Initialise per-socket data, and sockets in namespace
+ * @c:		Execution context
+ *
+ * Return: 0
+ */
+int udp_init(struct ctx *c)
+{
+	if (c->ifi4)
+		udp_sock4_iov_init(c);
+
+	if (c->ifi6)
+		udp_sock6_iov_init(c);
+
+	udp_invert_portmap(&c->udp.fwd_in);
+	udp_invert_portmap(&c->udp.fwd_out);
+
+	if (c->mode == MODE_PASTA) {
+		udp_splice_iov_init();
+		NS_CALL(udp_port_rebind_outbound, c);
+	}
+
+	return 0;
 }
