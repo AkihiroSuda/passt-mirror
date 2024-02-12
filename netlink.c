@@ -274,7 +274,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 			if (rta->rta_type == RTA_OIF) {
 				ifi = *(unsigned int *)RTA_DATA(rta);
 			} else if (rta->rta_type == RTA_MULTIPATH) {
-				struct rtnexthop *rtnh;
+				const struct rtnexthop *rtnh;
 
 				rtnh = (struct rtnexthop *)RTA_DATA(rta);
 				ifi = rtnh->rtnh_ifindex;
