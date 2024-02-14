@@ -119,6 +119,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	bool exclude_only = true, bound_one = false;
 	uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
 	sa_family_t af = AF_UNSPEC;
+	unsigned i;
 	int ret;
 
 	if (!strcmp(optarg, "none")) {
@@ -141,8 +142,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	}
 
 	if (!strcmp(optarg, "all")) {
-		unsigned i;
-
 		if (fwd->mode)
 			goto mode_conflict;
 
@@ -171,7 +170,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		}
 
 		if (!bound_one)
-			goto bind_fail;
+			goto bind_all_fail;
 
 		return;
 	}
@@ -221,7 +220,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	p = spec;
 	do {
 		struct port_range xrange;
-		unsigned i;
 
 		if (*p != '~') {
 			/* Not an exclude range, parse later */
@@ -244,8 +242,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	} while ((p = next_chunk(p, ',')));
 
 	if (exclude_only) {
-		unsigned i;
-
 		for (i = 0; i < PORT_EPHEMERAL_MIN; i++) {
 			if (bitmap_isset(exclude, i))
 				continue;
@@ -271,7 +267,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		}
 
 		if (!bound_one)
-			goto bind_fail;
+			goto bind_all_fail;
 
 		return;
 	}
@@ -280,7 +276,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	p = spec;
 	do {
 		struct port_range orig_range, mapped_range;
-		unsigned i;
 
 		if (*p == '~')
 			/* Exclude range, already parsed */
@@ -314,27 +309,15 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 			fwd->delta[i] = mapped_range.first - orig_range.first;
 
-			if (optname == 't') {
+			ret = 0;
+			if (optname == 't')
 				ret = tcp_sock_init(c, af, addr, ifname, i);
-				if (ret == -ENFILE || ret == -EMFILE)
-					goto enfile;
-				if (!ret)
-					bound_one = true;
-			} else if (optname == 'u') {
+			else if (optname == 'u')
 				ret = udp_sock_init(c, 0, af, addr, ifname, i);
-				if (ret == -ENFILE || ret == -EMFILE)
-					goto enfile;
-				if (!ret)
-					bound_one = true;
-			} else {
-				/* No way to check in advance for -T and -U */
-				bound_one = true;
-			}
+			if (ret)
+				goto bind_fail;
 		}
 	} while ((p = next_chunk(p, ',')));
-
-	if (!bound_one)
-		goto bind_fail;
 
 	return;
 enfile:
@@ -344,6 +327,9 @@ bad:
 mode_conflict:
 	die("Port forwarding mode '%s' conflicts with previous mode", optarg);
 bind_fail:
+	die("Failed to bind port %u (%s) for option '-%c %s', exiting",
+	    i, strerror(-ret), optname, optarg);
+bind_all_fail:
 	die("Failed to bind any port for '-%c %s', exiting", optname, optarg);
 }
 

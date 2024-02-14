@@ -355,7 +355,8 @@ Don't forward any ports
 .TP
 .BR all
 Forward all unbound, non-ephemeral ports, as permitted by current capabilities.
-For low (< 1024) ports, see \fBNOTES\fR.
+For low (< 1024) ports, see \fBNOTES\fR. No failures are reported for
+unavailable ports, unless no ports could be forwarded at all.
 
 .TP
 .BR ports
@@ -364,7 +365,11 @@ optionally, with target ports after \fI:\fR, if they differ. Specific addresses
 can be bound as well, separated by \fI/\fR, and also, since Linux 5.7, limited
 to specific interfaces, prefixed by \fI%\fR. Within given ranges, selected ports
 and ranges can be excluded by an additional specification prefixed by \fI~\fR.
-Specifying excluded ranges only implies that all other ports are forwarded.
+
+Specifying excluded ranges only implies that all other ports are forwarded. In
+this case, no failures are reported for unavailable ports, unless no ports could
+be forwarded at all.
+
 Examples:
 .RS
 .TP
@@ -447,7 +452,11 @@ optionally, with target ports after \fI:\fR, if they differ. Specific addresses
 can be bound as well, separated by \fI/\fR, and also, since Linux 5.7, limited
 to specific interfaces, prefixed by \fI%\fR. Within given ranges, selected ports
 and ranges can be excluded by an additional specification prefixed by \fI~\fR.
-Specifying excluded ranges only implies that all other ports are forwarded.
+
+Specifying excluded ranges only implies that all other ports are forwarded. In
+this case, no failures are reported for unavailable ports, unless no ports could
+be forwarded at all.
+
 Examples:
 .RS
 .TP
