@@ -30,6 +30,7 @@
 #include <sys/epoll.h>
 #include <sys/inotify.h>
 #include <sys/mount.h>
+#include <sys/timerfd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -357,46 +358,78 @@ void pasta_ns_conf(struct ctx *c)
 }
 
 /**
- * pasta_netns_quit_init() - Watch network namespace to quit once it's gone
- * @c:		Execution context
+ * pasta_netns_quit_timer() - Set up fallback timer to monitor namespace
  *
- * Return: inotify file descriptor, -1 on failure or if not needed/applicable
+ * Return: timerfd file descriptor, negative error code on failure
  */
-int pasta_netns_quit_init(const struct ctx *c)
+static int pasta_netns_quit_timer(void)
 {
-	int flags = O_NONBLOCK | O_CLOEXEC;
-	union epoll_ref ref = { .type = EPOLL_TYPE_NSQUIT };
-	struct epoll_event ev = {
-		.events = EPOLLIN
-	};
-	int inotify_fd;
+	int fd = timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC);
+	struct itimerspec it = { { 1, 0 }, { 1, 0 } }; /* one-second interval */
 
-	if (c->mode != MODE_PASTA || c->no_netns_quit || !*c->netns_base)
-		return -1;
-
-	if ((inotify_fd = inotify_init1(flags)) < 0) {
-		perror("inotify_init(): won't quit once netns is gone");
-		return -1;
+	if (fd == -1) {
+		err("timerfd_create(): %s", strerror(errno));
+		return -errno;
 	}
 
-	if (inotify_add_watch(inotify_fd, c->netns_dir, IN_DELETE) < 0) {
-		perror("inotify_add_watch(): won't quit once netns is gone");
-		return -1;
+	if (timerfd_settime(fd, 0, &it, NULL) < 0) {
+		err("timerfd_settime(): %s", strerror(errno));
+		close(fd);
+		return -errno;
 	}
 
-	ref.fd = inotify_fd;
-	ev.data.u64 = ref.u64;
-	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, inotify_fd, &ev);
-
-	return inotify_fd;
+	return fd;
 }
 
 /**
- * pasta_netns_quit_handler() - Handle ns directory events, exit if ns is gone
+ * pasta_netns_quit_init() - Watch network namespace to quit once it's gone
+ * @c:		Execution context
+ */
+void pasta_netns_quit_init(const struct ctx *c)
+{
+	union epoll_ref ref = { .type = EPOLL_TYPE_NSQUIT_INOTIFY };
+	struct epoll_event ev = { .events = EPOLLIN };
+	int flags = O_NONBLOCK | O_CLOEXEC;
+	int fd;
+
+	if (c->mode != MODE_PASTA || c->no_netns_quit || !*c->netns_base)
+		return;
+
+	if ((fd = inotify_init1(flags)) < 0)
+		warn("inotify_init1(): %s, use a timer", strerror(errno));
+
+	if (fd >= 0 && inotify_add_watch(fd, c->netns_dir, IN_DELETE) < 0) {
+		warn("inotify_add_watch(): %s, use a timer",
+		     strerror(errno));
+		close(fd);
+		fd = -1;
+	}
+
+	if (fd < 0) {
+		if ((fd = pasta_netns_quit_timer()) < 0)
+			die("Failed to set up fallback netns timer, exiting");
+
+		ref.nsdir_fd = open(c->netns_dir, O_CLOEXEC | O_RDONLY);
+		if (ref.nsdir_fd < 0)
+			die("netns dir open: %s, exiting", strerror(errno));
+
+		ref.type = EPOLL_TYPE_NSQUIT_TIMER;
+	}
+
+	if (fd > FD_REF_MAX)
+		die("netns monitor file number %i too big, exiting", fd);
+
+	ref.fd = fd;
+	ev.data.u64 = ref.u64;
+	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, fd, &ev);
+}
+
+/**
+ * pasta_netns_quit_inotify_handler() - Handle inotify watch, exit if ns is gone
  * @c:		Execution context
  * @inotify_fd:	inotify file descriptor with watch on namespace directory
  */
-void pasta_netns_quit_handler(struct ctx *c, int inotify_fd)
+void pasta_netns_quit_inotify_handler(struct ctx *c, int inotify_fd)
 {
 	char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
 	const struct inotify_event *in_ev = (struct inotify_event *)buf;
@@ -409,4 +442,30 @@ void pasta_netns_quit_handler(struct ctx *c, int inotify_fd)
 
 	info("Namespace %s is gone, exiting", c->netns_base);
 	exit(EXIT_SUCCESS);
+}
+
+/**
+ * pasta_netns_quit_timer_handler() - Handle timer, exit if ns is gone
+ * @c:		Execution context
+ * @ref:	epoll reference for timer descriptor
+ */
+void pasta_netns_quit_timer_handler(struct ctx *c, union epoll_ref ref)
+{
+	uint64_t expirations;
+	ssize_t n;
+	int fd;
+
+	n = read(ref.fd, &expirations, sizeof(expirations));
+	if (n < 0)
+		die("Namespace watch timer read() error: %s", strerror(errno));
+	if ((size_t)n < sizeof(expirations))
+		warn("Namespace watch timer: short read(): %zi", n);
+
+	fd = openat(ref.nsdir_fd, c->netns_base, O_PATH | O_CLOEXEC);
+	if (fd < 0) {
+		info("Namespace %s is gone, exiting", c->netns_base);
+		exit(EXIT_SUCCESS);
+	}
+
+	close(fd);
 }

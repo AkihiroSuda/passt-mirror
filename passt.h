@@ -64,7 +64,9 @@ enum epoll_type {
 	/* ICMPv6 sockets */
 	EPOLL_TYPE_ICMPV6,
 	/* inotify fd watching for end of netns (pasta) */
-	EPOLL_TYPE_NSQUIT,
+	EPOLL_TYPE_NSQUIT_INOTIFY,
+	/* timer fd watching for end of netns, fallback for inotify (pasta) */
+	EPOLL_TYPE_NSQUIT_TIMER,
 	/* tuntap character device */
 	EPOLL_TYPE_TAP_PASTA,
 	/* socket connected to qemu  */
@@ -84,6 +86,7 @@ enum epoll_type {
  * @udp:	UDP-specific reference part
  * @icmp:	ICMP-specific reference part
  * @data:	Data handled by protocol handlers
+ * @nsdir_fd:	netns dirfd for fallback timer checking if namespace is gone
  * @u64:	Opaque reference for epoll_ctl() and epoll_wait()
  */
 union epoll_ref {
@@ -99,6 +102,7 @@ union epoll_ref {
 			union udp_epoll_ref udp;
 			union icmp_epoll_ref icmp;
 			uint32_t data;
+			int nsdir_fd;
 		};
 	};
 	uint64_t u64;

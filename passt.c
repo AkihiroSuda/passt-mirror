@@ -61,17 +61,18 @@
 char pkt_buf[PKT_BUF_BYTES]	__attribute__ ((aligned(PAGE_SIZE)));
 
 char *epoll_type_str[] = {
-	[EPOLL_TYPE_TCP]	= "connected TCP socket",
-	[EPOLL_TYPE_TCP_SPLICE]	= "connected spliced TCP socket",
-	[EPOLL_TYPE_TCP_LISTEN]	= "listening TCP socket",
-	[EPOLL_TYPE_TCP_TIMER]	= "TCP timer",
-	[EPOLL_TYPE_UDP]	= "UDP socket",
-	[EPOLL_TYPE_ICMP]	= "ICMP socket",
-	[EPOLL_TYPE_ICMPV6]	= "ICMPv6 socket",
-	[EPOLL_TYPE_NSQUIT]	= "namespace inotify",
-	[EPOLL_TYPE_TAP_PASTA]	= "/dev/net/tun device",
-	[EPOLL_TYPE_TAP_PASST]	= "connected qemu socket",
-	[EPOLL_TYPE_TAP_LISTEN]	= "listening qemu socket",
+	[EPOLL_TYPE_TCP]		= "connected TCP socket",
+	[EPOLL_TYPE_TCP_SPLICE]		= "connected spliced TCP socket",
+	[EPOLL_TYPE_TCP_LISTEN]		= "listening TCP socket",
+	[EPOLL_TYPE_TCP_TIMER]		= "TCP timer",
+	[EPOLL_TYPE_UDP]		= "UDP socket",
+	[EPOLL_TYPE_ICMP]		= "ICMP socket",
+	[EPOLL_TYPE_ICMPV6]		= "ICMPv6 socket",
+	[EPOLL_TYPE_NSQUIT_INOTIFY]	= "namespace inotify watch",
+	[EPOLL_TYPE_NSQUIT_TIMER]	= "namespace timer watch",
+	[EPOLL_TYPE_TAP_PASTA]		= "/dev/net/tun device",
+	[EPOLL_TYPE_TAP_PASST]		= "connected qemu socket",
+	[EPOLL_TYPE_TAP_LISTEN]		= "listening qemu socket",
 };
 static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
 	      "epoll_type_str[] doesn't match enum epoll_type");
@@ -201,7 +202,7 @@ void exit_handler(int signal)
  */
 int main(int argc, char **argv)
 {
-	int nfds, i, devnull_fd = -1, pidfile_fd = -1, quit_fd;
+	int nfds, i, devnull_fd = -1, pidfile_fd = -1;
 	struct epoll_event events[EPOLL_EVENTS];
 	char *log_name, argv0[PATH_MAX], *name;
 	struct ctx c = { 0 };
@@ -274,7 +275,7 @@ int main(int argc, char **argv)
 	if (c.force_stderr || isatty(fileno(stdout)))
 		__openlog(log_name, LOG_PERROR, LOG_DAEMON);
 
-	quit_fd = pasta_netns_quit_init(&c);
+	pasta_netns_quit_init(&c);
 
 	tap_sock_init(&c);
 
@@ -370,8 +371,11 @@ loop:
 		case EPOLL_TYPE_TAP_LISTEN:
 			tap_listen_handler(&c, eventmask);
 			break;
-		case EPOLL_TYPE_NSQUIT:
-			pasta_netns_quit_handler(&c, quit_fd);
+		case EPOLL_TYPE_NSQUIT_INOTIFY:
+			pasta_netns_quit_inotify_handler(&c, ref.fd);
+			break;
+		case EPOLL_TYPE_NSQUIT_TIMER:
+			pasta_netns_quit_timer_handler(&c, ref);
 			break;
 		case EPOLL_TYPE_TCP:
 			tcp_sock_handler(&c, ref, eventmask);

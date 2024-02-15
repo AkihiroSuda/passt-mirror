@@ -13,7 +13,8 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 		    int argc, char *argv[]);
 void pasta_ns_conf(struct ctx *c);
 void pasta_child_handler(int signal);
-int pasta_netns_quit_init(const struct ctx *c);
-void pasta_netns_quit_handler(struct ctx *c, int inotify_fd);
+void pasta_netns_quit_init(const struct ctx *c);
+void pasta_netns_quit_inotify_handler(struct ctx *c, int inotify_fd);
+void pasta_netns_quit_timer_handler(struct ctx *c, union epoll_ref ref);
 
 #endif /* PASTA_H */
