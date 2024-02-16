@@ -201,6 +201,8 @@ allow pasta_t kernel_t:system module_request;
 
 allow pasta_t nsfs_t:file read;
 
+allow pasta_t proc_t:dir mounton;
+allow pasta_t proc_t:filesystem mount;
 allow pasta_t net_conf_t:lnk_file read;
 allow pasta_t proc_net_t:lnk_file read;
 
