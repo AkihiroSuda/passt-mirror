@@ -33,6 +33,7 @@
 #include <sys/timerfd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/statfs.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -41,6 +42,7 @@
 #include <netinet/in.h>
 #include <net/ethernet.h>
 #include <sys/syscall.h>
+#include <linux/magic.h>
 
 #include "util.h"
 #include "passt.h"
@@ -390,12 +392,21 @@ void pasta_netns_quit_init(const struct ctx *c)
 	union epoll_ref ref = { .type = EPOLL_TYPE_NSQUIT_INOTIFY };
 	struct epoll_event ev = { .events = EPOLLIN };
 	int flags = O_NONBLOCK | O_CLOEXEC;
-	int fd;
+	struct statfs s = { 0 };
+	bool try_inotify = true;
+	int fd = -1, dir_fd;
 
 	if (c->mode != MODE_PASTA || c->no_netns_quit || !*c->netns_base)
 		return;
 
-	if ((fd = inotify_init1(flags)) < 0)
+	if ((dir_fd = open(c->netns_dir, O_CLOEXEC | O_RDONLY)) < 0)
+		die("netns dir open: %s, exiting", strerror(errno));
+
+	if (fstatfs(dir_fd, &s)          || s.f_type == DEVPTS_SUPER_MAGIC ||
+	    s.f_type == PROC_SUPER_MAGIC || s.f_type == SYSFS_MAGIC)
+		try_inotify = false;
+
+	if (try_inotify && (fd = inotify_init1(flags)) < 0)
 		warn("inotify_init1(): %s, use a timer", strerror(errno));
 
 	if (fd >= 0 && inotify_add_watch(fd, c->netns_dir, IN_DELETE) < 0) {
@@ -409,11 +420,11 @@ void pasta_netns_quit_init(const struct ctx *c)
 		if ((fd = pasta_netns_quit_timer()) < 0)
 			die("Failed to set up fallback netns timer, exiting");
 
-		ref.nsdir_fd = open(c->netns_dir, O_CLOEXEC | O_RDONLY);
-		if (ref.nsdir_fd < 0)
-			die("netns dir open: %s, exiting", strerror(errno));
+		ref.nsdir_fd = dir_fd;
 
 		ref.type = EPOLL_TYPE_NSQUIT_TIMER;
+	} else {
+		close(dir_fd);
 	}
 
 	if (fd > FD_REF_MAX)
@@ -463,6 +474,9 @@ void pasta_netns_quit_timer_handler(struct ctx *c, union epoll_ref ref)
 
 	fd = openat(ref.nsdir_fd, c->netns_base, O_PATH | O_CLOEXEC);
 	if (fd < 0) {
+		if (errno == EACCES)	/* Expected for existing procfs entry */
+			return;
+
 		info("Namespace %s is gone, exiting", c->netns_base);
 		exit(EXIT_SUCCESS);
 	}

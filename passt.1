@@ -550,8 +550,12 @@ without \-\-userns.
 
 .TP
 .BR \-\-no-netns-quit
-If the target network namespace is bound to the filesystem (that is, if PATH or
-NAME are given as target), do not exit once the network namespace is deleted.
+Do not exit once the target namespace reference is removed.
+
+Without this option, \fBpasta\fR will terminate if the target network namespace
+is bound to the filesystem, and the given path is deleted, or if the target
+network namespace is represented by a procfs entry, and that entry is deleted,
+representing the fact that a process with the given PID terminated.
 
 .TP
 .BR \-\-config-net
