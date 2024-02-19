@@ -1792,7 +1792,7 @@ int tcp_conn_pool_sock(int pool[])
  *
  * Return: socket number on success, negative code if socket creation failed
  */
-int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
+static int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
 {
 	int s;
 
@@ -1809,6 +1809,32 @@ int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
 	tcp_sock_set_bufsize(c, s);
 
 	return s;
+}
+
+/**
+ * tcp_conn_sock() - Obtain a connectable socket in the host/init namespace
+ * @c:		Execution context
+ * @af:		Address family (AF_INET or AF_INET6)
+ *
+ * Return: Socket fd on success, -errno on failure
+ */
+int tcp_conn_sock(const struct ctx *c, sa_family_t af)
+{
+	int *pool = af == AF_INET6 ? init_sock_pool6 : init_sock_pool4;
+	int s;
+
+	if ((s = tcp_conn_pool_sock(pool)) >= 0)
+		return s;
+
+	/* If the pool is empty we just open a new one without refilling the
+	 * pool to keep latency down.
+	 */
+	if ((s = tcp_conn_new_sock(c, af)) >= 0)
+		return s;
+
+	err("TCP: Unable to open socket for new connection: %s",
+	    strerror(-s));
+	return -1;
 }
 
 /**
@@ -1909,7 +1935,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			      const struct tcphdr *th, const char *opts,
 			      size_t optlen, const struct timespec *now)
 {
-	int *pool = af == AF_INET6 ? init_sock_pool6 : init_sock_pool4;
 	struct sockaddr_in addr4 = {
 		.sin_family = AF_INET,
 		.sin_port = th->dest,
@@ -1931,9 +1956,8 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	if (!(flow = flow_alloc()))
 		return;
 
-	if ((s = tcp_conn_pool_sock(pool)) < 0)
-		if ((s = tcp_conn_new_sock(c, af)) < 0)
-			goto cancel;
+	if ((s = tcp_conn_sock(c, af)) < 0)
+		goto cancel;
 
 	if (!c->no_map_gw) {
 		if (af == AF_INET && IN4_ARE_ADDR_EQUAL(daddr, &c->ip4.gw))

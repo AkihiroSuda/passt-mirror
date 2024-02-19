@@ -377,6 +377,34 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 }
 
 /**
+ * tcp_conn_sock_ns() - Obtain a connectable socket in the namespace
+ * @c:		Execution context
+ * @af:		Address family (AF_INET or AF_INET6)
+ *
+ * Return: Socket fd in the namespace on success, -errno on failure
+ */
+static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af)
+{
+	int *p = af == AF_INET6 ? ns_sock_pool6 : ns_sock_pool4;
+	int s;
+
+	if ((s = tcp_conn_pool_sock(p)) >= 0)
+		return s;
+
+	/* If the pool is empty we have to incur the latency of entering the ns.
+	 * Therefore, we might as well refill the whole pool while we're at it.
+	 * This differs from tcp_conn_sock().
+	 */
+	NS_CALL(tcp_sock_refill_ns, c);
+
+	if ((s = tcp_conn_pool_sock(p)) >= 0)
+		return s;
+
+	err("TCP: No available ns sockets for new connection");
+	return -1;
+}
+
+/**
  * tcp_splice_new() - Handle new spliced connection
  * @c:		Execution context
  * @conn:	Connection pointer
@@ -388,38 +416,19 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
 			  in_port_t port, uint8_t pif)
 {
+	sa_family_t af = CONN_V6(conn) ? AF_INET6 : AF_INET;
 	int s = -1;
 
-	/* If the pool is empty we take slightly different approaches
-	 * for init or ns sockets.  For init sockets we just open a
-	 * new one without refilling the pool to keep latency down.
-	 * For ns sockets, we're going to incur the latency of
-	 * entering the ns anyway, so we might as well refill the
-	 * pool.
-	 */
 	if (pif == PIF_SPLICE) {
-		int *p = CONN_V6(conn) ? init_sock_pool6 : init_sock_pool4;
-		sa_family_t af = CONN_V6(conn) ? AF_INET6 : AF_INET;
-
-		s = tcp_conn_pool_sock(p);
-		if (s < 0)
-			s = tcp_conn_new_sock(c, af);
+		s = tcp_conn_sock(c, af);
 	} else {
-		int *p = CONN_V6(conn) ? ns_sock_pool6 : ns_sock_pool4;
-
 		ASSERT(pif == PIF_HOST);
 
-		/* If pool is empty, refill it first */
-		if (p[TCP_SOCK_POOL_SIZE-1] < 0)
-			NS_CALL(tcp_sock_refill_ns, c);
-
-		s = tcp_conn_pool_sock(p);
+		s = tcp_conn_sock_ns(c, af);
 	}
 
-	if (s < 0) {
-		warn("Couldn't open connectable socket for splice (%d)", s);
+	if (s < 0)
 		return s;
-	}
 
 	return tcp_splice_connect(c, conn, s, port);
 }
