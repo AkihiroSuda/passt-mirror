@@ -160,7 +160,7 @@ bool tcp_splice_flow_defer(union flow *flow);
 void tcp_splice_timer(const struct ctx *c, union flow *flow);
 int tcp_conn_pool_sock(int pool[]);
 int tcp_conn_new_sock(const struct ctx *c, sa_family_t af);
-void tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af);
+int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af);
 void tcp_splice_refill(const struct ctx *c);
 
 #endif /* TCP_CONN_H */

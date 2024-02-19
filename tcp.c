@@ -3007,8 +3007,10 @@ static int tcp_ns_socks_init(void *arg)
  * @c:		Execution context
  * @pool:	Pool of sockets to refill
  * @af:		Address family to use
+ *
+ * Return: 0 on success, negative error code if there was at least one error
  */
-void tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
+int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
 {
 	int i;
 
@@ -3017,8 +3019,10 @@ void tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
 			continue;
 
 		if ((pool[i] = tcp_conn_new_sock(c, af)) < 0)
-			break;
+			return pool[i];
 	}
+
+	return 0;
 }
 
 /**
@@ -3027,10 +3031,18 @@ void tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
  */
 static void tcp_sock_refill_init(const struct ctx *c)
 {
-	if (c->ifi4)
-		tcp_sock_refill_pool(c, init_sock_pool4, AF_INET);
-	if (c->ifi6)
-		tcp_sock_refill_pool(c, init_sock_pool6, AF_INET6);
+	if (c->ifi4) {
+		int rc = tcp_sock_refill_pool(c, init_sock_pool4, AF_INET);
+		if (rc < 0)
+			warn("TCP: Error refilling IPv4 host socket pool: %s",
+			     strerror(-rc));
+	}
+	if (c->ifi6) {
+		int rc = tcp_sock_refill_pool(c, init_sock_pool6, AF_INET6);
+		if (rc < 0)
+			warn("TCP: Error refilling IPv6 host socket pool: %s",
+			     strerror(-rc));
+	}
 }
 
 /**

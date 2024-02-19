@@ -710,10 +710,18 @@ static int tcp_sock_refill_ns(void *arg)
 
 	ns_enter(c);
 
-	if (c->ifi4)
-		tcp_sock_refill_pool(c, ns_sock_pool4, AF_INET);
-	if (c->ifi6)
-		tcp_sock_refill_pool(c, ns_sock_pool6, AF_INET6);
+	if (c->ifi4) {
+		int rc = tcp_sock_refill_pool(c, ns_sock_pool4, AF_INET);
+		if (rc < 0)
+			warn("TCP: Error refilling IPv4 ns socket pool: %s",
+			     strerror(-rc));
+	}
+	if (c->ifi6) {
+		int rc = tcp_sock_refill_pool(c, ns_sock_pool6, AF_INET6);
+		if (rc < 0)
+			warn("TCP: Error refilling IPv6 ns socket pool: %s",
+			     strerror(-rc));
+	}
 
 	return 0;
 }
