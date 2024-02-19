@@ -10,8 +10,8 @@
 
 struct ctx;
 
-void icmp_sock_handler(const struct ctx *c, int af, union epoll_ref ref);
-int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
+void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref);
+int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now);
 void icmp_timer(const struct ctx *c, const struct timespec *now);

@@ -212,7 +212,7 @@ struct ipv6_opt_hdr {
 __attribute__ ((weak)) int ffsl(long int i) { return __builtin_ffsl(i); }
 char *ipv6_l4hdr(const struct pool *p, int idx, size_t offset, uint8_t *proto,
 		 size_t *dlen);
-int sock_l4(const struct ctx *c, int af, uint8_t proto,
+int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data);
 void sock_probe_mem(struct ctx *c);

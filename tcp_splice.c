@@ -399,7 +399,7 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
 	 */
 	if (pif == PIF_SPLICE) {
 		int *p = CONN_V6(conn) ? init_sock_pool6 : init_sock_pool4;
-		int af = CONN_V6(conn) ? AF_INET6 : AF_INET;
+		sa_family_t af = CONN_V6(conn) ? AF_INET6 : AF_INET;
 
 		s = tcp_conn_pool_sock(p);
 		if (s < 0)

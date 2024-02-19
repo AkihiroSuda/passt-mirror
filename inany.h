@@ -60,7 +60,8 @@ static inline bool inany_equals(const union inany_addr *a,
  * @af:		Address family of @addr
  * @addr:	struct in_addr (IPv4) or struct in6_addr (IPv6)
  */
-static inline void inany_from_af(union inany_addr *aa, int af, const void *addr)
+static inline void inany_from_af(union inany_addr *aa,
+				 sa_family_t af, const void *addr)
 {
 	if (af == AF_INET6) {
 		aa->a6 = *((struct in6_addr *)addr);

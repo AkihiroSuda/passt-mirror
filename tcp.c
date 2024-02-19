@@ -1262,7 +1262,7 @@ static void tcp_hash_remove(const struct ctx *c,
  * Return: connection pointer, if found, -ENOENT otherwise
  */
 static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
-					    int af, const void *faddr,
+					    sa_family_t af, const void *faddr,
 					    in_port_t eport, in_port_t fport)
 {
 	union inany_addr aany;
@@ -1904,8 +1904,8 @@ static void tcp_bind_outbound(const struct ctx *c, int s, sa_family_t af)
  * @optlen:	Bytes in options: caller MUST ensure available length
  * @now:	Current timestamp
  */
-static void tcp_conn_from_tap(struct ctx *c,
-			      int af, const void *saddr, const void *daddr,
+static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
+			      const void *saddr, const void *daddr,
 			      const struct tcphdr *th, const char *opts,
 			      size_t optlen, const struct timespec *now)
 {
@@ -2479,7 +2479,7 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
  *
  * Return: count of consumed packets
  */
-int tcp_tap_handler(struct ctx *c, uint8_t pif, int af,
+int tcp_tap_handler(struct ctx *c, uint8_t pif, sa_family_t af,
 		    const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
@@ -2856,7 +2856,7 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
  *
  * Return: fd for the new listening socket, negative error code on failure
  */
-static int tcp_sock_init_af(const struct ctx *c, int af, in_port_t port,
+static int tcp_sock_init_af(const struct ctx *c, sa_family_t af, in_port_t port,
 			    const void *addr, const char *ifname)
 {
 	union tcp_listen_epoll_ref tref = {
@@ -3008,7 +3008,7 @@ static int tcp_ns_socks_init(void *arg)
  * @pool:	Pool of sockets to refill
  * @af:		Address family to use
  */
-void tcp_sock_refill_pool(const struct ctx *c, int pool[], int af)
+void tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
 {
 	int i;
 

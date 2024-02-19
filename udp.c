@@ -816,7 +816,7 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
  * #syscalls sendmmsg
  */
 int udp_tap_handler(struct ctx *c, uint8_t pif,
-		    int af, const void *saddr, const void *daddr,
+		    sa_family_t af, const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
 	struct mmsghdr mm[UIO_MAXIOV];

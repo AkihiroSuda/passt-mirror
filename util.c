@@ -97,7 +97,7 @@ found:
  *
  * Return: newly created socket, negative error code on failure
  */
-int sock_l4(const struct ctx *c, int af, uint8_t proto,
+int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data)
 {

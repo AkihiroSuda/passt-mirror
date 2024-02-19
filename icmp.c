@@ -62,7 +62,7 @@ static struct icmp_id_sock icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
  * @af:		Address family (AF_INET or AF_INET6)
  * @ref:	epoll reference
  */
-void icmp_sock_handler(const struct ctx *c, int af, union epoll_ref ref)
+void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 {
 	struct icmp_id_sock *const id_sock = af == AF_INET
 		? &icmp_id_map[V4][ref.icmp.id] : &icmp_id_map[V6][ref.icmp.id];
@@ -156,7 +156,7 @@ static void icmp_ping_close(const struct ctx *c, struct icmp_id_sock *id_sock)
  * Return: Newly opened ping socket fd, or -1 on failure
  */
 static int icmp_ping_new(const struct ctx *c, struct icmp_id_sock *id_sock,
-			 int af, uint16_t id)
+			 sa_family_t af, uint16_t id)
 {
 	uint8_t proto = af == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6;
 	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
@@ -209,7 +209,7 @@ cancel:
  *
  * Return: count of consumed packets (always 1, even if malformed)
  */
-int icmp_tap_handler(const struct ctx *c, uint8_t pif, int af,
+int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
