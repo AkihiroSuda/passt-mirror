@@ -3014,7 +3014,7 @@ void tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
 
 	for (i = 0; i < TCP_SOCK_POOL_SIZE; i++) {
 		if (pool[i] >= 0)
-			break;
+			continue;
 
 		pool[i] = tcp_conn_new_sock(c, af);
 	}
