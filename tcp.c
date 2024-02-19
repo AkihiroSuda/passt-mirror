@@ -3039,11 +3039,15 @@ int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af)
 	int i;
 
 	for (i = 0; i < TCP_SOCK_POOL_SIZE; i++) {
+		int fd;
+
 		if (pool[i] >= 0)
 			continue;
 
-		if ((pool[i] = tcp_conn_new_sock(c, af)) < 0)
-			return pool[i];
+		if ((fd = tcp_conn_new_sock(c, af)) < 0)
+			return fd;
+
+		pool[i] = fd;
 	}
 
 	return 0;
