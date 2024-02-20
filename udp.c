@@ -260,7 +260,8 @@ static void udp_invert_portmap(struct udp_port_fwd *fwd)
 {
 	int i;
 
-	ASSERT(ARRAY_SIZE(fwd->f.delta) == ARRAY_SIZE(fwd->rdelta));
+	static_assert(ARRAY_SIZE(fwd->f.delta) == ARRAY_SIZE(fwd->rdelta),
+		      "Forward and reverse delta arrays must have same size");
 	for (i = 0; i < ARRAY_SIZE(fwd->f.delta); i++) {
 		in_port_t delta = fwd->f.delta[i];
 
