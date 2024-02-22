@@ -326,7 +326,7 @@ int main(int argc, char **argv)
 	if (c.debug)
 		__setlogmask(LOG_UPTO(LOG_DEBUG));
 	else if (c.quiet)
-		__setlogmask(LOG_UPTO(LOG_ERR));
+		__setlogmask(LOG_UPTO(LOG_WARNING));
 	else
 		__setlogmask(LOG_UPTO(LOG_INFO));
 
