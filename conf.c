@@ -1646,6 +1646,16 @@ void conf(struct ctx *c, int argc, char **argv)
 			     logfile, logsize);
 	}
 
+	/* Once the log mask is not LOG_EARLY, we will no longer log to stderr
+	 * if there was a log file specified.
+	 */
+	if (c->debug)
+		__setlogmask(LOG_UPTO(LOG_DEBUG));
+	else if (c->quiet)
+		__setlogmask(LOG_UPTO(LOG_WARNING));
+	else
+		__setlogmask(LOG_UPTO(LOG_INFO));
+
 	nl_sock_init(c, false);
 	if (!v6_only)
 		c->ifi4 = conf_ip4(ifi4, &c->ip4, c->mac);

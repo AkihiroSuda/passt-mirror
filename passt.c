@@ -320,16 +320,6 @@ int main(int argc, char **argv)
 	if (isolate_prefork(&c))
 		die("Failed to sandbox process, exiting");
 
-	/* Once the log mask is not LOG_EARLY, we will no longer log to stderr
-	 * if there was a log file specified.
-	 */
-	if (c.debug)
-		__setlogmask(LOG_UPTO(LOG_DEBUG));
-	else if (c.quiet)
-		__setlogmask(LOG_UPTO(LOG_WARNING));
-	else
-		__setlogmask(LOG_UPTO(LOG_INFO));
-
 	if (!c.foreground)
 		__daemon(pidfile_fd, devnull_fd);
 	else
