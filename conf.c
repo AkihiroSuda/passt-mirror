@@ -565,7 +565,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 		ifi = nl_get_ext_if(nl_sock, AF_INET);
 
 	if (!ifi) {
-		info("No routable interface for IPv4: IPv4 is disabled");
+		info("No interface with a default route for IPv4: disabling IPv4");
 		return 0;
 	}
 
@@ -637,7 +637,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 		ifi = nl_get_ext_if(nl_sock, AF_INET6);
 
 	if (!ifi) {
-		info("No routable interface for IPv6: IPv6 is disabled");
+		info("No interface with a default route for IPv6: disabling IPv6");
 		return 0;
 	}
 
