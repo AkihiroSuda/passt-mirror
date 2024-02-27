@@ -287,20 +287,20 @@ clang-tidy: $(SRCS) $(HEADERS)
 	-config='{CheckOptions: [{key: bugprone-suspicious-string-compare.WarnOnImplicitComparison, value: "false"}]}' \
 	--warnings-as-errors=* $(SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
 
-CPPCHECK_EXHAUSTIVE :=
-ifeq ($(shell cppcheck --check-level=exhaustive /dev/null > /dev/null 2>&1; echo $$?),0)
-	CPPCHECK_EXHAUSTIVE += --check-level=exhaustive
-endif
-
 SYSTEM_INCLUDES := /usr/include $(wildcard /usr/include/$(TARGET))
 ifeq ($(shell $(CC) -v 2>&1 | grep -c "gcc version"),1)
 VER := $(shell $(CC) -dumpversion)
 SYSTEM_INCLUDES += /usr/lib/gcc/$(TARGET)/$(VER)/include
 endif
 cppcheck: $(SRCS) $(HEADERS)
+	if cppcheck --check-level=exhaustive /dev/null > /dev/null 2>&1; then \
+		CPPCHECK_EXHAUSTIVE="--check-level=exhaustive";		\
+	else								\
+		CPPCHECK_EXHAUSTIVE=;					\
+	fi;								\
 	cppcheck --std=c11 --error-exitcode=1 --enable=all --force	\
 	--inconclusive --library=posix --quiet				\
-	$(CPPCHECK_EXHAUSTIVE)						\
+	$${CPPCHECK_EXHAUSTIVE}						\
 	$(SYSTEM_INCLUDES:%=-I%)					\
 	$(SYSTEM_INCLUDES:%=--config-exclude=%)				\
 	$(SYSTEM_INCLUDES:%=--suppress=*:%/*)				\
