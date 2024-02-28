@@ -407,25 +407,25 @@ static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af)
  * Return: return code from connect()
  */
 static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
-			  in_port_t port, uint8_t pif)
+			  in_port_t dstport, uint8_t pif)
 {
 	sa_family_t af = CONN_V6(conn) ? AF_INET6 : AF_INET;
-	int s = -1;
+	int s1;
 
 	if (pif == PIF_SPLICE) {
-		port += c->tcp.fwd_out.delta[port];
-		s = tcp_conn_sock(c, af);
+		dstport += c->tcp.fwd_out.delta[dstport];
+		s1 = tcp_conn_sock(c, af);
 	} else {
 		ASSERT(pif == PIF_HOST);
 
-		port += c->tcp.fwd_in.delta[port];
-		s = tcp_conn_sock_ns(c, af);
+		dstport += c->tcp.fwd_in.delta[dstport];
+		s1 = tcp_conn_sock_ns(c, af);
 	}
 
-	if (s < 0)
-		return s;
+	if (s1 < 0)
+		return s1;
 
-	return tcp_splice_connect(c, conn, s, port);
+	return tcp_splice_connect(c, conn, s1, dstport);
 }
 
 /**
@@ -433,7 +433,7 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
  * @c:		Execution context
  * @ref:	epoll reference of listening socket
  * @flow:	flow to initialise
- * @s:		Accepted socket
+ * @s0:		Accepted (side 0) socket
  * @sa:		Peer address of connection
  *
  * Return: true if able to create a spliced connection, false otherwise
@@ -441,28 +441,28 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
  */
 bool tcp_splice_conn_from_sock(const struct ctx *c,
 			       union tcp_listen_epoll_ref ref, union flow *flow,
-			       int s, const union sockaddr_inany *sa)
+			       int s0, const union sockaddr_inany *sa)
 {
 	struct tcp_splice_conn *conn;
-	union inany_addr aany;
-	in_port_t port;
+	union inany_addr src;
+	in_port_t srcport;
 
 	ASSERT(c->mode == MODE_PASTA);
 
-	inany_from_sockaddr(&aany, &port, sa);
-	if (!inany_is_loopback(&aany))
+	inany_from_sockaddr(&src, &srcport, sa);
+	if (!inany_is_loopback(&src))
 		return false;
 
 	conn = FLOW_START(flow, FLOW_TCP_SPLICE, tcp_splice, 0);
 
-	conn->flags = inany_v4(&aany) ? 0 : SPLICE_V6;
-	conn->s[0] = s;
+	conn->flags = inany_v4(&src) ? 0 : SPLICE_V6;
+	conn->s[0] = s0;
 	conn->s[1] = -1;
 	conn->pipe[0][0] = conn->pipe[0][1] = -1;
 	conn->pipe[1][0] = conn->pipe[1][1] = -1;
 
-	if (setsockopt(s, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
-		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s);
+	if (setsockopt(s0, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
+		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s0);
 
 	if (tcp_splice_new(c, conn, ref.port, ref.pif))
 		conn_flag(c, conn, CLOSING);
