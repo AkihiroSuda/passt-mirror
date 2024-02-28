@@ -111,13 +111,13 @@
 #endif
 
 #define IN4_IS_ADDR_UNSPECIFIED(a) \
-	((a)->s_addr == htonl_constant(INADDR_ANY))
+	(((struct in_addr *)(a))->s_addr == htonl_constant(INADDR_ANY))
 #define IN4_IS_ADDR_BROADCAST(a) \
-	((a)->s_addr == htonl_constant(INADDR_BROADCAST))
+	(((struct in_addr *)(a))->s_addr == htonl_constant(INADDR_BROADCAST))
 #define IN4_IS_ADDR_LOOPBACK(a) \
-	(ntohl((a)->s_addr) >> IN_CLASSA_NSHIFT == IN_LOOPBACKNET)
+	(ntohl(((struct in_addr *)(a))->s_addr) >> IN_CLASSA_NSHIFT == IN_LOOPBACKNET)
 #define IN4_IS_ADDR_MULTICAST(a) \
-	(IN_MULTICAST(ntohl((a)->s_addr)))
+	(IN_MULTICAST(ntohl(((struct in_addr *)(a))->s_addr)))
 #define IN4_ARE_ADDR_EQUAL(a, b) \
 	(((struct in_addr *)(a))->s_addr == ((struct in_addr *)b)->s_addr)
 #define IN4ADDR_LOOPBACK_INIT \
