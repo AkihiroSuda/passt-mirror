@@ -16,6 +16,22 @@
 #include "siphash.h"
 #include "inany.h"
 
+const union inany_addr inany_loopback4 = {
+	.v4mapped = {
+		.zero = { 0 },
+		.one = { 0xff, 0xff, },
+		.a4 = IN4ADDR_LOOPBACK_INIT,
+	},
+};
+
+const union inany_addr inany_any4 = {
+	.v4mapped = {
+		.zero = { 0 },
+		.one = { 0xff, 0xff, },
+		.a4 = IN4ADDR_ANY_INIT,
+	},
+};
+
 /** inany_ntop - Convert an IPv[46] address to text format
  * @src:	IPv[46] address
  * @dst:	output buffer, minimum INANY_ADDRSTRLEN bytes

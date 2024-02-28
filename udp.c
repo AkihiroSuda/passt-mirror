@@ -96,6 +96,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <limits.h>
+#include <assert.h>
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <netinet/in.h>
@@ -112,6 +113,8 @@
 
 #include "checksum.h"
 #include "util.h"
+#include "siphash.h"
+#include "inany.h"
 #include "passt.h"
 #include "tap.h"
 #include "pcap.h"
@@ -1017,9 +1020,8 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			udp_tap_map[V4][uref.port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V4][port].sock = s < 0 ? -1 : s;
 		} else {
-			struct in_addr loopback = IN4ADDR_LOOPBACK_INIT;
-
-			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP, &loopback,
+			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP,
+					 &in4addr_loopback,
 					 ifname, port, uref.u32);
 			udp_splice_ns[V4][port].sock = s < 0 ? -1 : s;
 		}

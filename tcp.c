@@ -2949,12 +2949,12 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 		.port = port + c->tcp.fwd_out.delta[port],
 		.pif = PIF_SPLICE,
 	};
-	struct in_addr loopback = IN4ADDR_LOOPBACK_INIT;
 	int s;
 
 	ASSERT(c->mode == MODE_PASTA);
 
-	s = sock_l4(c, AF_INET, IPPROTO_TCP, &loopback, NULL, port, tref.u32);
+	s = sock_l4(c, AF_INET, IPPROTO_TCP, &in4addr_loopback, NULL, port,
+		    tref.u32);
 	if (s >= 0)
 		tcp_sock_set_bufsize(c, s);
 	else

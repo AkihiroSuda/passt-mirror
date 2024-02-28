@@ -32,6 +32,15 @@ static_assert(sizeof(union inany_addr) == sizeof(struct in6_addr),
 static_assert(_Alignof(union inany_addr) == _Alignof(uint32_t),
 	      "union inany_addr has unexpected alignment");
 
+#define inany_loopback6		(*(const union inany_addr *)(&in6addr_loopback))
+extern const union inany_addr inany_loopback4;
+
+#define inany_any6		(*(const union inany_addr *)(&in6addr_any))
+extern const union inany_addr inany_any4;
+
+#define in4addr_loopback	(inany_loopback4.v4mapped.a4)
+#define in4addr_any		(inany_any4.v4mapped.a4)
+
 /** inany_v4 - Extract IPv4 address, if present, from IPv[46] address
  * @addr:	IPv4 or IPv6 address
  *
