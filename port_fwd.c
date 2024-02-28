@@ -85,7 +85,7 @@ void port_fwd_scan_tcp(struct port_fwd *fwd, const struct port_fwd *rev)
 }
 
 /**
- * port_fwd_scan_tcp() - Scan /proc to update TCP forwarding map
+ * port_fwd_scan_udp() - Scan /proc to update UDP forwarding map
  * @fwd:	Forwarding information to update
  * @rev:	Forwarding information for the reverse direction
  * @tcp_fwd:	Corresponding TCP forwarding information
