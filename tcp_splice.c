@@ -91,6 +91,7 @@ static const char *tcp_splice_flag_str[] __attribute((__unused__)) = {
 
 /* Forward declaration */
 static int tcp_sock_refill_ns(void *arg);
+static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af);
 
 /**
  * tcp_splice_conn_epoll_events() - epoll events masks for given state
@@ -319,13 +320,14 @@ static int tcp_splice_connect_finish(const struct ctx *c,
  * tcp_splice_connect() - Create and connect socket for new spliced connection
  * @c:		Execution context
  * @conn:	Connection pointer
- * @s:		Accepted socket
+ * @af:		Address family
+ * @pif:	pif on which to create socket
  * @port:	Destination port, host order
  *
  * Return: 0 for connect() succeeded or in progress, negative value on error
  */
 static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
-			      int sock_conn, in_port_t port)
+			      sa_family_t af, uint8_t pif, in_port_t port)
 {
 	struct sockaddr_in6 addr6 = {
 		.sin6_family = AF_INET6,
@@ -340,7 +342,15 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 	const struct sockaddr *sa;
 	socklen_t sl;
 
-	conn->s[1] = sock_conn;
+	if (pif == PIF_HOST)
+		conn->s[1] = tcp_conn_sock(c, af);
+	else if (pif == PIF_SPLICE)
+		conn->s[1] = tcp_conn_sock_ns(c, af);
+	else
+		ASSERT(0);
+
+	if (conn->s[1] < 0)
+		return -1;
 
 	if (setsockopt(conn->s[1], SOL_TCP, TCP_QUICKACK,
 		       &((int){ 1 }), sizeof(int))) {
@@ -416,7 +426,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	struct tcp_splice_conn *conn;
 	union inany_addr src;
 	sa_family_t af;
-	int s1;
+	uint8_t pif1;
 
 	ASSERT(c->mode == MODE_PASTA);
 
@@ -438,23 +448,16 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s0);
 
 	if (ref.pif == PIF_SPLICE) {
+		pif1 = PIF_HOST;
 		dstport += c->tcp.fwd_out.delta[dstport];
-
-		s1 = tcp_conn_sock(c, af);
 	} else {
 		ASSERT(ref.pif == PIF_HOST);
 
+		pif1 = PIF_SPLICE;
 		dstport += c->tcp.fwd_in.delta[dstport];
-
-		s1 = tcp_conn_sock_ns(c, af);
 	}
 
-	if (s1 < 0) {
-		conn_flag(c, conn, CLOSING);
-		return true;
-	}
-
-	if (tcp_splice_connect(c, conn, s1, dstport))
+	if (tcp_splice_connect(c, conn, af, pif1, dstport))
 		conn_flag(c, conn, CLOSING);
 
 	return true;
