@@ -610,6 +610,16 @@ resume:
 
 		l4_len = htons(iph->tot_len) - hlen;
 
+		if (IN4_IS_ADDR_LOOPBACK(&iph->saddr) ||
+		    IN4_IS_ADDR_LOOPBACK(&iph->daddr)) {
+			char sstr[INET_ADDRSTRLEN], dstr[INET_ADDRSTRLEN];
+
+			debug("Loopback address on tap interface: %s -> %s",
+			      inet_ntop(AF_INET, &iph->saddr, sstr, sizeof(sstr)),
+			      inet_ntop(AF_INET, &iph->daddr, dstr, sizeof(dstr)));
+			continue;
+		}
+
 		if (iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr)
 			c->ip4.addr_seen.s_addr = iph->saddr;
 
@@ -765,6 +775,15 @@ resume:
 
 		if (!(l4h = ipv6_l4hdr(in, i, sizeof(*eh), &proto, &l4_len)))
 			continue;
+
+		if (IN6_IS_ADDR_LOOPBACK(saddr) || IN6_IS_ADDR_LOOPBACK(daddr)) {
+			char sstr[INET6_ADDRSTRLEN], dstr[INET6_ADDRSTRLEN];
+
+			debug("Loopback address on tap interface: %s -> %s",
+			      inet_ntop(AF_INET6, saddr, sstr, sizeof(sstr)),
+			      inet_ntop(AF_INET6, daddr, dstr, sizeof(dstr)));
+			continue;
+		}
 
 		if (IN6_IS_ADDR_LINKLOCAL(saddr)) {
 			c->ip6.addr_ll_seen = *saddr;
