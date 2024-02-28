@@ -45,6 +45,7 @@
 
 #include "checksum.h"
 #include "util.h"
+#include "iov.h"
 #include "passt.h"
 #include "arp.h"
 #include "dhcp.h"
@@ -389,6 +390,7 @@ static size_t tap_send_frames_passt(const struct ctx *c,
 		.msg_iov = (void *)iov,
 		.msg_iovlen = n,
 	};
+	size_t buf_offset;
 	unsigned int i;
 	ssize_t sent;
 
@@ -397,15 +399,11 @@ static size_t tap_send_frames_passt(const struct ctx *c,
 		return 0;
 
 	/* Check for any partial frames due to short send */
-	for (i = 0; i < n; i++) {
-		if ((size_t)sent < iov[i].iov_len)
-			break;
-		sent -= iov[i].iov_len;
-	}
+	i = iov_skip_bytes(iov, n, sent, &buf_offset);
 
-	if (i < n && sent) {
+	if (i < n && buf_offset) {
 		/* A partial frame was sent */
-		tap_send_remainder(c, &iov[i], sent);
+		tap_send_remainder(c, &iov[i], buf_offset);
 		i++;
 	}
 

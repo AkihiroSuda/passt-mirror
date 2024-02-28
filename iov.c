@@ -25,6 +25,36 @@
 #include "util.h"
 #include "iov.h"
 
+
+/* iov_skip_bytes() - Skip the first n bytes into an IO vector
+ * @iov:	IO vector
+ * @n:		Number of entries in @iov
+ * @vec_offset: Total byte offset into the IO vector
+ * @buf_offset:	Offset into a single buffer of the IO vector
+ *
+ * Return: index I of individual struct iovec which contains the byte at
+ *         @vec_offset bytes into the vector (as though all its buffers were
+ *         contiguous).  If @buf_offset is non-NULL, update it to the offset of
+ *         that byte within @iov[I] (guaranteed to be less than @iov[I].iov_len)
+ *	   If the whole vector has <= @vec_offset bytes, return @n.
+ */
+size_t iov_skip_bytes(const struct iovec *iov, size_t n,
+		      size_t vec_offset, size_t *buf_offset)
+{
+	size_t offset = vec_offset, i;
+
+	for (i = 0; i < n; i++) {
+		if (offset < iov[i].iov_len)
+			break;
+		offset -= iov[i].iov_len;
+	}
+
+	if (buf_offset)
+		*buf_offset = offset;
+
+	return i;
+}
+
 /**
  * iov_from_buf - Copy data from a buffer to an I/O vector (struct iovec)
  *                efficiently.
@@ -51,9 +81,7 @@ size_t iov_from_buf(const struct iovec *iov, size_t iov_cnt,
 		return bytes;
 	}
 
-	/* skipping offset bytes in the iovec */
-	for (i = 0; i < iov_cnt && offset >= iov[i].iov_len; i++)
-		offset -= iov[i].iov_len;
+	i = iov_skip_bytes(iov, iov_cnt, offset, &offset);
 
 	/* copying data */
 	for (copied = 0; copied < bytes && i < iov_cnt; i++) {
@@ -94,9 +122,7 @@ size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,
 		return bytes;
 	}
 
-	/* skipping offset bytes in the iovec */
-	for (i = 0; i < iov_cnt && offset >= iov[i].iov_len; i++)
-		offset -= iov[i].iov_len;
+	i = iov_skip_bytes(iov, iov_cnt, offset, &offset);
 
 	/* copying data */
 	for (copied = 0; copied < bytes && i < iov_cnt; i++) {
@@ -155,9 +181,7 @@ unsigned iov_copy(struct iovec *dst_iov, size_t dst_iov_cnt,
 {
 	unsigned int i, j;
 
-	/* skipping offset bytes in the iovec */
-	for (i = 0; i < iov_cnt && offset >= iov[i].iov_len; i++)
-		offset -= iov[i].iov_len;
+	i = iov_skip_bytes(iov, iov_cnt, offset, &offset);
 
 	/* copying data */
 	for (j = 0; i < iov_cnt && j < dst_iov_cnt && bytes; i++) {
