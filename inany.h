@@ -162,4 +162,8 @@ static inline void inany_siphash_feed(struct siphash_state *state,
 	siphash_feed(state, (uint64_t)aa->u32[2] << 32 | aa->u32[3]);
 }
 
+#define INANY_ADDRSTRLEN	MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)
+
+const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size);
+
 #endif /* INANY_H */

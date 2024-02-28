@@ -45,8 +45,8 @@ FLAGS += -DVERSION=\"$(VERSION)\"
 FLAGS += -DDUAL_STACK_SOCKETS=$(DUAL_STACK_SOCKETS)
 
 PASST_SRCS = arch.c arp.c checksum.c conf.c dhcp.c dhcpv6.c flow.c icmp.c \
-	igmp.c iov.c isolation.c lineread.c log.c mld.c ndp.c netlink.c \
-	packet.c passt.c pasta.c pcap.c pif.c port_fwd.c tap.c tcp.c \
+	igmp.c inany.c iov.c isolation.c lineread.c log.c mld.c ndp.c \
+	netlink.c packet.c passt.c pasta.c pcap.c pif.c port_fwd.c tap.c tcp.c \
 	tcp_splice.c udp.c util.c
 QRAP_SRCS = qrap.c
 SRCS = $(PASST_SRCS) $(QRAP_SRCS)
