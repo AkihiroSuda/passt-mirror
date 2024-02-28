@@ -413,7 +413,8 @@ static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af)
 /**
  * tcp_splice_conn_from_sock() - Attempt to init state for a spliced connection
  * @c:		Execution context
- * @ref:	epoll reference of listening socket
+ * @pif0:	pif id of side 0
+ * @dstport:	Side 0 destination port of connection
  * @flow:	flow to initialise
  * @s0:		Accepted (side 0) socket
  * @sa:		Peer address of connection
@@ -422,12 +423,13 @@ static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af)
  * #syscalls:pasta setsockopt
  */
 bool tcp_splice_conn_from_sock(const struct ctx *c,
-			       union tcp_listen_epoll_ref ref, union flow *flow,
-			       int s0, const union sockaddr_inany *sa)
+			       uint8_t pif0, in_port_t dstport,
+			       union flow *flow, int s0,
+			       const union sockaddr_inany *sa)
 {
-	in_port_t srcport, dstport = ref.port;
 	struct tcp_splice_conn *conn;
 	union inany_addr src;
+	in_port_t srcport;
 	sa_family_t af;
 	uint8_t pif1;
 
@@ -437,7 +439,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	inany_from_sockaddr(&src, &srcport, sa);
 	af = inany_v4(&src) ? AF_INET : AF_INET6;
 
-	switch (ref.pif) {
+	switch (pif0) {
 	case PIF_SPLICE:
 		if (!inany_is_loopback(&src)) {
 			char str[INANY_ADDRSTRLEN];

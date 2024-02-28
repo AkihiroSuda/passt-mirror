@@ -2679,14 +2679,13 @@ static void tcp_snat_inbound(const struct ctx *c, union inany_addr *addr)
 /**
  * tcp_tap_conn_from_sock() - Initialize state for non-spliced connection
  * @c:		Execution context
- * @ref:	epoll reference of listening socket
+ * @dstport:	Destination port for connection (host side)
  * @flow:	flow to initialise
  * @s:		Accepted socket
  * @sa:		Peer socket address (from accept())
  * @now:	Current timestamp
  */
-static void tcp_tap_conn_from_sock(struct ctx *c,
-				   union tcp_listen_epoll_ref ref,
+static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 				   union flow *flow, int s,
 				   const union sockaddr_inany *sa,
 				   const struct timespec *now)
@@ -2699,7 +2698,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c,
 	conn_event(c, conn, SOCK_ACCEPTED);
 
 	inany_from_sockaddr(&conn->faddr, &conn->fport, sa);
-	conn->eport = ref.port + c->tcp.fwd_in.delta[ref.port];
+	conn->eport = dstport + c->tcp.fwd_in.delta[dstport];
 
 	tcp_snat_inbound(c, &conn->faddr);
 
@@ -2737,10 +2736,11 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	if (s < 0)
 		goto cancel;
 
-	if (tcp_splice_conn_from_sock(c, ref.tcp_listen, flow, s, &sa))
+	if (tcp_splice_conn_from_sock(c, ref.tcp_listen.pif,
+				      ref.tcp_listen.port, flow, s, &sa))
 		return;
 
-	tcp_tap_conn_from_sock(c, ref.tcp_listen, flow, s, &sa, now);
+	tcp_tap_conn_from_sock(c, ref.tcp_listen.port, flow, s, &sa, now);
 	return;
 
 cancel:
