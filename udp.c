@@ -599,7 +599,6 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 	    src_port == 53) {
 		b->iph.saddr = c->ip4.dns_match.s_addr;
 	} else if (IN4_IS_ADDR_LOOPBACK(&b->s_in.sin_addr) ||
-		   IN4_IS_ADDR_UNSPECIFIED(&b->s_in.sin_addr)||
 		   IN4_ARE_ADDR_EQUAL(&b->s_in.sin_addr, &c->ip4.addr_seen)) {
 		b->iph.saddr = c->ip4.gw.s_addr;
 		udp_tap_map[V4][src_port].ts = now->tv_sec;
