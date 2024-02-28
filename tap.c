@@ -350,30 +350,6 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 }
 
 /**
- * tap_send_remainder() - Send remainder of a partially sent frame
- * @c:		Execution context
- * @iov:	Partially sent buffer
- * @offset:	Number of bytes already sent from @iov
- */
-static void tap_send_remainder(const struct ctx *c, const struct iovec *iov,
-			       size_t offset)
-{
-	const char *base = (char *)iov->iov_base;
-	size_t len = iov->iov_len;
-
-	while (offset < len) {
-		ssize_t sent = send(c->fd_tap, base + offset, len - offset,
-				    MSG_NOSIGNAL);
-		if (sent < 0) {
-			err("tap: partial frame send (missing %zu bytes): %s",
-			    len - offset, strerror(errno));
-			return;
-		}
-		offset += sent;
-	}
-}
-
-/**
  * tap_send_frames_passt() - Send multiple frames to the passt tap
  * @c:		Execution context
  * @iov:	Array of buffers, each containing one frame
@@ -403,7 +379,10 @@ static size_t tap_send_frames_passt(const struct ctx *c,
 
 	if (i < n && buf_offset) {
 		/* A partial frame was sent */
-		tap_send_remainder(c, &iov[i], buf_offset);
+		if (write_remainder(c->fd_tap, &iov[i], 1, buf_offset) < 0) {
+			err("tap: partial frame send: %s", strerror(errno));
+			return i;
+		}
 		i++;
 	}
 
