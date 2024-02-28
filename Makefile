@@ -45,16 +45,16 @@ FLAGS += -DVERSION=\"$(VERSION)\"
 FLAGS += -DDUAL_STACK_SOCKETS=$(DUAL_STACK_SOCKETS)
 
 PASST_SRCS = arch.c arp.c checksum.c conf.c dhcp.c dhcpv6.c flow.c icmp.c \
-	igmp.c isolation.c lineread.c log.c mld.c ndp.c netlink.c packet.c \
-	passt.c pasta.c pcap.c pif.c port_fwd.c tap.c tcp.c tcp_splice.c udp.c \
-	util.c
+	igmp.c iov.c isolation.c lineread.c log.c mld.c ndp.c netlink.c \
+	packet.c passt.c pasta.c pcap.c pif.c port_fwd.c tap.c tcp.c \
+	tcp_splice.c udp.c util.c
 QRAP_SRCS = qrap.c
 SRCS = $(PASST_SRCS) $(QRAP_SRCS)
 
 MANPAGES = passt.1 pasta.1 qrap.1
 
 PASST_HEADERS = arch.h arp.h checksum.h conf.h dhcp.h dhcpv6.h flow.h \
-	flow_table.h icmp.h inany.h isolation.h lineread.h log.h ndp.h \
+	flow_table.h icmp.h inany.h iov.h isolation.h lineread.h log.h ndp.h \
 	netlink.h packet.h passt.h pasta.h pcap.h pif.h port_fwd.h siphash.h \
 	tap.h tcp.h tcp_conn.h tcp_splice.h udp.h util.h
 HEADERS = $(PASST_HEADERS) seccomp.h
