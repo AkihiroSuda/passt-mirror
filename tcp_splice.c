@@ -246,16 +246,14 @@ bool tcp_splice_flow_defer(union flow *flow)
 		return false;
 
 	for (side = 0; side < SIDES; side++) {
-		if (conn->events & SPLICE_ESTABLISHED) {
-			/* Flushing might need to block: don't recycle them. */
-			if (conn->pipe[side][0] != -1) {
-				close(conn->pipe[side][0]);
-				close(conn->pipe[side][1]);
-				conn->pipe[side][0] = conn->pipe[side][1] = -1;
-			}
+		/* Flushing might need to block: don't recycle them. */
+		if (conn->pipe[side][0] >= 0) {
+			close(conn->pipe[side][0]);
+			close(conn->pipe[side][1]);
+			conn->pipe[side][0] = conn->pipe[side][1] = -1;
 		}
 
-		if (side == 0 || conn->events & SPLICE_CONNECT) {
+		if (conn->s[side] >= 0) {
 			close(conn->s[side]);
 			conn->s[side] = -1;
 		}
@@ -284,8 +282,6 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 	int i = 0;
 
 	for (side = 0; side < SIDES; side++) {
-		conn->pipe[side][0] = conn->pipe[side][1] = -1;
-
 		for (; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
 			if (splice_pipe_pool[i][0] >= 0) {
 				SWAP(conn->pipe[side][0],
@@ -361,12 +357,9 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (connect(conn->s[1], sa, sl)) {
-		if (errno != EINPROGRESS) {
-			int ret = -errno;
+		if (errno != EINPROGRESS)
+			return -errno;
 
-			close(sock_conn);
-			return ret;
-		}
 		conn_event(c, conn, SPLICE_CONNECT);
 	} else {
 		conn_event(c, conn, SPLICE_ESTABLISHED);
@@ -466,6 +459,9 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	conn->f.type = FLOW_TCP_SPLICE;
 	conn->flags = inany_v4(&aany) ? 0 : SPLICE_V6;
 	conn->s[0] = s;
+	conn->s[1] = -1;
+	conn->pipe[0][0] = conn->pipe[0][1] = -1;
+	conn->pipe[1][0] = conn->pipe[1][1] = -1;
 
 	if (tcp_splice_new(c, conn, ref.port, ref.pif))
 		conn_flag(c, conn, CLOSING);
