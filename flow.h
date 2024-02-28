@@ -27,6 +27,10 @@ extern const char *flow_type_str[];
 #define FLOW_TYPE(f)							\
         ((f)->type < FLOW_NUM_TYPES ? flow_type_str[(f)->type] : "?")
 
+extern const uint8_t flow_proto[];
+#define FLOW_PROTO(f)				\
+	((f)->type < FLOW_NUM_TYPES ? flow_proto[(f)->type] : 0)
+
 /**
  * struct flow_common - Common fields for packet flows
  * @type:	Type of packet flow

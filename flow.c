@@ -25,6 +25,13 @@ const char *flow_type_str[] = {
 static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 	      "flow_type_str[] doesn't match enum flow_type");
 
+const uint8_t flow_proto[] = {
+	[FLOW_TCP]		= IPPROTO_TCP,
+	[FLOW_TCP_SPLICE]	= IPPROTO_TCP,
+};
+static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
+	      "flow_proto[] doesn't match enum flow_type");
+
 /* Global Flow Table */
 
 /**
