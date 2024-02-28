@@ -36,6 +36,8 @@
 #include "passt.h"
 #include "tap.h"
 #include "log.h"
+#include "siphash.h"
+#include "inany.h"
 #include "icmp.h"
 
 #define ICMP_ECHO_TIMEOUT	60 /* s, timeout for ICMP socket activity */
@@ -67,13 +69,9 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 	struct icmp_id_sock *const id_sock = af == AF_INET
 		? &icmp_id_map[V4][ref.icmp.id] : &icmp_id_map[V6][ref.icmp.id];
 	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
-	char buf[USHRT_MAX];
-	union {
-		struct sockaddr sa;
-		struct sockaddr_in sa4;
-		struct sockaddr_in6 sa6;
-	} sr;
+	union sockaddr_inany sr;
 	socklen_t sl = sizeof(sr);
+	char buf[USHRT_MAX];
 	uint16_t seq;
 	ssize_t n;
 
@@ -86,7 +84,7 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 		     pname, strerror(errno));
 		return;
 	}
-	if (sr.sa.sa_family != af)
+	if (sr.sa_family != af)
 		goto unexpected;
 
 	if (af == AF_INET) {
@@ -214,11 +212,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const struct pool *p, const struct timespec *now)
 {
 	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
-	union {
-		struct sockaddr sa;
-		struct sockaddr_in sa4;
-		struct sockaddr_in6 sa6;
-	} sa = { .sa.sa_family = af };
+	union sockaddr_inany sa = { .sa_family = af };
 	const socklen_t sl = af == AF_INET ? sizeof(sa.sa4) : sizeof(sa.sa6);
 	struct icmp_id_sock *id_sock;
 	uint16_t id, seq;

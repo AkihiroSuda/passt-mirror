@@ -447,7 +447,7 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
 bool tcp_splice_conn_from_sock(const struct ctx *c,
 			       union tcp_listen_epoll_ref ref,
 			       struct tcp_splice_conn *conn, int s,
-			       const struct sockaddr *sa)
+			       const union sockaddr_inany *sa)
 {
 	union inany_addr aany;
 	in_port_t port;

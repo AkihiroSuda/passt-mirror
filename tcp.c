@@ -2689,7 +2689,7 @@ static void tcp_snat_inbound(const struct ctx *c, union inany_addr *addr)
 static void tcp_tap_conn_from_sock(struct ctx *c,
 				   union tcp_listen_epoll_ref ref,
 				   struct tcp_tap_conn *conn, int s,
-				   const struct sockaddr *sa,
+				   const union sockaddr_inany *sa,
 				   const struct timespec *now)
 {
 	conn->f.type = FLOW_TCP;
@@ -2725,7 +2725,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c,
 void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 			const struct timespec *now)
 {
-	struct sockaddr_storage sa;
+	union sockaddr_inany sa;
 	socklen_t sl = sizeof(sa);
 	union flow *flow;
 	int s;
@@ -2733,17 +2733,16 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	if (c->no_tcp || !(flow = flow_alloc()))
 		return;
 
-	s = accept4(ref.fd, (struct sockaddr *)&sa, &sl, SOCK_NONBLOCK);
+	s = accept4(ref.fd, &sa.sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
 		goto cancel;
 
 	if (c->mode == MODE_PASTA &&
 	    tcp_splice_conn_from_sock(c, ref.tcp_listen, &flow->tcp_splice,
-				      s, (struct sockaddr *)&sa))
+				      s, &sa))
 		return;
 
-	tcp_tap_conn_from_sock(c, ref.tcp_listen, &flow->tcp, s,
-			       (struct sockaddr *)&sa, now);
+	tcp_tap_conn_from_sock(c, ref.tcp_listen, &flow->tcp, s, &sa, now);
 	return;
 
 cancel:

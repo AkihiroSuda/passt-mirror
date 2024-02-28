@@ -9,6 +9,8 @@
 #ifndef INANY_H
 #define INANY_H
 
+struct siphash_state;
+
 /** union inany_addr - Represents either an IPv4 or IPv6 address
  * @a6:			Address as an IPv6 address, may be IPv4-mapped
  * @v4mapped.zero:	All zero-bits for an IPv4 address
@@ -40,6 +42,19 @@ extern const union inany_addr inany_any4;
 
 #define in4addr_loopback	(inany_loopback4.v4mapped.a4)
 #define in4addr_any		(inany_any4.v4mapped.a4)
+
+/** union sockaddr_inany - Either a sockaddr_in or a sockaddr_in6
+ * @sa_family:	Address family, AF_INET or AF_INET6
+ * @sa:		Plain struct sockaddr (useful to avoid casts)
+ * @sa4:	IPv4 socket address, valid if sa_family == AF_INET
+ * @sa6:	IPv6 socket address, valid if sa_family == AF_INET6
+ */
+union sockaddr_inany {
+	sa_family_t		sa_family;
+	struct sockaddr		sa;
+	struct sockaddr_in	sa4;
+	struct sockaddr_in6	sa6;
+};
 
 /** inany_v4 - Extract IPv4 address, if present, from IPv[46] address
  * @addr:	IPv4 or IPv6 address
@@ -137,23 +152,17 @@ static inline void inany_from_af(union inany_addr *aa,
 /** inany_from_sockaddr - Extract IPv[46] address and port number from sockaddr
  * @aa:		Pointer to store IPv[46] address
  * @port:	Pointer to store port number, host order
- * @addr:	struct sockaddr_in (IPv4) or struct sockaddr_in6 (IPv6)
+ * @addr:	AF_INET or AF_INET6 socket address
  */
 static inline void inany_from_sockaddr(union inany_addr *aa, in_port_t *port,
-				       const void *addr)
+				       const union sockaddr_inany *sa)
 {
-	const struct sockaddr *sa = (const struct sockaddr *)addr;
-
 	if (sa->sa_family == AF_INET6) {
-		struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)sa;
-
-		inany_from_af(aa, AF_INET6, &sa6->sin6_addr);
-		*port = ntohs(sa6->sin6_port);
+		inany_from_af(aa, AF_INET6, &sa->sa6.sin6_addr);
+		*port = ntohs(sa->sa6.sin6_port);
 	} else if (sa->sa_family == AF_INET) {
-		struct sockaddr_in *sa4 = (struct sockaddr_in *)sa;
-
-		inany_from_af(aa, AF_INET, &sa4->sin_addr);
-		*port = ntohs(sa4->sin_port);
+		inany_from_af(aa, AF_INET, &sa->sa4.sin_addr);
+		*port = ntohs(sa->sa4.sin_port);
 	} else {
 		/* Not valid to call with other address families */
 		ASSERT(0);
