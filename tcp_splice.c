@@ -431,13 +431,43 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	sa_family_t af;
 	uint8_t pif1;
 
-	ASSERT(c->mode == MODE_PASTA);
-
-	inany_from_sockaddr(&src, &srcport, sa);
-	if (!inany_is_loopback(&src))
+	if (c->mode != MODE_PASTA)
 		return false;
 
+	inany_from_sockaddr(&src, &srcport, sa);
 	af = inany_v4(&src) ? AF_INET : AF_INET6;
+
+	switch (ref.pif) {
+	case PIF_SPLICE:
+		if (!inany_is_loopback(&src)) {
+			char str[INANY_ADDRSTRLEN];
+
+			/* We can't use flow_err() etc. because we haven't set
+			 * the flow type yet
+			 */
+			warn("Bad source address %s for splice, closing",
+			     inany_ntop(&src, str, sizeof(str)));
+
+			/* We *don't* want to fall back to tap */
+			flow_alloc_cancel(flow);
+			return true;
+		}
+
+		pif1 = PIF_HOST;
+		dstport += c->tcp.fwd_out.delta[dstport];
+		break;
+
+	case PIF_HOST:
+		if (!inany_is_loopback(&src))
+			return false;
+
+		pif1 = PIF_SPLICE;
+		dstport += c->tcp.fwd_in.delta[dstport];
+		break;
+
+	default:
+		return false;
+	}
 
 	conn = FLOW_START(flow, FLOW_TCP_SPLICE, tcp_splice, 0);
 
@@ -449,16 +479,6 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 
 	if (setsockopt(s0, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
 		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s0);
-
-	if (ref.pif == PIF_SPLICE) {
-		pif1 = PIF_HOST;
-		dstport += c->tcp.fwd_out.delta[dstport];
-	} else {
-		ASSERT(ref.pif == PIF_HOST);
-
-		pif1 = PIF_SPLICE;
-		dstport += c->tcp.fwd_in.delta[dstport];
-	}
 
 	if (tcp_splice_connect(c, conn, af, pif1, dstport))
 		conn_flag(c, conn, CLOSING);

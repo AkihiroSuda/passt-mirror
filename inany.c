@@ -39,7 +39,6 @@ const union inany_addr inany_any4 = {
  *
  * Return: On success, a non-null pointer to @dst, NULL on failure
  */
-/* cppcheck-suppress unusedFunction */
 const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size)
 {
 	const struct in_addr *v4 = inany_v4(src);

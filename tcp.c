@@ -2737,8 +2737,7 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	if (s < 0)
 		goto cancel;
 
-	if (c->mode == MODE_PASTA &&
-	    tcp_splice_conn_from_sock(c, ref.tcp_listen, flow, s, &sa))
+	if (tcp_splice_conn_from_sock(c, ref.tcp_listen, flow, s, &sa))
 		return;
 
 	tcp_tap_conn_from_sock(c, ref.tcp_listen, flow, s, &sa, now);
