@@ -35,6 +35,46 @@ static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 /* Global Flow Table */
 
 /**
+ * DOC: Theory of Operation - flow entry life cycle
+ *
+ * An individual flow table entry moves through these logical states, usually in
+ * this order.
+ *
+ *    FREE - Part of the general pool of free flow table entries
+ *        Operations:
+ *            - flow_alloc() finds an entry and moves it to ALLOC state
+ *
+ *    ALLOC - A tentatively allocated entry
+ *        Operations:
+ *            - flow_alloc_cancel() returns the entry to FREE state
+ *            - FLOW_START() set the entry's type and moves to START state
+ *        Caveats:
+ *            - It's not safe to write fields in the flow entry
+ *            - It's not safe to allocate further entries with flow_alloc()
+ *            - It's not safe to return to the main epoll loop (use FLOW_START()
+ *              to move to START state before doing so)
+ *            - It's not safe to use flow_*() logging functions
+ *
+ *    START - An entry being prepared by flow type specific code
+ *        Operations:
+ *            - Flow type specific fields may be accessed
+ *            - flow_*() logging functions
+ *            - flow_alloc_cancel() returns the entry to FREE state
+ *        Caveats:
+ *            - Returning to the main epoll loop or allocating another entry
+ *              with flow_alloc() implicitly moves the entry to ACTIVE state.
+ *
+ *    ACTIVE - An active flow entry managed by flow type specific code
+ *        Operations:
+ *            - Flow type specific fields may be accessed
+ *            - flow_*() logging functions
+ *            - Flow may be expired by returning 'true' from flow type specific
+ *              deferred or timer handler.  This will return it to FREE state.
+ *        Caveats:
+ *            - It's not safe to call flow_alloc_cancel()
+ */
+
+/**
  * DOC: Theory of Operation - allocating and freeing flow entries
  *
  * Flows are entries in flowtab[]. We need to routinely scan the whole table to
@@ -110,6 +150,39 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 }
 
 /**
+ * flow_start() - Set flow type for new flow and log
+ * @flow:	Flow to set type for
+ * @type:	Type for new flow
+ * @iniside:	Which side initiated the new flow
+ *
+ * Return: @flow
+ *
+ * Should be called before setting any flow type specific fields in the flow
+ * table entry.
+ */
+union flow *flow_start(union flow *flow, enum flow_type type,
+		       unsigned iniside)
+{
+	(void)iniside;
+	flow->f.type = type;
+	flow_dbg(flow, "START %s", flow_type_str[flow->f.type]);
+	return flow;
+}
+
+/**
+ * flow_end() - Clear flow type for finished flow and log
+ * @flow:	Flow to clear
+ */
+static void flow_end(union flow *flow)
+{
+	if (flow->f.type == FLOW_TYPE_NONE)
+		return; /* Nothing to do */
+
+	flow_dbg(flow, "END %s", flow_type_str[flow->f.type]);
+	flow->f.type = FLOW_TYPE_NONE;
+}
+
+/**
  * flow_alloc() - Allocate a new flow
  *
  * Return: pointer to an unused flow entry, or NULL if the table is full
@@ -157,7 +230,7 @@ void flow_alloc_cancel(union flow *flow)
 {
 	ASSERT(flow_first_free > FLOW_IDX(flow));
 
-	flow->f.type = FLOW_TYPE_NONE;
+	flow_end(flow);
 	/* Put it back in a length 1 free cluster, don't attempt to fully
 	 * reverse flow_alloc()s steps.  This will get folded together the next
 	 * time flow_defer_handler runs anyway() */
@@ -227,7 +300,7 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 		}
 
 		if (closed) {
-			flow->f.type = FLOW_TYPE_NONE;
+			flow_end(flow);
 
 			if (free_head) {
 				/* Add slot to current free cluster */

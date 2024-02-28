@@ -45,6 +45,11 @@ struct flow_common {
 #define FLOW_TABLE_PRESSURE		30	/* % of FLOW_MAX */
 #define FLOW_FILE_PRESSURE		30	/* % of c->nofile */
 
+union flow *flow_start(union flow *flow, enum flow_type type,
+		       unsigned iniside);
+#define FLOW_START(flow_, t_, var_, i_)		\
+	(&flow_start((flow_), (t_), (i_))->var_)
+
 /**
  * struct flow_sidx - ID for one side of a specific flow
  * @side:	Side referenced (0 or 1)

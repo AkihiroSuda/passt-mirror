@@ -432,7 +432,7 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
  * tcp_splice_conn_from_sock() - Attempt to init state for a spliced connection
  * @c:		Execution context
  * @ref:	epoll reference of listening socket
- * @conn:	connection structure to initialize
+ * @flow:	flow to initialise
  * @s:		Accepted socket
  * @sa:		Peer address of connection
  *
@@ -440,10 +440,10 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
  * #syscalls:pasta setsockopt
  */
 bool tcp_splice_conn_from_sock(const struct ctx *c,
-			       union tcp_listen_epoll_ref ref,
-			       struct tcp_splice_conn *conn, int s,
-			       const union sockaddr_inany *sa)
+			       union tcp_listen_epoll_ref ref, union flow *flow,
+			       int s, const union sockaddr_inany *sa)
 {
+	struct tcp_splice_conn *conn;
 	union inany_addr aany;
 	in_port_t port;
 
@@ -453,7 +453,8 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	if (!inany_is_loopback(&aany))
 		return false;
 
-	conn->f.type = FLOW_TCP_SPLICE;
+	conn = FLOW_START(flow, FLOW_TCP_SPLICE, tcp_splice, 0);
+
 	conn->flags = inany_v4(&aany) ? 0 : SPLICE_V6;
 	conn->s[0] = s;
 	conn->s[1] = -1;
