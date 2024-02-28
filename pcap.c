@@ -31,6 +31,7 @@
 #include "util.h"
 #include "passt.h"
 #include "log.h"
+#include "pcap.h"
 
 #define PCAP_VERSION_MINOR 4
 
@@ -67,25 +68,32 @@ struct pcap_pkthdr {
 
 /**
  * pcap_frame() - Capture a single frame to pcap file with given timestamp
- * @iov:	IO vector referencing buffer containing frame (with L2 headers)
- * @offset:	Offset of the frame from @iov->iov_base
+ * @iov:	IO vector containing frame (with L2 headers and tap headers)
+ * @iovcnt:	Number of buffers (@iov entries) in frame
+ * @offset:	Byte offset of the L2 headers within @iov
  * @tv:		Timestamp
  *
  * Returns: 0 on success, -errno on error writing to the file
  */
-static void pcap_frame(const struct iovec *iov, size_t offset,
-		       const struct timeval *tv)
+static void pcap_frame(const struct iovec *iov, size_t iovcnt,
+		       size_t offset, const struct timeval *tv)
 {
 	size_t len = iov->iov_len - offset;
-	struct pcap_pkthdr h;
+	struct pcap_pkthdr h = {
+		.tv_sec = tv->tv_sec,
+		.tv_usec = tv->tv_usec,
+		.caplen = len,
+		.len = len
+	};
+	struct iovec hiov = { &h, sizeof(h) };
 
-	h.tv_sec = tv->tv_sec;
-	h.tv_usec = tv->tv_usec;
-	h.caplen = h.len = len;
+	(void)iovcnt;
 
-	if (write(pcap_fd, &h, sizeof(h)) < 0 ||
-	    write(pcap_fd, (char *)iov->iov_base + offset, len) < 0)
-		debug("Cannot log packet, length %zu", len);
+	if (write_remainder(pcap_fd, &hiov, 1, 0) < 0 ||
+	    write_remainder(pcap_fd, iov, 1, offset) < 0) {
+		debug("Cannot log packet, length %zu: %s",
+		      len, strerror(errno));
+	}
 }
 
 /**
@@ -102,16 +110,18 @@ void pcap(const char *pkt, size_t len)
 		return;
 
 	gettimeofday(&tv, NULL);
-	pcap_frame(&iov, 0, &tv);
+	pcap_frame(&iov, 1, 0, &tv);
 }
 
 /**
  * pcap_multiple() - Capture multiple frames
- * @iov:	Array of iovecs, one entry per frame
- * @n:		Number of frames to capture
- * @offset:	Offset of the frame within each iovec buffer
+ * @iov:		IO vector with @frame_parts * @n entries
+ * @frame_parts:	Number of IO vector items for each frame
+ * @n:			Number of frames to capture
+ * @offset:		Offset of the L2 frame within each iovec buffer
  */
-void pcap_multiple(const struct iovec *iov, unsigned int n, size_t offset)
+void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
+		   size_t offset)
 {
 	struct timeval tv;
 	unsigned int i;
@@ -122,7 +132,7 @@ void pcap_multiple(const struct iovec *iov, unsigned int n, size_t offset)
 	gettimeofday(&tv, NULL);
 
 	for (i = 0; i < n; i++)
-		pcap_frame(iov + i, offset, &tv);
+		pcap_frame(iov + i * frame_parts, frame_parts, offset, &tv);
 }
 
 /**

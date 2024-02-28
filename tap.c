@@ -433,7 +433,7 @@ size_t tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
 	if (m < n)
 		debug("tap: failed to send %zu frames of %zu", n - m, n);
 
-	pcap_multiple(iov, m, c->mode == MODE_PASST ? sizeof(uint32_t) : 0);
+	pcap_multiple(iov, 1, n, c->mode == MODE_PASST ? sizeof(uint32_t) : 0);
 
 	return m;
 }
