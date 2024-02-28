@@ -878,8 +878,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 			if (!IN4_IS_ADDR_LOOPBACK(&s_in.sin_addr))
 				bind_if = c->ip4.ifname_out;
 
-			if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out) &&
-			    !IN4_IS_ADDR_LOOPBACK(&s_in.sin_addr))
+			if (!IN4_IS_ADDR_LOOPBACK(&s_in.sin_addr))
 				bind_addr = c->ip4.addr_out;
 
 			s = sock_l4(c, AF_INET, IPPROTO_UDP, &bind_addr,
@@ -930,8 +929,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 			if (!IN6_IS_ADDR_LOOPBACK(&s_in6.sin6_addr))
 				bind_if = c->ip6.ifname_out;
 
-			if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out) &&
-			    !IN6_IS_ADDR_LOOPBACK(&s_in6.sin6_addr) &&
+			if (!IN6_IS_ADDR_LOOPBACK(&s_in6.sin6_addr) &&
 			    !IN6_IS_ADDR_LINKLOCAL(&s_in6.sin6_addr))
 				bind_addr = &c->ip6.addr_out;
 
