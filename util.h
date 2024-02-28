@@ -229,6 +229,7 @@ void write_pidfile(int fd, pid_t pid);
 int __daemon(int pidfile_fd, int devnull_fd);
 int fls(unsigned long x);
 int write_file(const char *path, const char *buf);
+int write_remainder(int fd, const struct iovec *iov, int iovcnt, size_t skip);
 
 /**
  * mod_sub() - Modular arithmetic subtraction

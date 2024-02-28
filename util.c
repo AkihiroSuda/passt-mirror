@@ -19,6 +19,7 @@
 #include <arpa/inet.h>
 #include <net/ethernet.h>
 #include <sys/epoll.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 #include <string.h>
 #include <time.h>
@@ -26,6 +27,7 @@
 #include <stdbool.h>
 
 #include "util.h"
+#include "iov.h"
 #include "passt.h"
 #include "packet.h"
 #include "log.h"
@@ -573,4 +575,37 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 #else
 	return clone(fn, stack_area + stack_size / 2, flags, arg);
 #endif
+}
+
+/* write_remainder() - write the tail of an IO vector to an fd
+ * @fd:		File descriptor
+ * @iov:	IO vector
+ * @iovcnt:	Number of entries in @iov
+ * @skip:	Number of bytes of the vector to skip writing
+ *
+ * Return: 0 on success, -1 on error (with errno set)
+ *
+ * #syscalls write writev
+ */
+int write_remainder(int fd, const struct iovec *iov, int iovcnt, size_t skip)
+{
+	int i;
+
+	while ((i = iov_skip_bytes(iov, iovcnt, skip, &skip)) < iovcnt) {
+		ssize_t rc;
+
+		if (skip) {
+			rc = write(fd, (char *)iov[i].iov_base + skip,
+				   iov[i].iov_len - skip);
+		} else {
+			rc = writev(fd, &iov[i], iovcnt - i);
+		}
+
+		if (rc < 0)
+			return -1;
+
+		skip += rc;
+	}
+
+	return 0;
 }
