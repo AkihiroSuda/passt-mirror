@@ -367,8 +367,11 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 	}
 
 	if (connect(conn->s[1], sa, sl)) {
-		if (errno != EINPROGRESS)
+		if (errno != EINPROGRESS) {
+			flow_trace(conn, "Couldn't connect socket for splice: %s",
+				   strerror(errno));
 			return -errno;
+		}
 
 		conn_event(c, conn, SPLICE_CONNECT);
 	} else {
@@ -484,8 +487,20 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 	if (conn->events == SPLICE_CLOSED)
 		return;
 
-	if (events & EPOLLERR)
+	if (events & EPOLLERR) {
+		int err, rc;
+		socklen_t sl = sizeof(err);
+
+		rc = getsockopt(ref.fd, SOL_SOCKET, SO_ERROR, &err, &sl);
+		if (rc)
+			flow_err(conn, "Error retrieving SO_ERROR: %s",
+				 strerror(errno));
+		else
+			flow_trace(conn, "Error event on socket: %s",
+				   strerror(err));
+
 		goto close;
+	}
 
 	if (conn->events == SPLICE_CONNECT) {
 		if (!(events & EPOLLOUT))
