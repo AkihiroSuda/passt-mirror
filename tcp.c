@@ -3237,12 +3237,12 @@ void tcp_timer(struct ctx *c, const struct timespec *now)
 
 	if (c->mode == MODE_PASTA) {
 		if (c->tcp.fwd_out.mode == FWD_AUTO) {
-			port_fwd_scan_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
+			fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
 			NS_CALL(tcp_port_rebind_outbound, c);
 		}
 
 		if (c->tcp.fwd_in.mode == FWD_AUTO) {
-			port_fwd_scan_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
+			fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
 			tcp_port_rebind(c, false);
 		}
 	}

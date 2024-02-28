@@ -39,7 +39,7 @@ union epoll_ref;
 #include "packet.h"
 #include "flow.h"
 #include "icmp.h"
-#include "port_fwd.h"
+#include "fwd.h"
 #include "tcp.h"
 #include "udp.h"
 

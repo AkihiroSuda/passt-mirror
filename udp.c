@@ -259,7 +259,7 @@ void udp_portmap_clear(void)
  * udp_invert_portmap() - Compute reverse port translations for return packets
  * @fwd:	Port forwarding configuration to compute reverse map for
  */
-static void udp_invert_portmap(struct udp_port_fwd *fwd)
+static void udp_invert_portmap(struct udp_fwd_ports *fwd)
 {
 	unsigned int i;
 
@@ -1203,14 +1203,14 @@ void udp_timer(struct ctx *c, const struct timespec *now)
 
 	if (c->mode == MODE_PASTA) {
 		if (c->udp.fwd_out.f.mode == FWD_AUTO) {
-			port_fwd_scan_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
-					  &c->tcp.fwd_out, &c->tcp.fwd_in);
+			fwd_scan_ports_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
+					   &c->tcp.fwd_out, &c->tcp.fwd_in);
 			NS_CALL(udp_port_rebind_outbound, c);
 		}
 
 		if (c->udp.fwd_in.f.mode == FWD_AUTO) {
-			port_fwd_scan_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
-					  &c->tcp.fwd_in, &c->tcp.fwd_out);
+			fwd_scan_ports_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
+					   &c->tcp.fwd_in, &c->tcp.fwd_out);
 			udp_port_rebind(c, false);
 		}
 	}

@@ -43,12 +43,12 @@ union udp_epoll_ref {
 
 
 /**
- * udp_port_fwd - UDP specific port forwarding configuration
+ * udp_fwd_ports - UDP specific port forwarding configuration
  * @f:		Generic forwarding configuration
  * @rdelta:	Reversed delta map to translate source ports on return packets
  */
-struct udp_port_fwd {
-	struct port_fwd f;
+struct udp_fwd_ports {
+	struct fwd_ports f;
 	in_port_t rdelta[NUM_PORTS];
 };
 
@@ -59,8 +59,8 @@ struct udp_port_fwd {
  * @timer_run:		Timestamp of most recent timer run
  */
 struct udp_ctx {
-	struct udp_port_fwd fwd_in;
-	struct udp_port_fwd fwd_out;
+	struct udp_fwd_ports fwd_in;
+	struct udp_fwd_ports fwd_out;
 	struct timespec timer_run;
 };
 

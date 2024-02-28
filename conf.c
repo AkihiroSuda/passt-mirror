@@ -109,10 +109,10 @@ static int parse_port_range(const char *s, char **endptr,
  * @c:		Execution context
  * @optname:	Short option name, t, T, u, or U
  * @optarg:	Option argument (port specification)
- * @fwd:	Pointer to @port_fwd to be updated
+ * @fwd:	Pointer to @fwd_ports to be updated
  */
 static void conf_ports(const struct ctx *c, char optname, const char *optarg,
-		       struct port_fwd *fwd)
+		       struct fwd_ports *fwd)
 {
 	char addr_buf[sizeof(struct in6_addr)] = { 0 }, *addr = addr_buf;
 	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
@@ -1158,7 +1158,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	};
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
-	enum port_fwd_mode fwd_default = FWD_NONE;
+	enum fwd_ports_mode fwd_default = FWD_NONE;
 	bool v4_only = false, v6_only = false;
 	struct in6_addr *dns6 = c->ip6.dns;
 	struct fqdn *dnss = c->dns_search;
@@ -1746,7 +1746,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (!c->udp.fwd_out.f.mode)
 		c->udp.fwd_out.f.mode = fwd_default;
 
-	port_fwd_init(c);
+	fwd_scan_ports_init(c);
 
 	if (!c->quiet)
 		conf_print(c);

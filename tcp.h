@@ -59,8 +59,8 @@ union tcp_listen_epoll_ref {
  * @pipe_size:		Size of pipes for spliced connections
  */
 struct tcp_ctx {
-	struct port_fwd fwd_in;
-	struct port_fwd fwd_out;
+	struct fwd_ports fwd_in;
+	struct fwd_ports fwd_out;
 	struct timespec timer_run;
 #ifdef HAS_SND_WND
 	int kernel_snd_wnd;

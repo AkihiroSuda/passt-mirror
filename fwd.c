@@ -6,7 +6,7 @@
  * PASTA - Pack A Subtle Tap Abstraction
  *  for network namespace/tap device mode
  *
- * port_fwd.c - Port forwarding helpers
+ * fwd.c - Port forwarding helpers
  *
  * Copyright Red Hat
  * Author: Stefano Brivio <sbrivio@redhat.com>
@@ -21,7 +21,7 @@
 #include <stdio.h>
 
 #include "util.h"
-#include "port_fwd.h"
+#include "fwd.h"
 #include "passt.h"
 #include "lineread.h"
 
@@ -73,11 +73,11 @@ static void procfs_scan_listen(int fd, unsigned int lstate,
 }
 
 /**
- * port_fwd_scan_tcp() - Scan /proc to update TCP forwarding map
+ * fwd_scan_ports_tcp() - Scan /proc to update TCP forwarding map
  * @fwd:	Forwarding information to update
  * @rev:	Forwarding information for the reverse direction
  */
-void port_fwd_scan_tcp(struct port_fwd *fwd, const struct port_fwd *rev)
+void fwd_scan_ports_tcp(struct fwd_ports *fwd, const struct fwd_ports *rev)
 {
 	memset(fwd->map, 0, PORT_BITMAP_SIZE);
 	procfs_scan_listen(fwd->scan4, TCP_LISTEN, fwd->map, rev->map);
@@ -85,15 +85,15 @@ void port_fwd_scan_tcp(struct port_fwd *fwd, const struct port_fwd *rev)
 }
 
 /**
- * port_fwd_scan_udp() - Scan /proc to update UDP forwarding map
+ * fwd_scan_ports_udp() - Scan /proc to update UDP forwarding map
  * @fwd:	Forwarding information to update
  * @rev:	Forwarding information for the reverse direction
  * @tcp_fwd:	Corresponding TCP forwarding information
  * @tcp_rev:	TCP forwarding information for the reverse direction
  */
-void port_fwd_scan_udp(struct port_fwd *fwd, const struct port_fwd *rev,
-		       const struct port_fwd *tcp_fwd,
-		       const struct port_fwd *tcp_rev)
+void fwd_scan_ports_udp(struct fwd_ports *fwd, const struct fwd_ports *rev,
+			const struct fwd_ports *tcp_fwd,
+			const struct fwd_ports *tcp_rev)
 {
 	uint8_t exclude[PORT_BITMAP_SIZE];
 
@@ -118,10 +118,10 @@ void port_fwd_scan_udp(struct port_fwd *fwd, const struct port_fwd *rev,
 }
 
 /**
- * port_fwd_init() - Initial setup for port forwarding
+ * fwd_scan_ports_init() - Initial setup for automatic port forwarding
  * @c:		Execution context
  */
-void port_fwd_init(struct ctx *c)
+void fwd_scan_ports_init(struct ctx *c)
 {
 	const int flags = O_RDONLY | O_CLOEXEC;
 
@@ -133,23 +133,23 @@ void port_fwd_init(struct ctx *c)
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
 		c->tcp.fwd_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
 		c->tcp.fwd_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
-		port_fwd_scan_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
+		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
 	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
 		c->udp.fwd_in.f.scan4 = open_in_ns(c, "/proc/net/udp", flags);
 		c->udp.fwd_in.f.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
-		port_fwd_scan_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
-				  &c->tcp.fwd_in, &c->tcp.fwd_out);
+		fwd_scan_ports_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
+				   &c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
 	if (c->tcp.fwd_out.mode == FWD_AUTO) {
 		c->tcp.fwd_out.scan4 = open("/proc/net/tcp", flags);
 		c->tcp.fwd_out.scan6 = open("/proc/net/tcp6", flags);
-		port_fwd_scan_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
+		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
 	if (c->udp.fwd_out.f.mode == FWD_AUTO) {
 		c->udp.fwd_out.f.scan4 = open("/proc/net/udp", flags);
 		c->udp.fwd_out.f.scan6 = open("/proc/net/udp6", flags);
-		port_fwd_scan_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
-				  &c->tcp.fwd_out, &c->tcp.fwd_in);
+		fwd_scan_ports_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
+				   &c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
 }
