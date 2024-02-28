@@ -420,10 +420,12 @@ static int tcp_splice_new(const struct ctx *c, struct tcp_splice_conn *conn,
 	int s = -1;
 
 	if (pif == PIF_SPLICE) {
+		port += c->tcp.fwd_out.delta[port];
 		s = tcp_conn_sock(c, af);
 	} else {
 		ASSERT(pif == PIF_HOST);
 
+		port += c->tcp.fwd_in.delta[port];
 		s = tcp_conn_sock_ns(c, af);
 	}
 

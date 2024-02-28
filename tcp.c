@@ -2699,7 +2699,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c,
 	conn_event(c, conn, SOCK_ACCEPTED);
 
 	inany_from_sockaddr(&conn->faddr, &conn->fport, sa);
-	conn->eport = ref.port;
+	conn->eport = ref.port + c->tcp.fwd_in.delta[ref.port];
 
 	tcp_snat_inbound(c, &conn->faddr);
 
@@ -2883,7 +2883,7 @@ static int tcp_sock_init_af(const struct ctx *c, sa_family_t af, in_port_t port,
 			    const void *addr, const char *ifname)
 {
 	union tcp_listen_epoll_ref tref = {
-		.port = port + c->tcp.fwd_in.delta[port],
+		.port = port,
 		.pif = PIF_HOST,
 	};
 	int s;
@@ -2945,7 +2945,7 @@ int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
 static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 {
 	union tcp_listen_epoll_ref tref = {
-		.port = port + c->tcp.fwd_out.delta[port],
+		.port = port,
 		.pif = PIF_SPLICE,
 	};
 	int s;
@@ -2971,7 +2971,7 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
 {
 	union tcp_listen_epoll_ref tref = {
-		.port = port + c->tcp.fwd_out.delta[port],
+		.port = port,
 		.pif = PIF_SPLICE,
 	};
 	int s;

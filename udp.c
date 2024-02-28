@@ -767,6 +767,11 @@ void udp_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
 	if (c->no_udp || !(events & EPOLLIN))
 		return;
 
+	if (ref.udp.pif == PIF_SPLICE)
+		dstport += c->udp.fwd_out.f.delta[dstport];
+	else if (ref.udp.pif == PIF_HOST)
+		dstport += c->udp.fwd_in.f.delta[dstport];
+
 	if (v6) {
 		mmh_recv = udp6_l2_mh_sock;
 		udp6_localname.sin6_port = htons(dstport);
@@ -999,16 +1004,13 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port)
 {
 	union udp_epoll_ref uref = { .splice = (c->mode == MODE_PASTA),
-				     .orig = true };
+				     .orig = true, .port = port };
 	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
-	if (ns) {
+	if (ns)
 		uref.pif = PIF_SPLICE;
-		uref.port = (in_port_t)(port + c->udp.fwd_out.f.delta[port]);
-	} else {
+	else
 		uref.pif = PIF_HOST;
-		uref.port = (in_port_t)(port + c->udp.fwd_in.f.delta[port]);
-	}
 
 	if ((af == AF_INET || af == AF_UNSPEC) && c->ifi4) {
 		uref.v6 = 0;

@@ -37,7 +37,7 @@ union tcp_epoll_ref {
 
 /**
  * union tcp_listen_epoll_ref - epoll reference portion for TCP listening
- * @port:	Port number we're forwarding *to* (listening port plus delta)
+ * @port:	Bound port number of the socket
  * @pif:	pif in which the socket is listening
  * @u32:	Opaque u32 value of reference
  */
