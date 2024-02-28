@@ -55,6 +55,56 @@ static inline bool inany_equals(const union inany_addr *a,
 	return IN6_ARE_ADDR_EQUAL(&a->a6, &b->a6);
 }
 
+/** inany_is_loopback() - Check if address is loopback
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is either ::1 or in 127.0.0.1/8
+ */
+static inline bool inany_is_loopback(const union inany_addr *a)
+{
+	const struct in_addr *v4 = inany_v4(a);
+
+	return IN6_IS_ADDR_LOOPBACK(&a->a6) || (v4 && IN4_IS_ADDR_LOOPBACK(v4));
+}
+
+/** inany_is_unspecified() - Check if address is unspecified
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is either :: or 0.0.0.0
+ */
+static inline bool inany_is_unspecified(const union inany_addr *a)
+{
+	const struct in_addr *v4 = inany_v4(a);
+
+	return IN6_IS_ADDR_UNSPECIFIED(&a->a6) ||
+		(v4 && IN4_IS_ADDR_UNSPECIFIED(v4));
+}
+
+/** inany_is_multicast() - Check if address is multicast or broadcast
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is IPv6 multicast or IPv4 multicast or broadcast
+ */
+static inline bool inany_is_multicast(const union inany_addr *a)
+{
+	const struct in_addr *v4 = inany_v4(a);
+
+	return IN6_IS_ADDR_MULTICAST(&a->a6) ||
+		(v4 && (IN4_IS_ADDR_MULTICAST(v4) ||
+			IN4_IS_ADDR_BROADCAST(v4)));
+}
+
+/** inany_is_unicast() - Check if address is specified and unicast
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is specified and a unicast address
+ */
+/* cppcheck-suppress unusedFunction */
+static inline bool inany_is_unicast(const union inany_addr *a)
+{
+	return !inany_is_unspecified(a) && !inany_is_multicast(a);
+}
+
 /** inany_from_af - Set IPv[46] address from IPv4 or IPv6 address
  * @aa:		Pointer to store IPv[46] address
  * @af:		Address family of @addr

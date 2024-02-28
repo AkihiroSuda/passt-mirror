@@ -449,29 +449,20 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 			       struct tcp_splice_conn *conn, int s,
 			       const struct sockaddr *sa)
 {
-	const struct in_addr *a4;
 	union inany_addr aany;
 	in_port_t port;
 
 	ASSERT(c->mode == MODE_PASTA);
 
 	inany_from_sockaddr(&aany, &port, sa);
-	a4 = inany_v4(&aany);
-
-	if (a4) {
-		if (!IN4_IS_ADDR_LOOPBACK(a4))
-			return false;
-		conn->flags = 0;
-	} else {
-		if (!IN6_IS_ADDR_LOOPBACK(&aany.a6))
-			return false;
-		conn->flags = SPLICE_V6;
-	}
+	if (!inany_is_loopback(&aany))
+		return false;
 
 	if (setsockopt(s, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
 		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s);
 
 	conn->f.type = FLOW_TCP_SPLICE;
+	conn->flags = inany_v4(&aany) ? 0 : SPLICE_V6;
 	conn->s[0] = s;
 
 	if (tcp_splice_new(c, conn, ref.port, ref.pif))
