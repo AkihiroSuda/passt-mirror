@@ -67,24 +67,25 @@ struct pcap_pkthdr {
 
 /**
  * pcap_frame() - Capture a single frame to pcap file with given timestamp
- * @pkt:	Pointer to data buffer, including L2 headers
- * @len:	L2 packet length
+ * @iov:	IO vector referencing buffer containing frame (with L2 headers)
+ * @offset:	Offset of the frame from @iov->iov_base
  * @tv:		Timestamp
  *
  * Returns: 0 on success, -errno on error writing to the file
  */
-static int pcap_frame(const char *pkt, size_t len, const struct timeval *tv)
+static void pcap_frame(const struct iovec *iov, size_t offset,
+		       const struct timeval *tv)
 {
+	size_t len = iov->iov_len - offset;
 	struct pcap_pkthdr h;
 
 	h.tv_sec = tv->tv_sec;
 	h.tv_usec = tv->tv_usec;
 	h.caplen = h.len = len;
 
-	if (write(pcap_fd, &h, sizeof(h)) < 0 || write(pcap_fd, pkt, len) < 0)
-		return -errno;
-
-	return 0;
+	if (write(pcap_fd, &h, sizeof(h)) < 0 ||
+	    write(pcap_fd, (char *)iov->iov_base + offset, len) < 0)
+		debug("Cannot log packet, length %zu", len);
 }
 
 /**
@@ -94,14 +95,14 @@ static int pcap_frame(const char *pkt, size_t len, const struct timeval *tv)
  */
 void pcap(const char *pkt, size_t len)
 {
+	struct iovec iov = { (char *)pkt, len };
 	struct timeval tv;
 
 	if (pcap_fd == -1)
 		return;
 
 	gettimeofday(&tv, NULL);
-	if (pcap_frame(pkt, len, &tv) != 0)
-		debug("Cannot log packet, length %zu", len);
+	pcap_frame(&iov, 0, &tv);
 }
 
 /**
@@ -120,14 +121,8 @@ void pcap_multiple(const struct iovec *iov, unsigned int n, size_t offset)
 
 	gettimeofday(&tv, NULL);
 
-	for (i = 0; i < n; i++) {
-		if (pcap_frame((char *)iov[i].iov_base + offset,
-			       iov[i].iov_len - offset, &tv) != 0) {
-			debug("Cannot log packet, length %zu",
-			      iov->iov_len - offset);
-			return;
-		}
-	}
+	for (i = 0; i < n; i++)
+		pcap_frame(iov + i, offset, &tv);
 }
 
 /**
