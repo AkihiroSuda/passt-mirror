@@ -62,7 +62,6 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 {
 	struct icmp_ping_flow *pingf = af == AF_INET
 		? icmp_id_map[V4][ref.icmp.id] : icmp_id_map[V6][ref.icmp.id];
-	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
 	union sockaddr_inany sr;
 	socklen_t sl = sizeof(sr);
 	char buf[USHRT_MAX];
@@ -76,8 +75,7 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 
 	n = recvfrom(ref.fd, buf, sizeof(buf), 0, &sr.sa, &sl);
 	if (n < 0) {
-		warn("%s: recvfrom() error on ping socket: %s",
-		     pname, strerror(errno));
+		flow_err(pingf, "recvfrom() error: %s", strerror(errno));
 		return;
 	}
 	if (sr.sa_family != af)
@@ -114,8 +112,9 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 		pingf->seq = seq;
 	}
 
-	debug("%s: echo reply to tap, ID: %"PRIu16", seq: %"PRIu16, pname,
-	      ref.icmp.id, seq);
+	flow_dbg(pingf, "echo reply to tap, ID: %"PRIu16", seq: %"PRIu16,
+		 ref.icmp.id, seq);
+
 	if (af == AF_INET)
 		tap_icmp4_send(c, sr.sa4.sin_addr, tap_ip4_daddr(c), buf, n);
 	else if (af == AF_INET6)
@@ -124,7 +123,7 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 	return;
 
 unexpected:
-	warn("%s: Unexpected packet on ping socket", pname);
+	flow_err(pingf, "Unexpected packet on ping socket");
 }
 
 /**
@@ -159,7 +158,6 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 					    struct icmp_ping_flow **id_sock,
 					    sa_family_t af, uint16_t id)
 {
-	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
 	uint8_t flowtype = af == AF_INET ? FLOW_PING4 : FLOW_PING6;
 	union icmp_epoll_ref iref = { .id = id };
 	union flow *flow = flow_alloc();
@@ -196,9 +194,9 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	if (pingf->sock > FD_REF_MAX)
 		goto cancel;
 
-	*id_sock = pingf;
+	flow_dbg(pingf, "new socket %i for echo ID %"PRIu16, pingf->sock, id);
 
-	debug("%s: new socket %i for echo ID %"PRIu16, pname, pingf->sock, id);
+	*id_sock = pingf;
 
 	return pingf;
 
@@ -223,7 +221,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
-	const char *const pname = af == AF_INET ? "ICMP" : "ICMPv6";
 	union sockaddr_inany sa = { .sa_family = af };
 	const socklen_t sl = af == AF_INET ? sizeof(sa.sa4) : sizeof(sa.sa6);
 	struct icmp_ping_flow *pingf, **id_sock;
@@ -278,11 +275,12 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	pingf->ts = now->tv_sec;
 
 	if (sendto(pingf->sock, pkt, plen, MSG_NOSIGNAL, &sa.sa, sl) < 0) {
-		debug("%s: failed to relay request to socket: %s",
-		      pname, strerror(errno));
+		flow_dbg(pingf, "failed to relay request to socket: %s",
+			 strerror(errno));
 	} else {
-		debug("%s: echo request to socket, ID: %"PRIu16", seq: %"PRIu16,
-		      pname, id, seq);
+		flow_dbg(pingf,
+			 "echo request to socket, ID: %"PRIu16", seq: %"PRIu16,
+			 id, seq);
 	}
 
 	return 1;
