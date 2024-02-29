@@ -59,10 +59,8 @@ enum epoll_type {
 	EPOLL_TYPE_TCP_TIMER,
 	/* UDP sockets */
 	EPOLL_TYPE_UDP,
-	/* IPv4 ICMP sockets */
-	EPOLL_TYPE_ICMP,
-	/* ICMPv6 sockets */
-	EPOLL_TYPE_ICMPV6,
+	/* ICMP/ICMPv6 ping sockets */
+	EPOLL_TYPE_PING,
 	/* inotify fd watching for end of netns (pasta) */
 	EPOLL_TYPE_NSQUIT_INOTIFY,
 	/* timer fd watching for end of netns, fallback for inotify (pasta) */
@@ -100,7 +98,6 @@ union epoll_ref {
 			flow_sidx_t flowside;
 			union tcp_listen_epoll_ref tcp_listen;
 			union udp_epoll_ref udp;
-			union icmp_epoll_ref icmp;
 			uint32_t data;
 			int nsdir_fd;
 		};

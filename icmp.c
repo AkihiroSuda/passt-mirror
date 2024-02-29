@@ -49,19 +49,19 @@
 #define	SOCKSIDE	0
 #define	TAPSIDE		1
 
+#define PINGF(idx)		(&(FLOW(idx)->ping))
+
 /* Indexed by ICMP echo identifier */
 static struct icmp_ping_flow *icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
 
 /**
  * icmp_sock_handler() - Handle new data from ICMP or ICMPv6 socket
  * @c:		Execution context
- * @af:		Address family (AF_INET or AF_INET6)
  * @ref:	epoll reference
  */
-void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
+void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 {
-	struct icmp_ping_flow *pingf = af == AF_INET
-		? icmp_id_map[V4][ref.icmp.id] : icmp_id_map[V6][ref.icmp.id];
+	struct icmp_ping_flow *pingf = PINGF(ref.flowside.flow);
 	union sockaddr_inany sr;
 	socklen_t sl = sizeof(sr);
 	char buf[USHRT_MAX];
@@ -78,27 +78,26 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 		flow_err(pingf, "recvfrom() error: %s", strerror(errno));
 		return;
 	}
-	if (sr.sa_family != af)
-		goto unexpected;
 
-	if (af == AF_INET) {
+	if (pingf->f.type == FLOW_PING4) {
 		struct icmphdr *ih4 = (struct icmphdr *)buf;
 
-		if ((size_t)n < sizeof(*ih4) || ih4->type != ICMP_ECHOREPLY)
+		if (sr.sa_family != AF_INET || (size_t)n < sizeof(*ih4) ||
+		    ih4->type != ICMP_ECHOREPLY)
 			goto unexpected;
 
 		/* Adjust packet back to guest-side ID */
-		ih4->un.echo.id = htons(ref.icmp.id);
+		ih4->un.echo.id = htons(pingf->id);
 		seq = ntohs(ih4->un.echo.sequence);
-	} else if (af == AF_INET6) {
+	} else if (pingf->f.type == FLOW_PING6) {
 		struct icmp6hdr *ih6 = (struct icmp6hdr *)buf;
 
-		if ((size_t)n < sizeof(*ih6) ||
+		if (sr.sa_family != AF_INET6 || (size_t)n < sizeof(*ih6) ||
 		    ih6->icmp6_type != ICMPV6_ECHO_REPLY)
 			goto unexpected;
 
 		/* Adjust packet back to guest-side ID */
-		ih6->icmp6_identifier = htons(ref.icmp.id);
+		ih6->icmp6_identifier = htons(pingf->id);
 		seq = ntohs(ih6->icmp6_sequence);
 	} else {
 		ASSERT(0);
@@ -113,11 +112,11 @@ void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref)
 	}
 
 	flow_dbg(pingf, "echo reply to tap, ID: %"PRIu16", seq: %"PRIu16,
-		 ref.icmp.id, seq);
+		 pingf->id, seq);
 
-	if (af == AF_INET)
+	if (pingf->f.type == FLOW_PING4)
 		tap_icmp4_send(c, sr.sa4.sin_addr, tap_ip4_daddr(c), buf, n);
-	else if (af == AF_INET6)
+	else if (pingf->f.type == FLOW_PING6)
 		tap_icmp6_send(c, &sr.sa6.sin6_addr,
 			       tap_ip6_daddr(c, &sr.sa6.sin6_addr), buf, n);
 	return;
@@ -159,7 +158,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 					    sa_family_t af, uint16_t id)
 {
 	uint8_t flowtype = af == AF_INET ? FLOW_PING4 : FLOW_PING6;
-	union icmp_epoll_ref iref = { .id = id };
+	union epoll_ref ref = { .type = EPOLL_TYPE_PING };
 	union flow *flow = flow_alloc();
 	struct icmp_ping_flow *pingf;
 	const void *bind_addr;
@@ -181,8 +180,9 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 		bind_if = c->ip6.ifname_out;
 	}
 
+	ref.flowside = FLOW_SIDX(flow, SOCKSIDE);
 	pingf->sock = sock_l4(c, af, flow_proto[flowtype], bind_addr, bind_if,
-			      0, iref.u32);
+			      0, ref.data);
 
 	if (pingf->sock < 0) {
 		warn("Cannot open \"ping\" socket. You might need to:");

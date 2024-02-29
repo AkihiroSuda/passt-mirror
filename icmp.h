@@ -11,22 +11,11 @@
 struct ctx;
 struct icmp_ping_flow;
 
-void icmp_sock_handler(const struct ctx *c, sa_family_t af, union epoll_ref ref);
+void icmp_sock_handler(const struct ctx *c, union epoll_ref ref);
 int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now);
 void icmp_init(void);
-
-/**
- * union icmp_epoll_ref - epoll reference portion for ICMP tracking
- * @v6:			Set for IPv6 sockets or connections
- * @u32:		Opaque u32 value of reference
- * @id:			Associated echo identifier, needed if bind() fails
- */
-union icmp_epoll_ref {
-	uint16_t id;
-	uint32_t u32;
-};
 
 /**
  * struct icmp_ctx - Execution context for ICMP routines

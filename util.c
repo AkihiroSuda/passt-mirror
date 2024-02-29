@@ -72,10 +72,8 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 		ref.type = EPOLL_TYPE_UDP;
 		break;
 	case IPPROTO_ICMP:
-		ref.type = EPOLL_TYPE_ICMP;
-		break;
 	case IPPROTO_ICMPV6:
-		ref.type = EPOLL_TYPE_ICMPV6;
+		ref.type = EPOLL_TYPE_PING;
 		break;
 	default:
 		return -EPFNOSUPPORT;	/* Not implemented. */
