@@ -106,8 +106,6 @@ static void post_handler(struct ctx *c, const struct timespec *now)
 	CALL_PROTO_HANDLER(c, now, tcp, TCP);
 	/* NOLINTNEXTLINE(bugprone-branch-clone): intervals can be the same */
 	CALL_PROTO_HANDLER(c, now, udp, UDP);
-	/* NOLINTNEXTLINE(bugprone-branch-clone): intervals can be the same */
-	CALL_PROTO_HANDLER(c, now, icmp, ICMP);
 
 	flow_defer_handler(c, now);
 #undef CALL_PROTO_HANDLER
@@ -287,9 +285,6 @@ int main(int argc, char **argv)
 
 	if ((!c.no_udp && udp_init(&c)) || (!c.no_tcp && tcp_init(&c)))
 		exit(EXIT_FAILURE);
-
-	if (!c.no_icmp)
-		icmp_init();
 
 	proto_update_l2_buf(c.mac_guest, c.mac);
 

@@ -8,6 +8,7 @@
 #define FLOW_TABLE_H
 
 #include "tcp_conn.h"
+#include "icmp_flow.h"
 
 /**
  * struct flow_free_cluster - Information about a cluster of free entries
@@ -33,6 +34,7 @@ union flow {
 	struct flow_free_cluster free;
 	struct tcp_tap_conn tcp;
 	struct tcp_splice_conn tcp_splice;
+	struct icmp_ping_flow ping;
 };
 
 /* Global Flow Table */

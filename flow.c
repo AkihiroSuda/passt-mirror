@@ -22,6 +22,8 @@ const char *flow_type_str[] = {
 	[FLOW_TYPE_NONE]	= "<none>",
 	[FLOW_TCP]		= "TCP connection",
 	[FLOW_TCP_SPLICE]	= "TCP connection (spliced)",
+	[FLOW_PING4]		= "ICMP ping sequence",
+	[FLOW_PING6]		= "ICMPv6 ping sequence",
 };
 static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 	      "flow_type_str[] doesn't match enum flow_type");
@@ -29,6 +31,8 @@ static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 const uint8_t flow_proto[] = {
 	[FLOW_TCP]		= IPPROTO_TCP,
 	[FLOW_TCP_SPLICE]	= IPPROTO_TCP,
+	[FLOW_PING4]		= IPPROTO_ICMP,
+	[FLOW_PING6]		= IPPROTO_ICMPV6,
 };
 static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 	      "flow_proto[] doesn't match enum flow_type");
@@ -294,6 +298,11 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 			closed = tcp_splice_flow_defer(flow);
 			if (!closed && timer)
 				tcp_splice_timer(c, flow);
+			break;
+		case FLOW_PING4:
+		case FLOW_PING6:
+			if (timer)
+				closed = icmp_ping_timer(c, flow, now);
 			break;
 		default:
 			/* Assume other flow types don't need any handling */

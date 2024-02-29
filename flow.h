@@ -19,6 +19,10 @@ enum flow_type {
 	FLOW_TCP,
 	/* A TCP connection between a host socket and ns socket */
 	FLOW_TCP_SPLICE,
+	/* ICMP echo requests from guest to host and matching replies back */
+	FLOW_PING4,
+	/* ICMPv6 echo requests from guest to host and matching replies back */
+	FLOW_PING6,
 
 	FLOW_NUM_TYPES,
 };

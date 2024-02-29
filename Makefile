@@ -54,9 +54,9 @@ SRCS = $(PASST_SRCS) $(QRAP_SRCS)
 MANPAGES = passt.1 pasta.1 qrap.1
 
 PASST_HEADERS = arch.h arp.h checksum.h conf.h dhcp.h dhcpv6.h flow.h fwd.h \
-	flow_table.h icmp.h inany.h iov.h ip.h isolation.h lineread.h log.h \
-	ndp.h netlink.h packet.h passt.h pasta.h pcap.h pif.h siphash.h tap.h \
-	tcp.h tcp_conn.h tcp_splice.h udp.h util.h
+	flow_table.h icmp.h icmp_flow.h inany.h iov.h ip.h isolation.h \
+	lineread.h log.h ndp.h netlink.h packet.h passt.h pasta.h pcap.h pif.h \
+	siphash.h tap.h tcp.h tcp_conn.h tcp_splice.h udp.h util.h
 HEADERS = $(PASST_HEADERS) seccomp.h
 
 C := \#include <linux/tcp.h>\nstruct tcp_info x = { .tcpi_snd_wnd = 0 };
