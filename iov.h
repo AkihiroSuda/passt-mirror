@@ -19,7 +19,7 @@
 #include <string.h>
 
 size_t iov_skip_bytes(const struct iovec *iov, size_t n,
-		      size_t vec_offset, size_t *buf_offset);
+		      size_t skip, size_t *offset);
 size_t iov_from_buf(const struct iovec *iov, size_t iov_cnt,
                     size_t offset, const void *buf, size_t bytes);
 size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,

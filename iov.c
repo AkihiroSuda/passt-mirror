@@ -26,31 +26,31 @@
 #include "iov.h"
 
 
-/* iov_skip_bytes() - Skip the first n bytes into an IO vector
+/* iov_skip_bytes() - Skip leading bytes of an IO vector
  * @iov:	IO vector
  * @n:		Number of entries in @iov
- * @vec_offset: Total byte offset into the IO vector
- * @buf_offset:	Offset into a single buffer of the IO vector
+ * @skip:	Number of leading bytes of @iov to skip
+ * @offset:	Offset of first unskipped byte in its @iov entry
  *
- * Return: index I of individual struct iovec which contains the byte at
- *         @vec_offset bytes into the vector (as though all its buffers were
- *         contiguous).  If @buf_offset is non-NULL, update it to the offset of
- *         that byte within @iov[I] (guaranteed to be less than @iov[I].iov_len)
- *	   If the whole vector has <= @vec_offset bytes, return @n.
+ * Return: index I of individual struct iovec which contains the byte at @skip
+ *         bytes into the vector (as though all its buffers were contiguous).
+ *         If @offset is non-NULL, update it to the offset of that byte within
+ *         @iov[I] (guaranteed to be less than @iov[I].iov_len) If the whole
+ *         vector has <= @skip bytes, return @n.
  */
 size_t iov_skip_bytes(const struct iovec *iov, size_t n,
-		      size_t vec_offset, size_t *buf_offset)
+		      size_t skip, size_t *offset)
 {
-	size_t offset = vec_offset, i;
+	size_t off = skip, i;
 
 	for (i = 0; i < n; i++) {
-		if (offset < iov[i].iov_len)
+		if (off < iov[i].iov_len)
 			break;
-		offset -= iov[i].iov_len;
+		off -= iov[i].iov_len;
 	}
 
-	if (buf_offset)
-		*buf_offset = offset;
+	if (offset)
+		*offset = off;
 
 	return i;
 }
