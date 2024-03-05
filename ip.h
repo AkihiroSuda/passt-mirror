@@ -38,7 +38,7 @@
 		.daddr		= 0,					\
 	}
 #define L2_BUF_IP4_PSUM(proto)	((uint32_t)htons_constant(0x4500) +	\
-				 (uint32_t)htons_constant(0xff00 | (proto)))
+				 (uint32_t)htons(0xff00 | (proto)))
 
 #define L2_BUF_IP6_INIT(proto)						\
 	{								\
