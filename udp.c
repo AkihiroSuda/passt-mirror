@@ -294,72 +294,74 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 }
 
 /**
- * udp_sock4_iov_init() - Initialise scatter-gather L2 buffers for IPv4 sockets
+ * udp_sock4_iov_init_one() - Initialise a scatter-gather L2 buffer for IPv4
  * @c:		Execution context
+ * @i:		Index of buffer to initialize
  */
-static void udp_sock4_iov_init(const struct ctx *c)
+static void udp_sock4_iov_init_one(const struct ctx *c, size_t i)
 {
-	struct mmsghdr *h;
-	int i;
+	struct msghdr *mh = &udp4_l2_mh_sock[i].msg_hdr;
+	struct udp4_l2_buf_t *buf = &udp4_l2_buf[i];
+	struct iovec *siov = &udp4_l2_iov_sock[i];
+	struct iovec *tiov = &udp4_l2_iov_tap[i];
 
-	for (i = 0; i < ARRAY_SIZE(udp4_l2_buf); i++) {
-		udp4_l2_buf[i] = (struct udp4_l2_buf_t) {
-			.taph = TAP_HDR_INIT(ETH_P_IP),
-			.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
-		};
-	}
+	*buf = (struct udp4_l2_buf_t) {
+		.taph = TAP_HDR_INIT(ETH_P_IP),
+		.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
+	};
 
-	for (i = 0, h = udp4_l2_mh_sock; i < UDP_MAX_FRAMES; i++, h++) {
-		struct msghdr *mh = &h->msg_hdr;
+	siov->iov_base	= buf->data;
+	siov->iov_len	= sizeof(buf->data);
 
-		mh->msg_name			= &udp4_l2_buf[i].s_in;
-		mh->msg_namelen			= sizeof(udp4_l2_buf[i].s_in);
+	mh->msg_name	= &buf->s_in;
+	mh->msg_namelen	= sizeof(buf->s_in);
+	mh->msg_iov	= siov;
+	mh->msg_iovlen	= 1;
 
-		udp4_l2_iov_sock[i].iov_base	= udp4_l2_buf[i].data;
-		udp4_l2_iov_sock[i].iov_len	= sizeof(udp4_l2_buf[i].data);
-		mh->msg_iov			= &udp4_l2_iov_sock[i];
-		mh->msg_iovlen			= 1;
-	}
-
-	for (i = 0; i < UDP_MAX_FRAMES; i++) {
-		struct iovec *iov = &udp4_l2_iov_tap[i];
-
-		iov->iov_base = tap_iov_base(c, &udp4_l2_buf[i].taph);
-	}
+	tiov->iov_base	= tap_iov_base(c, &buf->taph);
 }
 
 /**
- * udp_sock6_iov_init() - Initialise scatter-gather L2 buffers for IPv6 sockets
+ * udp_sock6_iov_init_one() - Initialise a scatter-gather L2 buffer for IPv6
+ * @c:		Execution context
+ * @i:		Index of buffer to initialize
+ */
+static void udp_sock6_iov_init_one(const struct ctx *c, size_t i)
+{
+	struct msghdr *mh = &udp6_l2_mh_sock[i].msg_hdr;
+	struct udp6_l2_buf_t *buf = &udp6_l2_buf[i];
+	struct iovec *siov = &udp6_l2_iov_sock[i];
+	struct iovec *tiov = &udp6_l2_iov_tap[i];
+
+	*buf = (struct udp6_l2_buf_t) {
+		.taph = TAP_HDR_INIT(ETH_P_IPV6),
+		.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
+	};
+
+	siov->iov_base	= buf->data;
+	siov->iov_len	= sizeof(buf->data);
+
+	mh->msg_name	= &buf->s_in6;
+	mh->msg_namelen	= sizeof(buf->s_in6);
+	mh->msg_iov	= siov;
+	mh->msg_iovlen	= 1;
+
+	tiov->iov_base	= tap_iov_base(c, &buf->taph);
+}
+
+/**
+ * udp_sock_iov_init() - Initialise scatter-gather L2 buffers
  * @c:		Execution context
  */
-static void udp_sock6_iov_init(const struct ctx *c)
+static void udp_sock_iov_init(const struct ctx *c)
 {
-	struct mmsghdr *h;
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(udp6_l2_buf); i++) {
-		udp6_l2_buf[i] = (struct udp6_l2_buf_t) {
-			.taph = TAP_HDR_INIT(ETH_P_IPV6),
-			.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
-		};
-	}
-
-	for (i = 0, h = udp6_l2_mh_sock; i < UDP_MAX_FRAMES; i++, h++) {
-		struct msghdr *mh = &h->msg_hdr;
-
-		mh->msg_name			= &udp6_l2_buf[i].s_in6;
-		mh->msg_namelen			= sizeof(struct sockaddr_in6);
-
-		udp6_l2_iov_sock[i].iov_base	= udp6_l2_buf[i].data;
-		udp6_l2_iov_sock[i].iov_len	= sizeof(udp6_l2_buf[i].data);
-		mh->msg_iov			= &udp6_l2_iov_sock[i];
-		mh->msg_iovlen			= 1;
-	}
+	size_t i;
 
 	for (i = 0; i < UDP_MAX_FRAMES; i++) {
-		struct iovec *iov = &udp6_l2_iov_tap[i];
-
-		iov->iov_base = tap_iov_base(c, &udp6_l2_buf[i].taph);
+		if (c->ifi4)
+			udp_sock4_iov_init_one(c, i);
+		if (c->ifi6)
+			udp_sock6_iov_init_one(c, i);
 	}
 }
 
@@ -1230,11 +1232,7 @@ v6:
  */
 int udp_init(struct ctx *c)
 {
-	if (c->ifi4)
-		udp_sock4_iov_init(c);
-
-	if (c->ifi6)
-		udp_sock6_iov_init(c);
+	udp_sock_iov_init(c);
 
 	udp_invert_portmap(&c->udp.fwd_in);
 	udp_invert_portmap(&c->udp.fwd_out);
