@@ -45,6 +45,7 @@
 
 #include "checksum.h"
 #include "util.h"
+#include "ip.h"
 #include "iov.h"
 #include "passt.h"
 #include "arp.h"

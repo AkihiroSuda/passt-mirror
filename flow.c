@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "util.h"
+#include "ip.h"
 #include "passt.h"
 #include "siphash.h"
 #include "inany.h"

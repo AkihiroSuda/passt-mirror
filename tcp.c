@@ -290,6 +290,7 @@
 
 #include "checksum.h"
 #include "util.h"
+#include "ip.h"
 #include "passt.h"
 #include "tap.h"
 #include "siphash.h"

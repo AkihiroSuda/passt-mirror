@@ -25,6 +25,7 @@
 #include <limits.h>
 
 #include "util.h"
+#include "ip.h"
 #include "checksum.h"
 #include "packet.h"
 #include "passt.h"

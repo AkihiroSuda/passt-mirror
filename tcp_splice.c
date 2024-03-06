@@ -49,6 +49,7 @@
 #include <sys/socket.h>
 
 #include "util.h"
+#include "ip.h"
 #include "passt.h"
 #include "log.h"
 #include "tcp_splice.h"

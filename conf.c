@@ -35,6 +35,7 @@
 #include <netinet/if_ether.h>
 
 #include "util.h"
+#include "ip.h"
 #include "passt.h"
 #include "netlink.h"
 #include "udp.h"

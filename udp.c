@@ -113,6 +113,7 @@
 
 #include "checksum.h"
 #include "util.h"
+#include "ip.h"
 #include "siphash.h"
 #include "inany.h"
 #include "passt.h"

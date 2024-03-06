@@ -21,6 +21,7 @@
 #include <stdio.h>
 
 #include "util.h"
+#include "ip.h"
 #include "fwd.h"
 #include "passt.h"
 #include "lineread.h"
