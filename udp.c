@@ -588,7 +588,7 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 			      const struct timespec *now)
 {
 	struct udp4_l2_buf_t *b = &udp4_l2_buf[n];
-	struct in_addr *src;
+	const struct in_addr *src;
 	in_port_t src_port;
 	size_t ip_len;
 
@@ -602,10 +602,9 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 
 	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match) &&
 	    IN4_ARE_ADDR_EQUAL(src, &c->ip4.dns_host) && src_port == 53) {
-		b->iph.saddr = c->ip4.dns_match.s_addr;
+		src = &c->ip4.dns_match;
 	} else if (IN4_IS_ADDR_LOOPBACK(src) ||
 		   IN4_ARE_ADDR_EQUAL(src, &c->ip4.addr_seen)) {
-		b->iph.saddr = c->ip4.gw.s_addr;
 		udp_tap_map[V4][src_port].ts = now->tv_sec;
 		udp_tap_map[V4][src_port].flags |= PORT_LOCAL;
 
@@ -615,9 +614,10 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 			udp_tap_map[V4][src_port].flags &= ~PORT_LOOPBACK;
 
 		bitmap_set(udp_act[V4][UDP_ACT_TAP], src_port);
-	} else {
-		b->iph.saddr = src->s_addr;
+
+		src = &c->ip4.gw;
 	}
+	b->iph.saddr = src->s_addr;
 
 	udp_update_check4(b);
 	b->uh.source = b->s_in.sin_port;
@@ -640,10 +640,11 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 			      const struct timespec *now)
 {
 	struct udp6_l2_buf_t *b = &udp6_l2_buf[n];
-	struct in6_addr *src;
+	const struct in6_addr *src, *dst;
 	in_port_t src_port;
 	size_t ip_len;
 
+	dst = &c->ip6.addr_seen;
 	src = &b->s_in6.sin6_addr;
 	src_port = ntohs(b->s_in6.sin6_port);
 
@@ -652,23 +653,14 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 	b->ip6h.payload_len = htons(udp6_l2_mh_sock[n].msg_len + sizeof(b->uh));
 
 	if (IN6_IS_ADDR_LINKLOCAL(src)) {
-		b->ip6h.daddr = c->ip6.addr_ll_seen;
-		b->ip6h.saddr = b->s_in6.sin6_addr;
+		dst = &c->ip6.addr_ll_seen;
 	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match) &&
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.dns_host) &&
 		   src_port == 53) {
-		b->ip6h.daddr = c->ip6.addr_seen;
-		b->ip6h.saddr = c->ip6.dns_match;
+		src = &c->ip6.dns_match;
 	} else if (IN6_IS_ADDR_LOOPBACK(src)			||
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.addr_seen)	||
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.addr)) {
-		b->ip6h.daddr = c->ip6.addr_ll_seen;
-
-		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
-			b->ip6h.saddr = c->ip6.gw;
-		else
-			b->ip6h.saddr = c->ip6.addr_ll;
-
 		udp_tap_map[V6][src_port].ts = now->tv_sec;
 		udp_tap_map[V6][src_port].flags |= PORT_LOCAL;
 
@@ -683,10 +675,17 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 			udp_tap_map[V6][src_port].flags &= ~PORT_GUA;
 
 		bitmap_set(udp_act[V6][UDP_ACT_TAP], src_port);
-	} else {
-		b->ip6h.daddr = c->ip6.addr_seen;
-		b->ip6h.saddr = b->s_in6.sin6_addr;
+
+		dst = &c->ip6.addr_ll_seen;
+
+		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
+			src = &c->ip6.gw;
+		else
+			src = &c->ip6.addr_ll;
+
 	}
+	b->ip6h.daddr = *dst;
+	b->ip6h.saddr = *src;
 
 	b->uh.source = b->s_in6.sin6_port;
 	b->uh.dest = htons(dstport);
