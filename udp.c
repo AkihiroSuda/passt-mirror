@@ -563,21 +563,22 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
 /**
  * udp_update_hdr4() - Update headers for one IPv4 datagram
  * @c:		Execution context
- * @n:		Index of buffer in udp4_l2_buf pool
+ * @b:		Pointer to udp4_l2_buf to update
  * @dstport:	Destination port number
+ * @datalen:	Length of UDP payload
  * @now:	Current timestamp
  *
  * Return: size of tap frame with headers
  */
-static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
+static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
+			      in_port_t dstport, size_t datalen,
 			      const struct timespec *now)
 {
-	struct udp4_l2_buf_t *b = &udp4_l2_buf[n];
 	const struct in_addr *src;
 	in_port_t srcport;
 	size_t ip_len;
 
-	ip_len = udp4_l2_mh_sock[n].msg_len + sizeof(b->iph) + sizeof(b->uh);
+	ip_len = datalen + sizeof(b->iph) + sizeof(b->uh);
 
 	b->iph.tot_len = htons(ip_len);
 	b->iph.daddr = c->ip4.addr_seen.s_addr;
@@ -608,7 +609,7 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 				       *src, c->ip4.addr_seen);
 	b->uh.source = b->s_in.sin_port;
 	b->uh.dest = htons(dstport);
-	b->uh.len = htons(udp4_l2_mh_sock[n].msg_len + sizeof(b->uh));
+	b->uh.len = htons(datalen + sizeof(b->uh));
 
 	return tap_iov_len(c, &b->taph, ip_len);
 }
@@ -616,16 +617,17 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 /**
  * udp_update_hdr6() - Update headers for one IPv6 datagram
  * @c:		Execution context
- * @n:		Index of buffer in udp6_l2_buf pool
+ * @b:		Pointer to udp6_l2_buf to update
  * @dstport:	Destination port number
+ * @datalen:	Length of UDP payload
  * @now:	Current timestamp
  *
  * Return: size of tap frame with headers
  */
-static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
+static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
+			      in_port_t dstport, size_t datalen,
 			      const struct timespec *now)
 {
-	struct udp6_l2_buf_t *b = &udp6_l2_buf[n];
 	const struct in6_addr *src, *dst;
 	uint16_t payload_len;
 	in_port_t srcport;
@@ -635,9 +637,9 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 	src = &b->s_in6.sin6_addr;
 	srcport = ntohs(b->s_in6.sin6_port);
 
-	ip_len = udp6_l2_mh_sock[n].msg_len + sizeof(b->ip6h) + sizeof(b->uh);
+	ip_len = datalen + sizeof(b->ip6h) + sizeof(b->uh);
 
-	payload_len = udp6_l2_mh_sock[n].msg_len + sizeof(b->uh);
+	payload_len = datalen + sizeof(b->uh);
 	b->ip6h.payload_len = htons(payload_len);
 
 	if (IN6_IS_ADDR_LINKLOCAL(src)) {
@@ -716,9 +718,11 @@ static void udp_tap_send(const struct ctx *c,
 		size_t buf_len;
 
 		if (v6)
-			buf_len = udp_update_hdr6(c, i, dstport, now);
+			buf_len = udp_update_hdr6(c, &udp6_l2_buf[i], dstport,
+						  udp6_l2_mh_sock[i].msg_len, now);
 		else
-			buf_len = udp_update_hdr4(c, i, dstport, now);
+			buf_len = udp_update_hdr4(c, &udp4_l2_buf[i], dstport,
+						  udp4_l2_mh_sock[i].msg_len, now);
 
 		tap_iov[i].iov_len = buf_len;
 	}
