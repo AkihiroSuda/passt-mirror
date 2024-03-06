@@ -574,7 +574,7 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 {
 	struct udp4_l2_buf_t *b = &udp4_l2_buf[n];
 	const struct in_addr *src;
-	in_port_t src_port;
+	in_port_t srcport;
 	size_t ip_len;
 
 	ip_len = udp4_l2_mh_sock[n].msg_len + sizeof(b->iph) + sizeof(b->uh);
@@ -583,22 +583,22 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 	b->iph.daddr = c->ip4.addr_seen.s_addr;
 
 	src = &b->s_in.sin_addr;
-	src_port = ntohs(b->s_in.sin_port);
+	srcport = ntohs(b->s_in.sin_port);
 
 	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match) &&
-	    IN4_ARE_ADDR_EQUAL(src, &c->ip4.dns_host) && src_port == 53) {
+	    IN4_ARE_ADDR_EQUAL(src, &c->ip4.dns_host) && srcport == 53) {
 		src = &c->ip4.dns_match;
 	} else if (IN4_IS_ADDR_LOOPBACK(src) ||
 		   IN4_ARE_ADDR_EQUAL(src, &c->ip4.addr_seen)) {
-		udp_tap_map[V4][src_port].ts = now->tv_sec;
-		udp_tap_map[V4][src_port].flags |= PORT_LOCAL;
+		udp_tap_map[V4][srcport].ts = now->tv_sec;
+		udp_tap_map[V4][srcport].flags |= PORT_LOCAL;
 
 		if (IN4_IS_ADDR_LOOPBACK(src))
-			udp_tap_map[V4][src_port].flags |= PORT_LOOPBACK;
+			udp_tap_map[V4][srcport].flags |= PORT_LOOPBACK;
 		else
-			udp_tap_map[V4][src_port].flags &= ~PORT_LOOPBACK;
+			udp_tap_map[V4][srcport].flags &= ~PORT_LOOPBACK;
 
-		bitmap_set(udp_act[V4][UDP_ACT_TAP], src_port);
+		bitmap_set(udp_act[V4][UDP_ACT_TAP], srcport);
 
 		src = &c->ip4.gw;
 	}
@@ -628,12 +628,12 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 	struct udp6_l2_buf_t *b = &udp6_l2_buf[n];
 	const struct in6_addr *src, *dst;
 	uint16_t payload_len;
-	in_port_t src_port;
+	in_port_t srcport;
 	size_t ip_len;
 
 	dst = &c->ip6.addr_seen;
 	src = &b->s_in6.sin6_addr;
-	src_port = ntohs(b->s_in6.sin6_port);
+	srcport = ntohs(b->s_in6.sin6_port);
 
 	ip_len = udp6_l2_mh_sock[n].msg_len + sizeof(b->ip6h) + sizeof(b->uh);
 
@@ -644,25 +644,25 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 		dst = &c->ip6.addr_ll_seen;
 	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match) &&
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.dns_host) &&
-		   src_port == 53) {
+		   srcport == 53) {
 		src = &c->ip6.dns_match;
 	} else if (IN6_IS_ADDR_LOOPBACK(src)			||
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.addr_seen)	||
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.addr)) {
-		udp_tap_map[V6][src_port].ts = now->tv_sec;
-		udp_tap_map[V6][src_port].flags |= PORT_LOCAL;
+		udp_tap_map[V6][srcport].ts = now->tv_sec;
+		udp_tap_map[V6][srcport].flags |= PORT_LOCAL;
 
 		if (IN6_IS_ADDR_LOOPBACK(src))
-			udp_tap_map[V6][src_port].flags |= PORT_LOOPBACK;
+			udp_tap_map[V6][srcport].flags |= PORT_LOOPBACK;
 		else
-			udp_tap_map[V6][src_port].flags &= ~PORT_LOOPBACK;
+			udp_tap_map[V6][srcport].flags &= ~PORT_LOOPBACK;
 
 		if (IN6_ARE_ADDR_EQUAL(src, &c->ip6.addr))
-			udp_tap_map[V6][src_port].flags |= PORT_GUA;
+			udp_tap_map[V6][srcport].flags |= PORT_GUA;
 		else
-			udp_tap_map[V6][src_port].flags &= ~PORT_GUA;
+			udp_tap_map[V6][srcport].flags &= ~PORT_GUA;
 
-		bitmap_set(udp_act[V6][UDP_ACT_TAP], src_port);
+		bitmap_set(udp_act[V6][UDP_ACT_TAP], srcport);
 
 		dst = &c->ip6.addr_ll_seen;
 
