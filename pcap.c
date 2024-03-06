@@ -32,6 +32,7 @@
 #include "passt.h"
 #include "log.h"
 #include "pcap.h"
+#include "iov.h"
 
 #define PCAP_VERSION_MINOR 4
 
@@ -78,7 +79,7 @@ struct pcap_pkthdr {
 static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 		       size_t offset, const struct timeval *tv)
 {
-	size_t len = iov->iov_len - offset;
+	size_t len = iov_size(iov, iovcnt) - offset;
 	struct pcap_pkthdr h = {
 		.tv_sec = tv->tv_sec,
 		.tv_usec = tv->tv_usec,
@@ -87,10 +88,8 @@ static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 	};
 	struct iovec hiov = { &h, sizeof(h) };
 
-	(void)iovcnt;
-
 	if (write_remainder(pcap_fd, &hiov, 1, 0) < 0 ||
-	    write_remainder(pcap_fd, iov, 1, offset) < 0) {
+	    write_remainder(pcap_fd, iov, iovcnt, offset) < 0) {
 		debug("Cannot log packet, length %zu: %s",
 		      len, strerror(errno));
 	}
@@ -133,6 +132,26 @@ void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
 
 	for (i = 0; i < n; i++)
 		pcap_frame(iov + i * frame_parts, frame_parts, offset, &tv);
+}
+
+/*
+ * pcap_iov - Write packet data described by an I/O vector
+ *		to a pcap file descriptor.
+ *
+ * @iov:	Pointer to the array of struct iovec describing the I/O vector
+ *		containing packet data to write, including L2 header
+ * @iovcnt:	Number of buffers (@iov entries)
+ */
+/* cppcheck-suppress unusedFunction */
+void pcap_iov(const struct iovec *iov, size_t iovcnt)
+{
+	struct timeval tv;
+
+	if (pcap_fd == -1)
+		return;
+
+	gettimeofday(&tv, NULL);
+	pcap_frame(iov, iovcnt, 0, &tv);
 }
 
 /**

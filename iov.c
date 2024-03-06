@@ -146,7 +146,6 @@ size_t iov_to_buf(const struct iovec *iov, size_t iov_cnt,
  *
  * Returns:    The total size in bytes.
  */
-/* cppcheck-suppress unusedFunction */
 size_t iov_size(const struct iovec *iov, size_t iov_cnt)
 {
 	unsigned int i;
