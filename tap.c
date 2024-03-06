@@ -419,18 +419,18 @@ size_t tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
 }
 
 /**
- * tap_update_mac() - Update tap L2 header with new Ethernet addresses
- * @taph:	Tap headers to update
+ * eth_update_mac() - Update tap L2 header with new Ethernet addresses
+ * @eh:		Ethernet headers to update
  * @eth_d:	Ethernet destination address, NULL if unchanged
  * @eth_s:	Ethernet source address, NULL if unchanged
  */
-void tap_update_mac(struct tap_hdr *taph,
+void eth_update_mac(struct ethhdr *eh,
 		    const unsigned char *eth_d, const unsigned char *eth_s)
 {
 	if (eth_d)
-		memcpy(taph->eh.h_dest, eth_d, sizeof(taph->eh.h_dest));
+		memcpy(eh->h_dest, eth_d, sizeof(eh->h_dest));
 	if (eth_s)
-		memcpy(taph->eh.h_source, eth_s, sizeof(taph->eh.h_source));
+		memcpy(eh->h_source, eth_s, sizeof(eh->h_source));
 }
 
 PACKET_POOL_DECL(pool_l4, UIO_MAXIOV, pkt_buf);

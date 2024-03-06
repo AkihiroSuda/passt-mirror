@@ -288,8 +288,8 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 		struct udp4_l2_buf_t *b4 = &udp4_l2_buf[i];
 		struct udp6_l2_buf_t *b6 = &udp6_l2_buf[i];
 
-		tap_update_mac(&b4->taph, eth_d, eth_s);
-		tap_update_mac(&b6->taph, eth_d, eth_s);
+		eth_update_mac(&b4->taph.eh, eth_d, eth_s);
+		eth_update_mac(&b6->taph.eh, eth_d, eth_s);
 	}
 }
 

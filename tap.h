@@ -74,7 +74,7 @@ void tap_icmp6_send(const struct ctx *c,
 		    const void *in, size_t len);
 int tap_send(const struct ctx *c, const void *data, size_t len);
 size_t tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n);
-void tap_update_mac(struct tap_hdr *taph,
+void eth_update_mac(struct ethhdr *eh,
 		    const unsigned char *eth_d, const unsigned char *eth_s);
 void tap_listen_handler(struct ctx *c, uint32_t events);
 void tap_handler_pasta(struct ctx *c, uint32_t events,
