@@ -937,41 +937,33 @@ static void tcp_sock_set_bufsize(const struct ctx *c, int s)
 
 /**
  * tcp_update_check_tcp4() - Update TCP checksum from stored one
- * @buf:	L2 packet buffer with final IPv4 header
+ * @iph:	IPv4 header
+ * @th:		TCP header followed by TCP payload
  */
-static void tcp_update_check_tcp4(struct tcp4_l2_buf_t *buf)
+static void tcp_update_check_tcp4(const struct iphdr *iph, struct tcphdr *th)
 {
-	uint16_t tlen = ntohs(buf->iph.tot_len) - 20;
-	uint32_t sum = htons(IPPROTO_TCP);
+	uint16_t tlen = ntohs(iph->tot_len) - sizeof(struct iphdr);
+	struct in_addr saddr = { .s_addr = iph->saddr };
+	struct in_addr daddr = { .s_addr = iph->daddr };
+	uint32_t sum = proto_ipv4_header_psum(tlen, IPPROTO_TCP, saddr, daddr);
 
-	sum += (buf->iph.saddr >> 16) & 0xffff;
-	sum += buf->iph.saddr & 0xffff;
-	sum += (buf->iph.daddr >> 16) & 0xffff;
-	sum += buf->iph.daddr & 0xffff;
-	sum += htons(ntohs(buf->iph.tot_len) - 20);
-
-	buf->th.check = 0;
-	buf->th.check = csum(&buf->th, tlen, sum);
+	th->check = 0;
+	th->check = csum(th, tlen, sum);
 }
 
 /**
  * tcp_update_check_tcp6() - Calculate TCP checksum for IPv6
- * @buf:	L2 packet buffer with final IPv6 header
+ * @ip6h:	IPv6 header
+ * @th:		TCP header followed by TCP payload
  */
-static void tcp_update_check_tcp6(struct tcp6_l2_buf_t *buf)
+static void tcp_update_check_tcp6(struct ipv6hdr *ip6h, struct tcphdr *th)
 {
-	int len = ntohs(buf->ip6h.payload_len) + sizeof(struct ipv6hdr);
+	uint16_t payload_len = ntohs(ip6h->payload_len);
+	uint32_t sum = proto_ipv6_header_psum(payload_len, IPPROTO_TCP,
+					      &ip6h->saddr, &ip6h->daddr);
 
-	buf->ip6h.hop_limit = IPPROTO_TCP;
-	buf->ip6h.version = 0;
-	buf->ip6h.nexthdr = 0;
-
-	buf->th.check = 0;
-	buf->th.check = csum(&buf->ip6h, len, 0);
-
-	buf->ip6h.hop_limit = 255;
-	buf->ip6h.version = 6;
-	buf->ip6h.nexthdr = IPPROTO_TCP;
+	th->check = 0;
+	th->check = csum(th, payload_len, sum);
 }
 
 /**
@@ -1383,7 +1375,7 @@ do {									\
 
 		SET_TCP_HEADER_COMMON_V4_V6(b, conn, seq);
 
-		tcp_update_check_tcp4(b);
+		tcp_update_check_tcp4(&b->iph, &b->th);
 
 		tlen = tap_iov_len(c, &b->taph, ip_len);
 	} else {
@@ -1402,7 +1394,11 @@ do {									\
 
 		SET_TCP_HEADER_COMMON_V4_V6(b, conn, seq);
 
-		tcp_update_check_tcp6(b);
+		tcp_update_check_tcp6(&b->ip6h, &b->th);
+
+		b->ip6h.hop_limit = 255;
+		b->ip6h.version = 6;
+		b->ip6h.nexthdr = IPPROTO_TCP;
 
 		b->ip6h.flow_lbl[0] = (conn->sock >> 16) & 0xf;
 		b->ip6h.flow_lbl[1] = (conn->sock >> 8) & 0xff;

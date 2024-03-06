@@ -138,6 +138,29 @@ uint16_t csum_ip4_header(uint16_t tot_len, uint8_t protocol,
 }
 
 /**
+ * proto_ipv4_header_psum() - Calculates the partial checksum of an
+ * 			      IPv4 header for UDP or TCP
+ * @tot_len:	IPv4 Payload length (host order)
+ * @proto:	Protocol number (host order)
+ * @saddr:	Source address  (network order)
+ * @daddr:	Destination address (network order)
+ * Returns:	Partial checksum of the IPv4 header
+ */
+uint32_t proto_ipv4_header_psum(uint16_t tot_len, uint8_t protocol,
+				struct in_addr saddr, struct in_addr daddr)
+{
+	uint32_t psum = htons(protocol);
+
+	psum += (saddr.s_addr >> 16) & 0xffff;
+	psum += saddr.s_addr & 0xffff;
+	psum += (daddr.s_addr >> 16) & 0xffff;
+	psum += daddr.s_addr & 0xffff;
+	psum += htons(tot_len);
+
+	return psum;
+}
+
+/**
  * csum_udp4() - Calculate and set checksum for a UDP over IPv4 packet
  * @udp4hr:	UDP header, initialised apart from checksum
  * @saddr:	IPv4 source address
@@ -153,14 +176,10 @@ void csum_udp4(struct udphdr *udp4hr,
 	udp4hr->check = 0;
 
 	if (UDP4_REAL_CHECKSUMS) {
-		/* UNTESTED: if we did want real UDPv4 checksums, this
-		 * is roughly what we'd need */
-		uint32_t psum = csum_fold(saddr.s_addr)
-			+ csum_fold(daddr.s_addr)
-			+ htons(len + sizeof(*udp4hr))
-			+ htons(IPPROTO_UDP);
-		/* Add in partial checksum for the UDP header alone */
-		psum += sum_16b(udp4hr, sizeof(*udp4hr));
+		uint16_t tot_len = len + sizeof(struct udphdr);
+		uint32_t psum = proto_ipv4_header_psum(tot_len, IPPROTO_UDP,
+						       saddr, daddr);
+		psum = csum_unfolded(udp4hr, sizeof(struct udphdr), psum);
 		udp4hr->check = csum(payload, len, psum);
 	}
 }
@@ -184,6 +203,27 @@ void csum_icmp4(struct icmphdr *icmp4hr, const void *payload, size_t len)
 }
 
 /**
+ * proto_ipv6_header_psum() - Calculates the partial checksum of an
+ * 			      IPv6 header for UDP or TCP
+ * @payload_len:	IPv6 payload length (host order)
+ * @proto:		Protocol number (host order)
+ * @saddr:		Source address (network order)
+ * @daddr:		Destination address (network order)
+ * Returns:	Partial checksum of the IPv6 header
+ */
+uint32_t proto_ipv6_header_psum(uint16_t payload_len, uint8_t protocol,
+				const struct in6_addr *saddr,
+				const struct in6_addr *daddr)
+{
+	uint32_t sum = htons(protocol) + htons(payload_len);
+
+	sum += sum_16b(saddr, sizeof(*saddr));
+	sum += sum_16b(daddr, sizeof(*daddr));
+
+	return sum;
+}
+
+/**
  * csum_udp6() - Calculate and set checksum for a UDP over IPv6 packet
  * @udp6hr:	UDP header, initialised apart from checksum
  * @payload:	UDP packet payload
@@ -193,14 +233,11 @@ void csum_udp6(struct udphdr *udp6hr,
 	       const struct in6_addr *saddr, const struct in6_addr *daddr,
 	       const void *payload, size_t len)
 {
-	/* Partial checksum for the pseudo-IPv6 header */
-	uint32_t psum = sum_16b(saddr, sizeof(*saddr)) +
-		        sum_16b(daddr, sizeof(*daddr)) +
-		        htons(len + sizeof(*udp6hr)) + htons(IPPROTO_UDP);
-
+	uint32_t psum = proto_ipv6_header_psum(len + sizeof(struct udphdr),
+					       IPPROTO_UDP, saddr, daddr);
 	udp6hr->check = 0;
-	/* Add in partial checksum for the UDP header alone */
-	psum += sum_16b(udp6hr, sizeof(*udp6hr));
+
+	psum = csum_unfolded(udp6hr, sizeof(struct udphdr), psum);
 	udp6hr->check = csum(payload, len, psum);
 }
 

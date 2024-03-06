@@ -625,6 +625,7 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 {
 	struct udp6_l2_buf_t *b = &udp6_l2_buf[n];
 	const struct in6_addr *src, *dst;
+	uint16_t payload_len;
 	in_port_t src_port;
 	size_t ip_len;
 
@@ -634,7 +635,8 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 
 	ip_len = udp6_l2_mh_sock[n].msg_len + sizeof(b->ip6h) + sizeof(b->uh);
 
-	b->ip6h.payload_len = htons(udp6_l2_mh_sock[n].msg_len + sizeof(b->uh));
+	payload_len = udp6_l2_mh_sock[n].msg_len + sizeof(b->uh);
+	b->ip6h.payload_len = htons(payload_len);
 
 	if (IN6_IS_ADDR_LINKLOCAL(src)) {
 		dst = &c->ip6.addr_ll_seen;
@@ -670,17 +672,17 @@ static size_t udp_update_hdr6(const struct ctx *c, int n, in_port_t dstport,
 	}
 	b->ip6h.daddr = *dst;
 	b->ip6h.saddr = *src;
+	b->ip6h.version = 6;
+	b->ip6h.nexthdr = IPPROTO_UDP;
+	b->ip6h.hop_limit = 255;
 
 	b->uh.source = b->s_in6.sin6_port;
 	b->uh.dest = htons(dstport);
 	b->uh.len = b->ip6h.payload_len;
-
-	b->ip6h.hop_limit = IPPROTO_UDP;
-	b->ip6h.version = b->ip6h.nexthdr = b->uh.check = 0;
-	b->uh.check = csum(&b->ip6h, ip_len, 0);
-	b->ip6h.version = 6;
-	b->ip6h.nexthdr = IPPROTO_UDP;
-	b->ip6h.hop_limit = 255;
+	b->uh.check = 0;
+	b->uh.check = csum(&b->uh, payload_len,
+			   proto_ipv6_header_psum(payload_len, IPPROTO_UDP,
+						  src, dst));
 
 	return tap_iov_len(c, &b->taph, ip_len);
 }
