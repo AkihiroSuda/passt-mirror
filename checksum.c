@@ -56,6 +56,8 @@
 #include <linux/udp.h>
 #include <linux/icmpv6.h>
 
+#include "util.h"
+
 /* Checksums are optional for UDP over IPv4, so we usually just set
  * them to 0.  Change this to 1 to calculate real UDP over IPv4
  * checksums
@@ -110,20 +112,7 @@ uint16_t csum_fold(uint32_t sum)
 	return sum;
 }
 
-/**
- * csum_unaligned() - Compute TCP/IP-style checksum for not 32-byte aligned data
- * @buf:	Input data
- * @len:	Input length
- * @init:	Initial 32-bit checksum, 0 for no pre-computed checksum
- *
- * Return: 16-bit IPv4-style checksum
- */
-/* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
-__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
-uint16_t csum_unaligned(const void *buf, size_t len, uint32_t init)
-{
-	return (uint16_t)~csum_fold(sum_16b(buf, len) + init);
-}
+uint16_t csum(const void *buf, size_t len, uint32_t init);
 
 /**
  * csum_ip4_header() - Calculate and set IPv4 header checksum
@@ -132,7 +121,7 @@ uint16_t csum_unaligned(const void *buf, size_t len, uint32_t init)
 void csum_ip4_header(struct iphdr *ip4h)
 {
 	ip4h->check = 0;
-	ip4h->check = csum_unaligned(ip4h, (size_t)ip4h->ihl * 4, 0);
+	ip4h->check = csum(ip4h, (size_t)ip4h->ihl * 4, 0);
 }
 
 /**
@@ -159,7 +148,7 @@ void csum_udp4(struct udphdr *udp4hr,
 			+ htons(IPPROTO_UDP);
 		/* Add in partial checksum for the UDP header alone */
 		psum += sum_16b(udp4hr, sizeof(*udp4hr));
-		udp4hr->check = csum_unaligned(payload, len, psum);
+		udp4hr->check = csum(payload, len, psum);
 	}
 }
 
@@ -178,7 +167,7 @@ void csum_icmp4(struct icmphdr *icmp4hr, const void *payload, size_t len)
 	/* Partial checksum for ICMP header alone */
 	psum = sum_16b(icmp4hr, sizeof(*icmp4hr));
 
-	icmp4hr->checksum = csum_unaligned(payload, len, psum);
+	icmp4hr->checksum = csum(payload, len, psum);
 }
 
 /**
@@ -199,7 +188,7 @@ void csum_udp6(struct udphdr *udp6hr,
 	udp6hr->check = 0;
 	/* Add in partial checksum for the UDP header alone */
 	psum += sum_16b(udp6hr, sizeof(*udp6hr));
-	udp6hr->check = csum_unaligned(payload, len, psum);
+	udp6hr->check = csum(payload, len, psum);
 }
 
 /**
@@ -222,7 +211,7 @@ void csum_icmp6(struct icmp6hdr *icmp6hr,
 	icmp6hr->icmp6_cksum = 0;
 	/* Add in partial checksum for the ICMPv6 header alone */
 	psum += sum_16b(icmp6hr, sizeof(*icmp6hr));
-	icmp6hr->icmp6_cksum = csum_unaligned(payload, len, psum);
+	icmp6hr->icmp6_cksum = csum(payload, len, psum);
 }
 
 #ifdef __AVX2__
@@ -397,17 +386,29 @@ less_than_128_bytes:
 
 /**
  * csum() - Compute TCP/IP-style checksum
- * @buf:	Input buffer, must be aligned to 32-byte boundary
+ * @buf:	Input buffer
  * @len:	Input length
  * @init:	Initial 32-bit checksum, 0 for no pre-computed checksum
  *
- * Return: 16-bit folded, complemented checksum sum
+ * Return: 16-bit folded, complemented checksum
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
 __attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
 uint16_t csum(const void *buf, size_t len, uint32_t init)
 {
-	return (uint16_t)~csum_fold(csum_avx2(buf, len, init));
+	intptr_t align = ROUND_UP((intptr_t)buf, sizeof(__m256i));
+	unsigned int pad = align - (intptr_t)buf;
+
+	if (len < pad)
+		pad = len;
+
+	if (pad)
+		init += sum_16b(buf, pad);
+
+	if (len > pad)
+		init = csum_avx2((void *)align, len - pad, init);
+
+	return (uint16_t)~csum_fold(init);
 }
 
 #else /* __AVX2__ */
@@ -424,7 +425,7 @@ uint16_t csum(const void *buf, size_t len, uint32_t init)
 __attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
 uint16_t csum(const void *buf, size_t len, uint32_t init)
 {
-	return csum_unaligned(buf, len, init);
+	return (uint16_t)~csum_fold(sum_16b(buf, len) + init);
 }
 
 #endif /* !__AVX2__ */
