@@ -57,6 +57,7 @@
 #include <linux/icmpv6.h>
 
 #include "util.h"
+#include "ip.h"
 #include "checksum.h"
 
 /* Checksums are optional for UDP over IPv4, so we usually just set
@@ -114,13 +115,26 @@ uint16_t csum_fold(uint32_t sum)
 }
 
 /**
- * csum_ip4_header() - Calculate and set IPv4 header checksum
- * @ip4h:	IPv4 header
+ * csum_ip4_header() - Calculate IPv4 header checksum
+ * @tot_len:	IPv4 payload length (data + IP header, network order)
+ * @protocol:	Protocol number (network order)
+ * @saddr:	IPv4 source address (network order)
+ * @daddr:	IPv4 destination address (network order)
+ *
+ * Return: 16-bit folded sum of the IPv4 header
  */
-void csum_ip4_header(struct iphdr *ip4h)
+uint16_t csum_ip4_header(uint16_t tot_len, uint8_t protocol,
+			 struct in_addr saddr, struct in_addr daddr)
 {
-	ip4h->check = 0;
-	ip4h->check = csum(ip4h, (size_t)ip4h->ihl * 4, 0);
+	uint32_t sum = L2_BUF_IP4_PSUM(protocol);
+
+	sum += tot_len;
+	sum += (saddr.s_addr >> 16) & 0xffff;
+	sum += saddr.s_addr & 0xffff;
+	sum += (daddr.s_addr >> 16) & 0xffff;
+	sum += daddr.s_addr & 0xffff;
+
+	return ~csum_fold(sum);
 }
 
 /**

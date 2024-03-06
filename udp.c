@@ -276,23 +276,6 @@ static void udp_invert_portmap(struct udp_fwd_ports *fwd)
 }
 
 /**
- * udp_update_check4() - Update checksum with variable parts from stored one
- * @buf:	L2 packet buffer with final IPv4 header
- */
-static void udp_update_check4(struct udp4_l2_buf_t *buf)
-{
-	uint32_t sum = L2_BUF_IP4_PSUM(IPPROTO_UDP);
-
-	sum += buf->iph.tot_len;
-	sum += (buf->iph.saddr >> 16) & 0xffff;
-	sum += buf->iph.saddr & 0xffff;
-	sum += (buf->iph.daddr >> 16) & 0xffff;
-	sum += buf->iph.daddr & 0xffff;
-
-	buf->iph.check = (uint16_t)~csum_fold(sum);
-}
-
-/**
  * udp_update_l2_buf() - Update L2 buffers with Ethernet and IPv4 addresses
  * @eth_d:	Ethernet destination address, NULL if unchanged
  * @eth_s:	Ethernet source address, NULL if unchanged
@@ -619,7 +602,8 @@ static size_t udp_update_hdr4(const struct ctx *c, int n, in_port_t dstport,
 	}
 	b->iph.saddr = src->s_addr;
 
-	udp_update_check4(b);
+	b->iph.check = csum_ip4_header(b->iph.tot_len, IPPROTO_UDP,
+				       *src, c->ip4.addr_seen);
 	b->uh.source = b->s_in.sin_port;
 	b->uh.dest = htons(dstport);
 	b->uh.len = htons(udp4_l2_mh_sock[n].msg_len + sizeof(b->uh));

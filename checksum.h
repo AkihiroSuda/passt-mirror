@@ -13,7 +13,8 @@ struct icmp6hdr;
 uint32_t sum_16b(const void *buf, size_t len);
 uint16_t csum_fold(uint32_t sum);
 uint16_t csum_unaligned(const void *buf, size_t len, uint32_t init);
-void csum_ip4_header(struct iphdr *ip4h);
+uint16_t csum_ip4_header(uint16_t tot_len, uint8_t protocol,
+			 struct in_addr saddr, struct in_addr daddr);
 void csum_udp4(struct udphdr *udp4hr,
 	       struct in_addr saddr, struct in_addr daddr,
 	       const void *payload, size_t len);

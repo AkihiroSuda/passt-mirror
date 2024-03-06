@@ -161,7 +161,7 @@ static void *tap_push_ip4h(char *buf, struct in_addr src, struct in_addr dst,
 	ip4h->protocol = proto;
 	ip4h->saddr = src.s_addr;
 	ip4h->daddr = dst.s_addr;
-	csum_ip4_header(ip4h);
+	ip4h->check = csum_ip4_header(ip4h->tot_len, proto, src, dst);
 	return ip4h + 1;
 }
 

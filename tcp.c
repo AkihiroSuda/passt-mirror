@@ -936,23 +936,6 @@ static void tcp_sock_set_bufsize(const struct ctx *c, int s)
 }
 
 /**
- * tcp_update_check_ip4() - Update IPv4 with variable parts from stored one
- * @buf:	L2 packet buffer with final IPv4 header
- */
-static void tcp_update_check_ip4(struct tcp4_l2_buf_t *buf)
-{
-	uint32_t sum = L2_BUF_IP4_PSUM(IPPROTO_TCP);
-
-	sum += buf->iph.tot_len;
-	sum += (buf->iph.saddr >> 16) & 0xffff;
-	sum += buf->iph.saddr & 0xffff;
-	sum += (buf->iph.daddr >> 16) & 0xffff;
-	sum += buf->iph.daddr & 0xffff;
-
-	buf->iph.check = (uint16_t)~csum_fold(sum);
-}
-
-/**
  * tcp_update_check_tcp4() - Update TCP checksum from stored one
  * @buf:	L2 packet buffer with final IPv4 header
  */
@@ -1394,10 +1377,9 @@ do {									\
 		b->iph.saddr = a4->s_addr;
 		b->iph.daddr = c->ip4.addr_seen.s_addr;
 
-		if (check)
-			b->iph.check = *check;
-		else
-			tcp_update_check_ip4(b);
+		b->iph.check = check ? *check :
+			       csum_ip4_header(b->iph.tot_len, IPPROTO_TCP,
+					       *a4, c->ip4.addr_seen);
 
 		SET_TCP_HEADER_COMMON_V4_V6(b, conn, seq);
 
