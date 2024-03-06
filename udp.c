@@ -574,17 +574,9 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 			      in_port_t dstport, size_t datalen,
 			      const struct timespec *now)
 {
-	const struct in_addr *src;
-	in_port_t srcport;
-	size_t ip_len;
-
-	ip_len = datalen + sizeof(b->iph) + sizeof(b->uh);
-
-	b->iph.tot_len = htons(ip_len);
-	b->iph.daddr = c->ip4.addr_seen.s_addr;
-
-	src = &b->s_in.sin_addr;
-	srcport = ntohs(b->s_in.sin_port);
+	size_t ip_len = datalen + sizeof(b->iph) + sizeof(b->uh);
+	const struct in_addr *src = &b->s_in.sin_addr;
+	in_port_t srcport = ntohs(b->s_in.sin_port);
 
 	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match) &&
 	    IN4_ARE_ADDR_EQUAL(src, &c->ip4.dns_host) && srcport == 53) {
@@ -603,10 +595,13 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 
 		src = &c->ip4.gw;
 	}
-	b->iph.saddr = src->s_addr;
 
+	b->iph.tot_len = htons(ip_len);
+	b->iph.daddr = c->ip4.addr_seen.s_addr;
+	b->iph.saddr = src->s_addr;
 	b->iph.check = csum_ip4_header(b->iph.tot_len, IPPROTO_UDP,
 				       *src, c->ip4.addr_seen);
+
 	b->uh.source = b->s_in.sin_port;
 	b->uh.dest = htons(dstport);
 	b->uh.len = htons(datalen + sizeof(b->uh));
@@ -628,19 +623,10 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
 			      in_port_t dstport, size_t datalen,
 			      const struct timespec *now)
 {
-	const struct in6_addr *src, *dst;
-	uint16_t payload_len;
-	in_port_t srcport;
-	size_t ip_len;
-
-	dst = &c->ip6.addr_seen;
-	src = &b->s_in6.sin6_addr;
-	srcport = ntohs(b->s_in6.sin6_port);
-
-	ip_len = datalen + sizeof(b->ip6h) + sizeof(b->uh);
-
-	payload_len = datalen + sizeof(b->uh);
-	b->ip6h.payload_len = htons(payload_len);
+	const struct in6_addr *src = &b->s_in6.sin6_addr;
+	const struct in6_addr *dst = &c->ip6.addr_seen;
+	uint16_t payload_len = datalen + sizeof(b->uh);
+	in_port_t srcport = ntohs(b->s_in6.sin6_port);
 
 	if (IN6_IS_ADDR_LINKLOCAL(src)) {
 		dst = &c->ip6.addr_ll_seen;
@@ -674,6 +660,8 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
 			src = &c->ip6.addr_ll;
 
 	}
+
+	b->ip6h.payload_len = htons(payload_len);
 	b->ip6h.daddr = *dst;
 	b->ip6h.saddr = *src;
 	b->ip6h.version = 6;
@@ -688,7 +676,7 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
 			   proto_ipv6_header_psum(payload_len, IPPROTO_UDP,
 						  src, dst));
 
-	return tap_iov_len(c, &b->taph, ip_len);
+	return tap_iov_len(c, &b->taph, payload_len + sizeof(b->ip6h));
 }
 
 /**
