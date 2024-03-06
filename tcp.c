@@ -1328,6 +1328,108 @@ void tcp_defer_handler(struct ctx *c)
 }
 
 /**
+ * tcp_fill_header() - Fill the TCP header fields for a given TCP segment.
+ *
+ * @th:		Pointer to the TCP header structure
+ * @conn:	Pointer to the TCP connection structure
+ * @seq:	Sequence number
+ */
+static void tcp_fill_header(struct tcphdr *th,
+			       const struct tcp_tap_conn *conn, uint32_t seq)
+{
+	th->source = htons(conn->fport);
+	th->dest = htons(conn->eport);
+	th->seq = htonl(seq);
+	th->ack_seq = htonl(conn->seq_ack_to_tap);
+	if (conn->events & ESTABLISHED)	{
+		th->window = htons(conn->wnd_to_tap);
+	} else {
+		unsigned wnd = conn->wnd_to_tap << conn->ws_to_tap;
+
+		th->window = htons(MIN(wnd, USHRT_MAX));
+	}
+}
+
+/**
+ * tcp_fill_headers4() - Fill 802.3, IPv4, TCP headers in pre-cooked buffers
+ * @c:		Execution context
+ * @conn:	Connection pointer
+ * @iph:	Pointer to IPv4 header
+ * @th:		Pointer to TCP header
+ * @plen:	Payload length (including TCP header options)
+ * @check:	Checksum, if already known
+ * @seq:	Sequence number for this segment
+ *
+ * Return: The total length of the IPv4 packet, host order
+ */
+static size_t tcp_fill_headers4(const struct ctx *c,
+				const struct tcp_tap_conn *conn,
+				struct iphdr *iph, struct tcphdr *th,
+				size_t plen, const uint16_t *check,
+				uint32_t seq)
+{
+	size_t ip_len = plen + sizeof(struct iphdr) + sizeof(struct tcphdr);
+	const struct in_addr *a4 = inany_v4(&conn->faddr);
+
+	ASSERT(a4);
+
+	iph->tot_len = htons(ip_len);
+	iph->saddr = a4->s_addr;
+	iph->daddr = c->ip4.addr_seen.s_addr;
+
+	iph->check = check ? *check :
+			     csum_ip4_header(iph->tot_len, IPPROTO_TCP,
+					     *a4, c->ip4.addr_seen);
+
+	tcp_fill_header(th, conn, seq);
+
+	tcp_update_check_tcp4(iph, th);
+
+	return ip_len;
+}
+
+/**
+ * tcp_fill_headers6() - Fill 802.3, IPv6, TCP headers in pre-cooked buffers
+ * @c:		Execution context
+ * @conn:	Connection pointer
+ * @ip6h:	Pointer to IPv6 header
+ * @th:		Pointer to TCP header
+ * @plen:	Payload length (including TCP header options)
+ * @check:	Checksum, if already known
+ * @seq:	Sequence number for this segment
+ *
+ * Return: The total length of the IPv6 packet, host order
+ */
+static size_t tcp_fill_headers6(const struct ctx *c,
+				const struct tcp_tap_conn *conn,
+				struct ipv6hdr *ip6h, struct tcphdr *th,
+				size_t plen, uint32_t seq)
+{
+	size_t ip_len = plen + sizeof(struct ipv6hdr) + sizeof(struct tcphdr);
+
+	ip6h->payload_len = htons(plen + sizeof(struct tcphdr));
+	ip6h->saddr = conn->faddr.a6;
+	if (IN6_IS_ADDR_LINKLOCAL(&ip6h->saddr))
+		ip6h->daddr = c->ip6.addr_ll_seen;
+	else
+		ip6h->daddr = c->ip6.addr_seen;
+
+	ip6h->hop_limit = 255;
+	ip6h->version = 6;
+	ip6h->nexthdr = IPPROTO_TCP;
+
+	ip6h->flow_lbl[0] = (conn->sock >> 16) & 0xf;
+	ip6h->flow_lbl[1] = (conn->sock >> 8) & 0xff;
+	ip6h->flow_lbl[2] = (conn->sock >> 0) & 0xff;
+
+	tcp_fill_header(th, conn, seq);
+
+	tcp_update_check_tcp6(ip6h, th);
+
+	return ip_len;
+}
+
+/**
  * tcp_l2_buf_fill_headers() - Fill 802.3, IP, TCP headers in pre-cooked buffers
  * @c:		Execution context
  * @conn:	Connection pointer
@@ -1346,67 +1448,21 @@ static size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 	const struct in_addr *a4 = inany_v4(&conn->faddr);
 	size_t ip_len, tlen;
 
-#define SET_TCP_HEADER_COMMON_V4_V6(b, conn, seq)			\
-do {									\
-	b->th.source = htons(conn->fport);				\
-	b->th.dest = htons(conn->eport);				\
-	b->th.seq = htonl(seq);						\
-	b->th.ack_seq = htonl(conn->seq_ack_to_tap);			\
-	if (conn->events & ESTABLISHED)	{				\
-		b->th.window = htons(conn->wnd_to_tap);			\
-	} else {							\
-		unsigned wnd = conn->wnd_to_tap << conn->ws_to_tap;	\
-									\
-		b->th.window = htons(MIN(wnd, USHRT_MAX));		\
-	}								\
-} while (0)
-
 	if (a4) {
 		struct tcp4_l2_buf_t *b = (struct tcp4_l2_buf_t *)p;
 
-		ip_len = plen + sizeof(struct iphdr) + sizeof(struct tcphdr);
-		b->iph.tot_len = htons(ip_len);
-		b->iph.saddr = a4->s_addr;
-		b->iph.daddr = c->ip4.addr_seen.s_addr;
-
-		b->iph.check = check ? *check :
-			       csum_ip4_header(b->iph.tot_len, IPPROTO_TCP,
-					       *a4, c->ip4.addr_seen);
-
-		SET_TCP_HEADER_COMMON_V4_V6(b, conn, seq);
-
-		tcp_update_check_tcp4(&b->iph, &b->th);
+		ip_len = tcp_fill_headers4(c, conn, &b->iph, &b->th, plen,
+					   check, seq);
 
 		tlen = tap_iov_len(c, &b->taph, ip_len);
 	} else {
 		struct tcp6_l2_buf_t *b = (struct tcp6_l2_buf_t *)p;
 
-		ip_len = plen + sizeof(struct ipv6hdr) + sizeof(struct tcphdr);
-
-		b->ip6h.payload_len = htons(plen + sizeof(struct tcphdr));
-		b->ip6h.saddr = conn->faddr.a6;
-		if (IN6_IS_ADDR_LINKLOCAL(&b->ip6h.saddr))
-			b->ip6h.daddr = c->ip6.addr_ll_seen;
-		else
-			b->ip6h.daddr = c->ip6.addr_seen;
-
-		memset(b->ip6h.flow_lbl, 0, 3);
-
-		SET_TCP_HEADER_COMMON_V4_V6(b, conn, seq);
-
-		tcp_update_check_tcp6(&b->ip6h, &b->th);
-
-		b->ip6h.hop_limit = 255;
-		b->ip6h.version = 6;
-		b->ip6h.nexthdr = IPPROTO_TCP;
-
-		b->ip6h.flow_lbl[0] = (conn->sock >> 16) & 0xf;
-		b->ip6h.flow_lbl[1] = (conn->sock >> 8) & 0xff;
-		b->ip6h.flow_lbl[2] = (conn->sock >> 0) & 0xff;
+		ip_len = tcp_fill_headers6(c, conn, &b->ip6h, &b->th, plen,
+					   seq);
 
 		tlen = tap_iov_len(c, &b->taph, ip_len);
 	}
-#undef SET_TCP_HEADER_COMMON_V4_V6
 
 	return tlen;
 }
