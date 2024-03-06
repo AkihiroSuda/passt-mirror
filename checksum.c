@@ -57,6 +57,7 @@
 #include <linux/icmpv6.h>
 
 #include "util.h"
+#include "checksum.h"
 
 /* Checksums are optional for UDP over IPv4, so we usually just set
  * them to 0.  Change this to 1 to calculate real UDP over IPv4
@@ -111,8 +112,6 @@ uint16_t csum_fold(uint32_t sum)
 
 	return sum;
 }
-
-uint16_t csum(const void *buf, size_t len, uint32_t init);
 
 /**
  * csum_ip4_header() - Calculate and set IPv4 header checksum
@@ -385,16 +384,17 @@ less_than_128_bytes:
 }
 
 /**
- * csum() - Compute TCP/IP-style checksum
- * @buf:	Input buffer
- * @len:	Input length
- * @init:	Initial 32-bit checksum, 0 for no pre-computed checksum
+ * csum_unfolded - Calculate the unfolded checksum of a data buffer.
  *
- * Return: 16-bit folded, complemented checksum
+ * @buf:   Input buffer
+ * @len:   Input length
+ * @init:  Initial 32-bit checksum, 0 for no pre-computed checksum
+ *
+ * Return: 32-bit unfolded
  */
 /* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
 __attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
-uint16_t csum(const void *buf, size_t len, uint32_t init)
+uint32_t csum_unfolded(const void *buf, size_t len, uint32_t init)
 {
 	intptr_t align = ROUND_UP((intptr_t)buf, sizeof(__m256i));
 	unsigned int pad = align - (intptr_t)buf;
@@ -408,16 +408,31 @@ uint16_t csum(const void *buf, size_t len, uint32_t init)
 	if (len > pad)
 		init = csum_avx2((void *)align, len - pad, init);
 
-	return (uint16_t)~csum_fold(init);
+	return init;
 }
-
 #else /* __AVX2__ */
+/**
+ * csum_unfolded - Calculate the unfolded checksum of a data buffer.
+ *
+ * @buf:   Input buffer
+ * @len:   Input length
+ * @init:  Initial 32-bit checksum, 0 for no pre-computed checksum
+ *
+ * Return: 32-bit unfolded checksum
+ */
+/* NOLINTNEXTLINE(clang-diagnostic-unknown-attributes) */
+__attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
+uint32_t csum_unfolded(const void *buf, size_t len, uint32_t init)
+{
+	return sum_16b(buf, len) + init;
+}
+#endif /* !__AVX2__ */
 
 /**
  * csum() - Compute TCP/IP-style checksum
  * @buf:	Input buffer
  * @len:	Input length
- * @sum:	Initial 32-bit checksum, 0 for no pre-computed checksum
+ * @init:	Initial 32-bit checksum, 0 for no pre-computed checksum
  *
  * Return: 16-bit folded, complemented checksum
  */
@@ -425,7 +440,25 @@ uint16_t csum(const void *buf, size_t len, uint32_t init)
 __attribute__((optimize("-fno-strict-aliasing")))	/* See csum_16b() */
 uint16_t csum(const void *buf, size_t len, uint32_t init)
 {
-	return (uint16_t)~csum_fold(sum_16b(buf, len) + init);
+	return (uint16_t)~csum_fold(csum_unfolded(buf, len, init));
 }
 
-#endif /* !__AVX2__ */
+/**
+ * csum_iov() - Calculates the unfolded checksum over an array of IO vectors
+ *
+ * @iov		Pointer to the array of IO vectors
+ * @n		Length of the array
+ * @init	Initial 32-bit checksum, 0 for no pre-computed checksum
+ *
+ * Return: 16-bit folded, complemented checksum
+ */
+/* cppcheck-suppress unusedFunction */
+uint16_t csum_iov(const struct iovec *iov, size_t n, uint32_t init)
+{
+	unsigned int i;
+
+	for (i = 0; i < n; i++)
+		init = csum_unfolded(iov[i].iov_base, iov[i].iov_len, init);
+
+	return (uint16_t)~csum_fold(init);
+}
