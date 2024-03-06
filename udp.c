@@ -671,10 +671,7 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
 	b->uh.source = b->s_in6.sin6_port;
 	b->uh.dest = htons(dstport);
 	b->uh.len = b->ip6h.payload_len;
-	b->uh.check = 0;
-	b->uh.check = csum(&b->uh, payload_len,
-			   proto_ipv6_header_psum(payload_len, IPPROTO_UDP,
-						  src, dst));
+	csum_udp6(&b->uh, src, dst, b->data, datalen);
 
 	return tap_iov_len(c, &b->taph, payload_len + sizeof(b->ip6h));
 }
