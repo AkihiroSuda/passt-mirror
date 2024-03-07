@@ -399,6 +399,7 @@ static void get_dns(struct ctx *c)
 	int dns4_set, dns6_set, dnss_set, dns_set, fd;
 	struct fqdn *s = c->dns_search;
 	struct lineread resolvconf;
+	unsigned int added = 0;
 	char *line, *end;
 	const char *p;
 	int line_len;
@@ -427,13 +428,17 @@ static void get_dns(struct ctx *c)
 
 			if (!dns4_set &&
 			    dns4 - &c->ip4.dns[0] < ARRAY_SIZE(c->ip4.dns) - 1
-			    && inet_pton(AF_INET, p + 1, &dns4_tmp))
+			    && inet_pton(AF_INET, p + 1, &dns4_tmp)) {
 				add_dns4(c, &dns4_tmp, &dns4);
+				added++;
+			}
 
 			if (!dns6_set &&
 			    dns6 - &c->ip6.dns[0] < ARRAY_SIZE(c->ip6.dns) - 1
-			    && inet_pton(AF_INET6, p + 1, &dns6_tmp))
+			    && inet_pton(AF_INET6, p + 1, &dns6_tmp)) {
 				add_dns6(c, &dns6_tmp, &dns6);
+				added++;
+			}
 		} else if (!dnss_set && strstr(line, "search ") == line &&
 			   s == c->dns_search) {
 			end = strpbrk(line, "\n");
@@ -459,7 +464,7 @@ static void get_dns(struct ctx *c)
 	close(fd);
 
 out:
-	if (!dns_set && dns4 == c->ip4.dns && dns6 == c->ip6.dns)
+	if (!dns_set && !added)
 		warn("Couldn't get any nameserver address");
 }
 
