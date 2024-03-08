@@ -318,7 +318,7 @@ static void udp_sock4_iov_init_one(const struct ctx *c, size_t i)
 	mh->msg_iov	= siov;
 	mh->msg_iovlen	= 1;
 
-	tiov->iov_base	= tap_iov_base(c, &buf->taph);
+	tiov->iov_base	= tap_frame_base(c, &buf->taph);
 }
 
 /**
@@ -346,7 +346,7 @@ static void udp_sock6_iov_init_one(const struct ctx *c, size_t i)
 	mh->msg_iov	= siov;
 	mh->msg_iovlen	= 1;
 
-	tiov->iov_base	= tap_iov_base(c, &buf->taph);
+	tiov->iov_base	= tap_frame_base(c, &buf->taph);
 }
 
 /**
@@ -606,7 +606,7 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 	b->uh.dest = htons(dstport);
 	b->uh.len = htons(datalen + sizeof(b->uh));
 
-	return tap_iov_len(c, &b->taph, ip_len);
+	return tap_frame_len(c, &b->taph, ip_len);
 }
 
 /**
@@ -673,7 +673,7 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
 	b->uh.len = b->ip6h.payload_len;
 	csum_udp6(&b->uh, src, dst, b->data, datalen);
 
-	return tap_iov_len(c, &b->taph, payload_len + sizeof(b->ip6h));
+	return tap_frame_len(c, &b->taph, payload_len + sizeof(b->ip6h));
 }
 
 /**

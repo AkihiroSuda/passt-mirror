@@ -1014,10 +1014,10 @@ static void tcp_sock4_iov_init(const struct ctx *c)
 	}
 
 	for (i = 0, iov = tcp4_l2_iov; i < TCP_FRAMES_MEM; i++, iov++)
-		iov->iov_base = tap_iov_base(c, &tcp4_l2_buf[i].taph);
+		iov->iov_base = tap_frame_base(c, &tcp4_l2_buf[i].taph);
 
 	for (i = 0, iov = tcp4_l2_flags_iov; i < TCP_FRAMES_MEM; i++, iov++)
-		iov->iov_base = tap_iov_base(c, &tcp4_l2_flags_buf[i].taph);
+		iov->iov_base = tap_frame_base(c, &tcp4_l2_flags_buf[i].taph);
 }
 
 /**
@@ -1045,10 +1045,10 @@ static void tcp_sock6_iov_init(const struct ctx *c)
 	}
 
 	for (i = 0, iov = tcp6_l2_iov; i < TCP_FRAMES_MEM; i++, iov++)
-		iov->iov_base = tap_iov_base(c, &tcp6_l2_buf[i].taph);
+		iov->iov_base = tap_frame_base(c, &tcp6_l2_buf[i].taph);
 
 	for (i = 0, iov = tcp6_l2_flags_iov; i < TCP_FRAMES_MEM; i++, iov++)
-		iov->iov_base = tap_iov_base(c, &tcp6_l2_flags_buf[i].taph);
+		iov->iov_base = tap_frame_base(c, &tcp6_l2_flags_buf[i].taph);
 }
 
 /**
@@ -1454,14 +1454,14 @@ static size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 		ip_len = tcp_fill_headers4(c, conn, &b->iph, &b->th, plen,
 					   check, seq);
 
-		tlen = tap_iov_len(c, &b->taph, ip_len);
+		tlen = tap_frame_len(c, &b->taph, ip_len);
 	} else {
 		struct tcp6_l2_buf_t *b = (struct tcp6_l2_buf_t *)p;
 
 		ip_len = tcp_fill_headers6(c, conn, &b->ip6h, &b->th, plen,
 					   seq);
 
-		tlen = tap_iov_len(c, &b->taph, ip_len);
+		tlen = tap_frame_len(c, &b->taph, ip_len);
 	}
 
 	return tlen;
