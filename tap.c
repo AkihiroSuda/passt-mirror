@@ -146,11 +146,9 @@ static void *tap_push_l2h(const struct ctx *c, void *buf, uint16_t proto)
  *
  * Return: pointer at which to write the packet's payload
  */
-static void *tap_push_ip4h(char *buf, struct in_addr src, struct in_addr dst,
-			   size_t len, uint8_t proto)
+static void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
+			   struct in_addr dst, size_t len, uint8_t proto)
 {
-	struct iphdr *ip4h = (struct iphdr *)buf;
-
 	ip4h->version = 4;
 	ip4h->ihl = sizeof(struct iphdr) / 4;
 	ip4h->tos = 0;
@@ -181,9 +179,8 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 {
 	size_t udplen = len + sizeof(struct udphdr);
 	char buf[USHRT_MAX];
-	void *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
-	void *uhp = tap_push_ip4h(ip4h, src, dst, udplen, IPPROTO_UDP);
-	struct udphdr *uh = (struct udphdr *)uhp;
+	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
+	struct udphdr *uh = tap_push_ip4h(ip4h, src, dst, udplen, IPPROTO_UDP);
 	char *data = (char *)(uh + 1);
 
 	uh->source = htons(sport);
@@ -208,14 +205,14 @@ void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
 		    const void *in, size_t len)
 {
 	char buf[USHRT_MAX];
-	void *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
-	char *data = tap_push_ip4h(ip4h, src, dst, len, IPPROTO_ICMP);
-	struct icmphdr *icmp4h = (struct icmphdr *)data;
+	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
+	struct icmphdr *icmp4h = tap_push_ip4h(ip4h, src, dst,
+					       len, IPPROTO_ICMP);
 
-	memcpy(data, in, len);
+	memcpy(icmp4h, in, len);
 	csum_icmp4(icmp4h, icmp4h + 1, len - sizeof(*icmp4h));
 
-	if (tap_send(c, buf, len + (data - buf)) < 0)
+	if (tap_send(c, buf, len + ((char *)icmp4h - buf)) < 0)
 		debug("tap: failed to send %zu bytes (IPv4)", len);
 }
 
@@ -230,13 +227,11 @@ void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
  *
  * Return: pointer at which to write the packet's payload
  */
-static void *tap_push_ip6h(char *buf,
+static void *tap_push_ip6h(struct ipv6hdr *ip6h,
 			   const struct in6_addr *src,
 			   const struct in6_addr *dst,
 			   size_t len, uint8_t proto, uint32_t flow)
 {
-	struct ipv6hdr *ip6h = (struct ipv6hdr *)buf;
-
 	ip6h->payload_len = htons(len);
 	ip6h->priority = 0;
 	ip6h->version = 6;
@@ -268,9 +263,9 @@ void tap_udp6_send(const struct ctx *c,
 {
 	size_t udplen = len + sizeof(struct udphdr);
 	char buf[USHRT_MAX];
-	void *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
-	void *uhp = tap_push_ip6h(ip6h, src, dst, udplen, IPPROTO_UDP, flow);
-	struct udphdr *uh = (struct udphdr *)uhp;
+	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
+	struct udphdr *uh = tap_push_ip6h(ip6h, src, dst,
+					  udplen, IPPROTO_UDP, flow);
 	char *data = (char *)(uh + 1);
 
 	uh->source = htons(sport);
@@ -296,14 +291,14 @@ void tap_icmp6_send(const struct ctx *c,
 		    const void *in, size_t len)
 {
 	char buf[USHRT_MAX];
-	void *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
-	char *data = tap_push_ip6h(ip6h, src, dst, len, IPPROTO_ICMPV6, 0);
-	struct icmp6hdr *icmp6h = (struct icmp6hdr *)data;
+	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
+	struct icmp6hdr *icmp6h = tap_push_ip6h(ip6h, src, dst, len,
+						IPPROTO_ICMPV6, 0);
 
-	memcpy(data, in, len);
+	memcpy(icmp6h, in, len);
 	csum_icmp6(icmp6h, src, dst, icmp6h + 1, len - sizeof(*icmp6h));
 
-	if (tap_send(c, buf, len + (data - buf)) < 1)
+	if (tap_send(c, buf, len + ((char *)icmp6h - buf)) < 1)
 		debug("tap: failed to send %zu bytes (IPv6)", len);
 }
 
