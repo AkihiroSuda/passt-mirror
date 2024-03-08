@@ -309,21 +309,28 @@ void tap_icmp6_send(const struct ctx *c,
 
 /**
  * tap_send_frames_pasta() - Send multiple frames to the pasta tap
- * @c:		Execution context
- * @iov:	Array of buffers, each containing one frame
- * @n:		Number of buffers/frames in @iov
+ * @c:			Execution context
+ * @iov:		Array of buffers
+ * @bufs_per_frame:	Number of buffers (iovec entries) per frame
+ * @nframes:		Number of frames to send
+ *
+ * @iov must have total length @bufs_per_frame * @nframes, with each set of
+ * @bufs_per_frame contiguous buffers representing a single frame.
  *
  * Return: number of frames successfully sent
  *
  * #syscalls:pasta write
  */
 static size_t tap_send_frames_pasta(const struct ctx *c,
-				    const struct iovec *iov, size_t n)
+				    const struct iovec *iov,
+				    size_t bufs_per_frame, size_t nframes)
 {
+	size_t nbufs = bufs_per_frame * nframes;
 	size_t i;
 
-	for (i = 0; i < n; i++) {
-		ssize_t rc = write(c->fd_tap, iov[i].iov_base, iov[i].iov_len);
+	for (i = 0; i < nbufs; i += bufs_per_frame) {
+		ssize_t rc = writev(c->fd_tap, iov + i, bufs_per_frame);
+		size_t framelen = iov_size(iov + i, bufs_per_frame);
 
 		if (rc < 0) {
 			debug("tap write: %s", strerror(errno));
@@ -340,32 +347,37 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 			default:
 				die("Write error on tap device, exiting");
 			}
-		} else if ((size_t)rc < iov[i].iov_len) {
-			debug("short write on tuntap: %zd/%zu",
-			      rc, iov[i].iov_len);
+		} else if ((size_t)rc < framelen) {
+			debug("short write on tuntap: %zd/%zu", rc, framelen);
 			break;
 		}
 	}
 
-	return i;
+	return i / bufs_per_frame;
 }
 
 /**
  * tap_send_frames_passt() - Send multiple frames to the passt tap
- * @c:		Execution context
- * @iov:	Array of buffers, each containing one frame
- * @n:		Number of buffers/frames in @iov
+ * @c:			Execution context
+ * @iov:		Array of buffers, each containing one frame
+ * @bufs_per_frame:	Number of buffers (iovec entries) per frame
+ * @nframes:		Number of frames to send
+ *
+ * @iov must have total length @bufs_per_frame * @nframes, with each set of
+ * @bufs_per_frame contiguous buffers representing a single frame.
  *
  * Return: number of frames successfully sent
  *
  * #syscalls:passt sendmsg
  */
 static size_t tap_send_frames_passt(const struct ctx *c,
-				    const struct iovec *iov, size_t n)
+				    const struct iovec *iov,
+				    size_t bufs_per_frame, size_t nframes)
 {
+	size_t nbufs = bufs_per_frame * nframes;
 	struct msghdr mh = {
 		.msg_iov = (void *)iov,
-		.msg_iovlen = n,
+		.msg_iovlen = nbufs,
 	};
 	size_t buf_offset;
 	unsigned int i;
@@ -376,44 +388,53 @@ static size_t tap_send_frames_passt(const struct ctx *c,
 		return 0;
 
 	/* Check for any partial frames due to short send */
-	i = iov_skip_bytes(iov, n, sent, &buf_offset);
+	i = iov_skip_bytes(iov, nbufs, sent, &buf_offset);
 
-	if (i < n && buf_offset) {
-		/* A partial frame was sent */
-		if (write_remainder(c->fd_tap, &iov[i], 1, buf_offset) < 0) {
+	if (i < nbufs && (buf_offset || (i % bufs_per_frame))) {
+		/* Number of unsent or partially sent buffers for the frame */
+		size_t rembufs = bufs_per_frame - (i % bufs_per_frame);
+
+		if (write_remainder(c->fd_tap, &iov[i], rembufs, buf_offset) < 0) {
 			err("tap: partial frame send: %s", strerror(errno));
 			return i;
 		}
-		i++;
+		i += rembufs;
 	}
 
-	return i;
+	return i / bufs_per_frame;
 }
 
 /**
  * tap_send_frames() - Send out multiple prepared frames
- * @c:		Execution context
- * @iov:	Array of buffers, each containing one frame (with L2 headers)
- * @n:		Number of buffers/frames in @iov
+ * @c:			Execution context
+ * @iov:		Array of buffers, each containing one frame (with L2 headers)
+ * @bufs_per_frame:	Number of buffers (iovec entries) per frame
+ * @nframes:		Number of frames to send
+ *
+ * @iov must have total length @bufs_per_frame * @nframes, with each set of
+ * @bufs_per_frame contiguous buffers representing a single frame.
  *
  * Return: number of frames actually sent
  */
-size_t tap_send_frames(const struct ctx *c, const struct iovec *iov, size_t n)
+size_t tap_send_frames(const struct ctx *c, const struct iovec *iov,
+		       size_t bufs_per_frame, size_t nframes)
 {
 	size_t m;
 
-	if (!n)
+	if (!nframes)
 		return 0;
 
 	if (c->mode == MODE_PASST)
-		m = tap_send_frames_passt(c, iov, n);
+		m = tap_send_frames_passt(c, iov, bufs_per_frame, nframes);
 	else
-		m = tap_send_frames_pasta(c, iov, n);
+		m = tap_send_frames_pasta(c, iov, bufs_per_frame, nframes);
 
-	if (m < n)
-		debug("tap: failed to send %zu frames of %zu", n - m, n);
+	if (m < nframes)
+		debug("tap: failed to send %zu frames of %zu",
+		      nframes - m, nframes);
 
-	pcap_multiple(iov, 1, m, c->mode == MODE_PASST ? sizeof(uint32_t) : 0);
+	pcap_multiple(iov, bufs_per_frame, m,
+		      c->mode == MODE_PASST ? sizeof(uint32_t) : 0);
 
 	return m;
 }

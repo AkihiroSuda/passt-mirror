@@ -712,7 +712,7 @@ static void udp_tap_send(const struct ctx *c,
 		tap_iov[i].iov_len = buf_len;
 	}
 
-	tap_send_frames(c, tap_iov + start, n);
+	tap_send_frames(c, tap_iov + start, 1, n);
 }
 
 /**

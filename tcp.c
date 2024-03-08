@@ -1289,10 +1289,10 @@ static void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);
  */
 static void tcp_l2_flags_buf_flush(const struct ctx *c)
 {
-	tap_send_frames(c, tcp6_l2_flags_iov, tcp6_l2_flags_buf_used);
+	tap_send_frames(c, tcp6_l2_flags_iov, 1, tcp6_l2_flags_buf_used);
 	tcp6_l2_flags_buf_used = 0;
 
-	tap_send_frames(c, tcp4_l2_flags_iov, tcp4_l2_flags_buf_used);
+	tap_send_frames(c, tcp4_l2_flags_iov, 1, tcp4_l2_flags_buf_used);
 	tcp4_l2_flags_buf_used = 0;
 }
 
@@ -1305,12 +1305,12 @@ static void tcp_l2_data_buf_flush(const struct ctx *c)
 	unsigned i;
 	size_t m;
 
-	m = tap_send_frames(c, tcp6_l2_iov, tcp6_l2_buf_used);
+	m = tap_send_frames(c, tcp6_l2_iov, 1, tcp6_l2_buf_used);
 	for (i = 0; i < m; i++)
 		*tcp6_l2_buf_seq_update[i].seq += tcp6_l2_buf_seq_update[i].len;
 	tcp6_l2_buf_used = 0;
 
-	m = tap_send_frames(c, tcp4_l2_iov, tcp4_l2_buf_used);
+	m = tap_send_frames(c, tcp4_l2_iov, 1, tcp4_l2_buf_used);
 	for (i = 0; i < m; i++)
 		*tcp4_l2_buf_seq_update[i].seq += tcp4_l2_buf_seq_update[i].len;
 	tcp4_l2_buf_used = 0;
