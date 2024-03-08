@@ -67,28 +67,28 @@ static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS, pkt_buf);
 #define FRAGMENT_MSG_RATE	10  /* # seconds between fragment warnings */
 
 /**
- * tap_send() - Send frame, with qemu socket header if needed
+ * tap_send_single() - Send a single frame
  * @c:		Execution context
  * @data:	Packet buffer
  * @len:	Total L2 packet length
- *
- * Return: return code from send() or write()
  */
-int tap_send(const struct ctx *c, const void *data, size_t len)
+void tap_send_single(const struct ctx *c, const void *data, size_t len)
 {
-	pcap(data, len);
+	uint32_t vnet_len = htonl(len);
+	struct iovec iov[2];
+	size_t iovcnt = 0;
 
 	if (c->mode == MODE_PASST) {
-		int flags = MSG_NOSIGNAL | MSG_DONTWAIT;
-		uint32_t vnet_len = htonl(len);
-
-		if (send(c->fd_tap, &vnet_len, 4, flags) < 0)
-			return -1;
-
-		return send(c->fd_tap, data, len, flags);
+		iov[iovcnt].iov_base = &vnet_len;
+		iov[iovcnt].iov_len = sizeof(vnet_len);
+		iovcnt++;
 	}
 
-	return write(c->fd_tap, (char *)data, len);
+	iov[iovcnt].iov_base = (void *)data;
+	iov[iovcnt].iov_len = len;
+	iovcnt++;
+
+	tap_send_frames(c, iov, iovcnt, 1);
 }
 
 /**
@@ -189,8 +189,7 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 	csum_udp4(uh, src, dst, in, len);
 	memcpy(data, in, len);
 
-	if (tap_send(c, buf, len + (data - buf)) < 0)
-		debug("tap: failed to send %zu bytes (IPv4)", len);
+	tap_send_single(c, buf, len + (data - buf));
 }
 
 /**
@@ -212,8 +211,7 @@ void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
 	memcpy(icmp4h, in, len);
 	csum_icmp4(icmp4h, icmp4h + 1, len - sizeof(*icmp4h));
 
-	if (tap_send(c, buf, len + ((char *)icmp4h - buf)) < 0)
-		debug("tap: failed to send %zu bytes (IPv4)", len);
+	tap_send_single(c, buf, len + ((char *)icmp4h - buf));
 }
 
 /**
@@ -274,8 +272,7 @@ void tap_udp6_send(const struct ctx *c,
 	csum_udp6(uh, src, dst, in, len);
 	memcpy(data, in, len);
 
-	if (tap_send(c, buf, len + (data - buf)) < 1)
-		debug("tap: failed to send %zu bytes (IPv6)", len);
+	tap_send_single(c, buf, len + (data - buf));
 }
 
 /**
@@ -298,8 +295,7 @@ void tap_icmp6_send(const struct ctx *c,
 	memcpy(icmp6h, in, len);
 	csum_icmp6(icmp6h, src, dst, icmp6h + 1, len - sizeof(*icmp6h));
 
-	if (tap_send(c, buf, len + ((char *)icmp6h - buf)) < 1)
-		debug("tap: failed to send %zu bytes (IPv6)", len);
+	tap_send_single(c, buf, len + ((char *)icmp6h - buf));
 }
 
 /**

@@ -72,7 +72,7 @@ void tap_udp6_send(const struct ctx *c,
 void tap_icmp6_send(const struct ctx *c,
 		    const struct in6_addr *src, const struct in6_addr *dst,
 		    const void *in, size_t len);
-int tap_send(const struct ctx *c, const void *data, size_t len);
+void tap_send_single(const struct ctx *c, const void *data, size_t len);
 size_t tap_send_frames(const struct ctx *c, const struct iovec *iov,
 		       size_t bufs_per_frame, size_t nframes);
 void eth_update_mac(struct ethhdr *eh,
