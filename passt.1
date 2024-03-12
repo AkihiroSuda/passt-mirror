@@ -237,28 +237,28 @@ list altogether (if you need to search a domain called "none" you can use
 \fB--search none.\fR).
 
 .TP
-.BR \-\-no-dhcp-dns " " \fIaddr
+.BR \-\-no-dhcp-dns
 In \fIpasst\fR mode, do not assign IPv4 addresses via DHCP (option 23) or IPv6
 addresses via NDP Router Advertisement (option type 25) and DHCPv6 (option 23)
 as DNS resolvers.
 By default, all the configured addresses are passed.
 
 .TP
-.BR \-\-dhcp-dns " " \fIaddr
+.BR \-\-dhcp-dns
 In \fIpasta\fR mode, assign IPv4 addresses via DHCP (option 23) or IPv6
 addresses via NDP Router Advertisement (option type 25) and DHCPv6 (option 23)
 as DNS resolvers.
 By default, configured addresses, if any, are not passed.
 
 .TP
-.BR \-\-no-dhcp-search " " \fIaddr
+.BR \-\-no-dhcp-search
 In \fIpasst\fR mode, do not send the DNS domain search list addresses via DHCP
 (option 119), via NDP Router Advertisement (option type 31) and DHCPv6 (option
 24).
 By default, the DNS domain search list resulting from configuration is passed.
 
 .TP
-.BR \-\-dhcp-search " " \fIaddr
+.BR \-\-dhcp-search
 In \fIpasta\fR mode, send the DNS domain search list addresses via DHCP (option
 119), via NDP Router Advertisement (option type 31) and DHCPv6 (option 24).
 By default, the DNS domain search list resulting from configuration is not
