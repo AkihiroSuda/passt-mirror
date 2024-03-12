@@ -225,6 +225,8 @@ int main(int argc, char **argv)
 	strncpy(argv0, argv[0], PATH_MAX - 1);
 	name = basename(argv0);
 	if (strstr(name, "pasta")) {
+		__openlog(log_name = "pasta", LOG_PERROR, LOG_DAEMON);
+
 		sa.sa_handler = pasta_child_handler;
 		if (sigaction(SIGCHLD, &sa, NULL)) {
 			die("Couldn't install signal handlers: %s",
@@ -237,17 +239,15 @@ int main(int argc, char **argv)
 		}
 
 		c.mode = MODE_PASTA;
-		log_name = "pasta";
 	} else if (strstr(name, "passt")) {
+		__openlog(log_name = "passt", LOG_PERROR, LOG_DAEMON);
+
 		c.mode = MODE_PASST;
-		log_name = "passt";
 	} else {
 		exit(EXIT_FAILURE);
 	}
 
 	madvise(pkt_buf, TAP_BUF_BYTES, MADV_HUGEPAGE);
-
-	__openlog(log_name, 0, LOG_DAEMON);
 
 	c.epollfd = epoll_create1(EPOLL_CLOEXEC);
 	if (c.epollfd == -1) {
@@ -268,9 +268,6 @@ int main(int argc, char **argv)
 
 	conf(&c, argc, argv);
 	trace_init(c.trace);
-
-	if (c.force_stderr || isatty(fileno(stdout)))
-		__openlog(log_name, LOG_PERROR, LOG_DAEMON);
 
 	pasta_netns_quit_init(&c);
 
@@ -313,6 +310,9 @@ int main(int argc, char **argv)
 
 	if (isolate_prefork(&c))
 		die("Failed to sandbox process, exiting");
+
+	if (!c.force_stderr && !isatty(fileno(stderr)))
+		__openlog(log_name, 0, LOG_DAEMON);
 
 	if (!c.foreground)
 		__daemon(pidfile_fd, devnull_fd);
