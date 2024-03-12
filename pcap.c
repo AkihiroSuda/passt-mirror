@@ -72,17 +72,17 @@ struct pcap_pkthdr {
  * @iov:	IO vector containing frame (with L2 headers and tap headers)
  * @iovcnt:	Number of buffers (@iov entries) in frame
  * @offset:	Byte offset of the L2 headers within @iov
- * @tv:		Timestamp
+ * @now:	Timestamp
  *
  * Returns: 0 on success, -errno on error writing to the file
  */
 static void pcap_frame(const struct iovec *iov, size_t iovcnt,
-		       size_t offset, const struct timeval *tv)
+		       size_t offset, const struct timespec *now)
 {
 	size_t len = iov_size(iov, iovcnt) - offset;
 	struct pcap_pkthdr h = {
-		.tv_sec = tv->tv_sec,
-		.tv_usec = tv->tv_usec,
+		.tv_sec = now->tv_sec,
+		.tv_usec = DIV_ROUND_CLOSEST(now->tv_nsec, 1000),
 		.caplen = len,
 		.len = len
 	};
@@ -103,13 +103,13 @@ static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 void pcap(const char *pkt, size_t len)
 {
 	struct iovec iov = { (char *)pkt, len };
-	struct timeval tv;
+	struct timespec now;
 
 	if (pcap_fd == -1)
 		return;
 
-	gettimeofday(&tv, NULL);
-	pcap_frame(&iov, 1, 0, &tv);
+	clock_gettime(CLOCK_REALTIME, &now);
+	pcap_frame(&iov, 1, 0, &now);
 }
 
 /**
@@ -122,16 +122,16 @@ void pcap(const char *pkt, size_t len)
 void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
 		   size_t offset)
 {
-	struct timeval tv;
+	struct timespec now;
 	unsigned int i;
 
 	if (pcap_fd == -1)
 		return;
 
-	gettimeofday(&tv, NULL);
+	clock_gettime(CLOCK_REALTIME, &now);
 
 	for (i = 0; i < n; i++)
-		pcap_frame(iov + i * frame_parts, frame_parts, offset, &tv);
+		pcap_frame(iov + i * frame_parts, frame_parts, offset, &now);
 }
 
 /*
@@ -145,13 +145,13 @@ void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
 /* cppcheck-suppress unusedFunction */
 void pcap_iov(const struct iovec *iov, size_t iovcnt)
 {
-	struct timeval tv;
+	struct timespec now;
 
 	if (pcap_fd == -1)
 		return;
 
-	gettimeofday(&tv, NULL);
-	pcap_frame(iov, iovcnt, 0, &tv);
+	clock_gettime(CLOCK_REALTIME, &now);
+	pcap_frame(iov, iovcnt, 0, &now);
 }
 
 /**
