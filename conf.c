@@ -1164,11 +1164,11 @@ void conf(struct ctx *c, int argc, char **argv)
 	};
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
+	struct in6_addr *dns6 = c->ip6.dns, dns6_tmp;
+	struct in_addr *dns4 = c->ip4.dns, dns4_tmp;
 	enum fwd_ports_mode fwd_default = FWD_NONE;
 	bool v4_only = false, v6_only = false;
-	struct in6_addr *dns6 = c->ip6.dns;
 	struct fqdn *dnss = c->dns_search;
-	struct in_addr *dns4 = c->ip4.dns;
 	unsigned int ifi4 = 0, ifi6 = 0;
 	const char *logfile = NULL;
 	const char *optstring;
@@ -1554,14 +1554,14 @@ void conf(struct ctx *c, int argc, char **argv)
 				die("Conflicting DNS options");
 
 			if (dns4 - &c->ip4.dns[0] < ARRAY_SIZE(c->ip4.dns) &&
-			    inet_pton(AF_INET, optarg, dns4)) {
-				dns4++;
+			    inet_pton(AF_INET, optarg, &dns4_tmp)) {
+				add_dns4(c, &dns4_tmp, &dns4);
 				break;
 			}
 
 			if (dns6 - &c->ip6.dns[0] < ARRAY_SIZE(c->ip6.dns) &&
-			    inet_pton(AF_INET6, optarg, dns6)) {
-				dns6++;
+			    inet_pton(AF_INET6, optarg, &dns6_tmp)) {
+				add_dns6(c, &dns6_tmp, &dns6);
 				break;
 			}
 
