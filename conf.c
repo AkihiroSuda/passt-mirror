@@ -464,8 +464,21 @@ static void get_dns(struct ctx *c)
 	close(fd);
 
 out:
-	if (!dns_set && !added)
-		warn("Couldn't get any nameserver address");
+	if (!dns_set) {
+		if (!added)
+			warn("Couldn't get any nameserver address");
+
+		if (c->no_dhcp_dns)
+			return;
+
+		if (c->ifi4 && !c->no_dhcp &&
+		    IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns[0]))
+			warn("No IPv4 nameserver available for DHCP");
+
+		if (c->ifi6 && ((!c->no_ndp && !c->no_ra) || !c->no_dhcpv6) &&
+		    IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns[0]))
+			warn("No IPv6 nameserver available for NDP/DHCPv6");
+	}
 }
 
 /**
