@@ -14,7 +14,7 @@ Name:		passt
 Version:	{{{ git_version }}}
 Release:	1%{?dist}
 Summary:	User-mode networking daemons for virtual machines and namespaces
-License:	GPLv2+ and BSD
+License:	GPL-2.0-or-later AND BSD-3-Clause
 Group:		System Environment/Daemons
 URL:		https://passt.top/
 Source:		https://passt.top/passt/snapshot/passt-%{git_hash}.tar.xz
