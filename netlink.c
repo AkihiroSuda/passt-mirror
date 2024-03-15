@@ -525,7 +525,8 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 		}
 	}
 
-	if (!NLMSG_OK(nh, status) || status > 0) {
+	if (nh->nlmsg_type != NLMSG_DONE &&
+	    (!NLMSG_OK(nh, status) || status > 0)) {
 		/* Process any remaining datagrams in a different
 		 * buffer so we don't overwrite the first one.
 		 */
