@@ -127,15 +127,16 @@
 /**
  * struct udp_tap_port - Port tracking based on tap-facing source port
  * @sock:	Socket bound to source port used as index
- * @flags:	Flags for local bind, loopback address/unicast address as source
+ * @flags:	Flags for recent activity type seen from/to port
  * @ts:		Activity timestamp from tap, used for socket aging
  */
 struct udp_tap_port {
 	int sock;
 	uint8_t flags;
-#define PORT_LOCAL	BIT(0)
-#define PORT_LOOPBACK	BIT(1)
-#define PORT_GUA	BIT(2)
+#define PORT_LOCAL	BIT(0)	/* Port was contacted from local address */
+#define PORT_LOOPBACK	BIT(1)	/* Port was contacted from loopback address */
+#define PORT_GUA	BIT(2)	/* Port was contacted from global unicast */
+#define PORT_DNS_FWD	BIT(3)	/* Port used as source for DNS remapped query */
 
 	time_t ts;
 };
@@ -579,7 +580,8 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 	struct in_addr src = b->s_in.sin_addr;
 
 	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match) &&
-	    IN4_ARE_ADDR_EQUAL(&src, &c->ip4.dns_host) && srcport == 53) {
+	    IN4_ARE_ADDR_EQUAL(&src, &c->ip4.dns_host) && srcport == 53 &&
+	    (udp_tap_map[V4][dstport].flags & PORT_DNS_FWD)) {
 		src = c->ip4.dns_match;
 	} else if (IN4_IS_ADDR_LOOPBACK(&src) ||
 		   IN4_ARE_ADDR_EQUAL(&src, &c->ip4.addr_seen)) {
@@ -632,7 +634,8 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
 		dst = &c->ip6.addr_ll_seen;
 	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match) &&
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.dns_host) &&
-		   srcport == 53) {
+		   srcport == 53 &&
+		   (udp_tap_map[V4][dstport].flags & PORT_DNS_FWD)) {
 		src = &c->ip6.dns_match;
 	} else if (IN6_IS_ADDR_LOOPBACK(src)			||
 		   IN6_ARE_ADDR_EQUAL(src, &c->ip6.addr_seen)	||
@@ -841,6 +844,9 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 		if (IN4_ARE_ADDR_EQUAL(&s_in.sin_addr, &c->ip4.dns_match) &&
 		    ntohs(s_in.sin_port) == 53) {
 			s_in.sin_addr = c->ip4.dns_host;
+			udp_tap_map[V4][src].ts = now->tv_sec;
+			udp_tap_map[V4][src].flags |= PORT_DNS_FWD;
+			bitmap_set(udp_act[V4][UDP_ACT_TAP], src);
 		} else if (IN4_ARE_ADDR_EQUAL(&s_in.sin_addr, &c->ip4.gw) &&
 			   !c->no_map_gw) {
 			if (!(udp_tap_map[V4][dst].flags & PORT_LOCAL) ||
@@ -890,6 +896,9 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 		if (IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.dns_match) &&
 		    ntohs(s_in6.sin6_port) == 53) {
 			s_in6.sin6_addr = c->ip6.dns_host;
+			udp_tap_map[V6][src].ts = now->tv_sec;
+			udp_tap_map[V6][src].flags |= PORT_DNS_FWD;
+			bitmap_set(udp_act[V6][UDP_ACT_TAP], src);
 		} else if (IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.gw) &&
 			   !c->no_map_gw) {
 			if (!(udp_tap_map[V6][dst].flags & PORT_LOCAL) ||
