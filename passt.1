@@ -148,7 +148,9 @@ for an IPv6 \fIaddr\fR.
 This option can be specified zero (for defaults) to two times (once for IPv4,
 once for IPv6).
 By default, assigned IPv4 and IPv6 addresses are taken from the host interfaces
-with the first default route for the corresponding IP version.
+with the first default route, if any, for the corresponding IP version. If no
+default routes are available and there is just one interface with any route,
+that interface will be chosen instead.
 
 .TP
 .BR \-n ", " \-\-netmask " " \fImask
@@ -172,9 +174,11 @@ Assign IPv4 \fIaddr\fR as default gateway via DHCP (option 3), or IPv6
 This option can be specified zero (for defaults) to two times (once for IPv4,
 once for IPv6).
 By default, IPv4 and IPv6 gateways are taken from the host interface with the
-first default route for the corresponding IP version. If the default route is a
-multipath one, the gateway is the first nexthop router returned by the kernel
-which has the highest weight in the set of paths.
+first default route, if any, for the corresponding IP version. If the default
+route is a multipath one, the gateway is the first nexthop router returned by
+the kernel which has the highest weight in the set of paths. If no default
+routes are available and there is just one interface with any route, that
+interface will be chosen instead.
 
 Note: these addresses are also used as source address for packets directed to
 the guest or to the target namespace having a loopback or local source address,
@@ -185,9 +189,11 @@ to allow mapping of local traffic to guest and target namespace. See the
 .BR \-i ", " \-\-interface " " \fIname
 Use host interface \fIname\fR to derive addresses and routes.
 Default is to use the interfaces specified by \fB--outbound-if4\fR and
-\fB--outbound-if6\fR, for IPv4 and IPv6 addresses and routes, respectively. If
-no interfaces are given, the interface with the first default routes for each IP
-version is selected.
+\fB--outbound-if6\fR, for IPv4 and IPv6 addresses and routes, respectively.
+
+If no interfaces are given, the interface with the first default routes for each
+IP version is selected. If no default routes are available and there is just one
+interface with any route, that interface will be chosen instead.
 
 .TP
 .BR \-o ", " \-\-outbound " " \fIaddr
@@ -203,14 +209,20 @@ By default, the source address is selected by the routing tables.
 Bind IPv4 outbound sockets to host interface \fIname\fR, and, unless another
 interface is specified via \fB-i\fR, \fB--interface\fR, use this interface to
 derive IPv4 addresses and routes.
-By default, the interface given by the default route is selected.
+
+By default, the interface given by the default route is selected. If no default
+routes are available and there is just one interface with any route, that
+interface will be chosen instead.
 
 .TP
 .BR \-\-outbound-if6 " " \fIname
 Bind IPv6 outbound sockets to host interface \fIname\fR, and, unless another
 interface is specified via \fB-i\fR, \fB--interface\fR, use this interface to
 derive IPv6 addresses and routes.
-By default, the interface given by the default route is selected.
+
+By default, the interface given by the default route is selected. If no default
+routes are available and there is just one interface with any route, that
+interface will be chosen instead.
 
 .TP
 .BR \-D ", " \-\-dns " " \fIaddr
@@ -305,19 +317,20 @@ namespace will be ignored.
 .BR \-\-no-map-gw
 Don't remap TCP connections and untracked UDP traffic, with the gateway address
 as destination, to the host. Implied if there is no gateway on the selected
-default route for any of the enabled address families.
+default route, or if there is no default route, for any of the enabled address
+families.
 
 .TP
 .BR \-4 ", " \-\-ipv4-only
 Enable IPv4-only operation. IPv6 traffic will be ignored.
-By default, IPv6 operation is enabled as long as at least an IPv6 default route
-and an interface address are configured on a given host interface.
+By default, IPv6 operation is enabled as long as at least an IPv6 route and an
+interface address are configured on a given host interface.
 
 .TP
 .BR \-6 ", " \-\-ipv6-only
 Enable IPv6-only operation. IPv4 traffic will be ignored.
-By default, IPv4 operation is enabled as long as at least an IPv4 default route
-and an interface address are configured on a given host interface.
+By default, IPv4 operation is enabled as long as at least an IPv4 route and an
+interface address are configured on a given host interface.
 
 .SS \fBpasst\fR-only options
 
@@ -817,8 +830,8 @@ local addresses, and it would also be impossible for guest or target namespace
 to route answers back.
 
 For convenience, and somewhat arbitrarily, the source address on these packets
-is translated to the address of the default IPv4 or IPv6 gateway -- this is
-known to be an existing, valid address on the same subnet.
+is translated to the address of the default IPv4 or IPv6 gateway (if any) --
+this is known to be an existing, valid address on the same subnet.
 
 Loopback destination addresses are instead translated to the observed external
 address of the guest or target namespace. For IPv6 packets, if usage of a
