@@ -504,7 +504,7 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
 		.ifi		  = ifi_src,
 	};
-	ssize_t nlmsgs_size, status;
+	ssize_t nlmsgs_size, left, status;
 	unsigned dup_routes = 0;
 	struct nlmsghdr *nh;
 	char buf[NLBUFSIZ];
@@ -518,9 +518,9 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 	 * routes in the buffer at once.
 	 */
 	nh = nl_next(s_src, buf, NULL, &nlmsgs_size);
-	for (status = nlmsgs_size;
-	     NLMSG_OK(nh, status) && (status = nl_status(nh, status, seq)) > 0;
-	     nh = NLMSG_NEXT(nh, status)) {
+	for (left = nlmsgs_size;
+	     NLMSG_OK(nh, left) && (status = nl_status(nh, left, seq)) > 0;
+	     nh = NLMSG_NEXT(nh, left)) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
 		struct rtattr *rta;
 		size_t na;
@@ -550,8 +550,7 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 		}
 	}
 
-	if (nh->nlmsg_type != NLMSG_DONE &&
-	    (!NLMSG_OK(nh, status) || status > 0)) {
+	if (!NLMSG_OK(nh, left)) {
 		/* Process any remaining datagrams in a different
 		 * buffer so we don't overwrite the first one.
 		 */
@@ -577,9 +576,9 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 	 * to calculate dependencies: let the kernel do that.
 	 */
 	for (i = 0; i < dup_routes; i++) {
-		for (nh = (struct nlmsghdr *)buf, status = nlmsgs_size;
-		     NLMSG_OK(nh, status);
-		     nh = NLMSG_NEXT(nh, status)) {
+		for (nh = (struct nlmsghdr *)buf, left = nlmsgs_size;
+		     NLMSG_OK(nh, left);
+		     nh = NLMSG_NEXT(nh, left)) {
 			uint16_t flags = nh->nlmsg_flags;
 			int rc;
 
