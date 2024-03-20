@@ -533,13 +533,14 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 int write_remainder(int fd, const struct iovec *iov, int iovcnt, size_t skip)
 {
 	int i;
+	size_t offset;
 
-	while ((i = iov_skip_bytes(iov, iovcnt, skip, &skip)) < iovcnt) {
+	while ((i = iov_skip_bytes(iov, iovcnt, skip, &offset)) < iovcnt) {
 		ssize_t rc;
 
-		if (skip) {
-			rc = write(fd, (char *)iov[i].iov_base + skip,
-				   iov[i].iov_len - skip);
+		if (offset) {
+			rc = write(fd, (char *)iov[i].iov_base + offset,
+				   iov[i].iov_len - offset);
 		} else {
 			rc = writev(fd, &iov[i], iovcnt - i);
 		}
