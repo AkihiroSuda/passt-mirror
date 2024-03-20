@@ -254,8 +254,8 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 		.rtm.rtm_type	 = RTN_UNICAST,
 		.rtm.rtm_family	 = af,
 	};
-	bool default_only = true;
-	unsigned int ifi = 0;
+	unsigned defifi = 0, anyifi = 0;
+	unsigned ndef = 0, nany = 0;
 	struct nlmsghdr *nh;
 	struct rtattr *rta;
 	char buf[NLBUFSIZ];
@@ -263,7 +263,6 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	uint32_t seq;
 	size_t na;
 
-again:
 	/* Look for an interface with a default route first, failing that, look
 	 * for any interface with a route, and pick it only if it's the only
 	 * interface with a route.
@@ -271,46 +270,61 @@ again:
 	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWROUTE) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
+		unsigned thisifi = 0;
 
-		if (default_only) {
-			if (ifi || rtm->rtm_dst_len || rtm->rtm_family != af)
-				continue;
-		} else {
-			if (rtm->rtm_family != af)
-				continue;
-		}
+		if (rtm->rtm_family != af)
+			continue;
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
 			if (rta->rta_type == RTA_OIF) {
-				if (!default_only && ifi &&
-				    ifi != *(unsigned int *)RTA_DATA(rta))
-					return 0;
-
-				ifi = *(unsigned int *)RTA_DATA(rta);
+				thisifi = *(unsigned int *)RTA_DATA(rta);
 			} else if (rta->rta_type == RTA_MULTIPATH) {
 				const struct rtnexthop *rtnh;
 
 				rtnh = (struct rtnexthop *)RTA_DATA(rta);
-
-				if (!default_only && ifi &&
-				    (int)ifi != rtnh->rtnh_ifindex)
-					return 0;
-
-				ifi = rtnh->rtnh_ifindex;
+				thisifi = rtnh->rtnh_ifindex;
 			}
+		}
+
+		if (!thisifi)
+			continue; /* No interface for this route */
+
+		if (rtm->rtm_dst_len == 0) {
+			/* Default route */
+			ndef++;
+			if (!defifi)
+				defifi = thisifi;
+		} else {
+			/* Non-default route */
+			nany++;
+			if (!anyifi)
+				anyifi = thisifi;
 		}
 	}
 
 	if (status < 0)
 		warn("netlink: RTM_GETROUTE failed: %s", strerror(-status));
 
-	if (!ifi && default_only) {
-		default_only = false;
-		goto again;
+	if (defifi) {
+		if (ndef > 1)
+			info("Multiple default %s routes, picked first",
+			     af == AF_INET ? "IPv4" : "IPv6");
+		return defifi;
 	}
 
-	return ifi;
+	if (anyifi) {
+		if (nany == 1)
+			return anyifi;
+
+		info("Multiple interfaces with %s routes, use -i to select one",
+		     af == AF_INET ? "IPv4" : "IPv6");
+	}
+
+	if (!nany)
+		info("No interfaces with %s routes", af == AF_INET ? "IPv4" : "IPv6");
+
+	return 0;
 }
 
 /**
