@@ -13,7 +13,14 @@
 
 htools	git make go bats ip jq socat ./test/podman/bin/podman
 
+set	PODMAN test/podman/bin/podman
+hout	WD pwd
+
+test	Podman pasta path
+
+hout	PASTA_BIN CONTAINERS_HELPER_BINARY_DIR="__WD__" __PODMAN__ info --format "{{.Host.Pasta.Executable}}"
+check	[ "__PASTA_BIN__" = "__WD__/pasta" ]
+
 test	Podman system test with bats
 
-hout	WD pwd
-host	PODMAN="test/podman/bin/podman" CONTAINERS_HELPER_BINARY_DIR="__WD__" bats test/podman/test/system/505-networking-pasta.bats
+host	PODMAN="__PODMAN__" CONTAINERS_HELPER_BINARY_DIR="__WD__" bats test/podman/test/system/505-networking-pasta.bats
