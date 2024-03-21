@@ -157,6 +157,24 @@ int write_file(const char *path, const char *buf);
 int write_remainder(int fd, const struct iovec *iov, int iovcnt, size_t skip);
 
 /**
+ * af_name() - Return name of an address family
+ * @af:		Address/protocol family (AF_INET or AF_INET6)
+ *
+ * Returns: Name of the protocol family as a string
+ */
+static inline const char *af_name(sa_family_t af)
+{
+	switch (af) {
+	case AF_INET:
+		return "IPv4";
+	case AF_INET6:
+		return "IPv6";
+	default:
+		return "<unknown address family>";
+	}
+}
+
+/**
  * mod_sub() - Modular arithmetic subtraction
  * @a:		Minued, unsigned value < @m
  * @b:		Subtrahend, unsigned value < @m

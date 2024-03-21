@@ -309,7 +309,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	if (defifi) {
 		if (ndef > 1)
 			info("Multiple default %s routes, picked first",
-			     af == AF_INET ? "IPv4" : "IPv6");
+			     af_name(af));
 		return defifi;
 	}
 
@@ -318,11 +318,11 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 			return anyifi;
 
 		info("Multiple interfaces with %s routes, use -i to select one",
-		     af == AF_INET ? "IPv4" : "IPv6");
+		     af_name(af));
 	}
 
 	if (!nany)
-		info("No interfaces with %s routes", af == AF_INET ? "IPv4" : "IPv6");
+		info("No interfaces with %s routes", af_name(af));
 
 	return 0;
 }
