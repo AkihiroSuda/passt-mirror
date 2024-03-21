@@ -67,13 +67,19 @@ CFLAGS = -Wall -Werror -Wextra -pedantic -std=c99
 
 assets: $(ASSETS)
 
+.PHONY: pull-%
+pull-%: %
+	git -C $* pull
+
 mbuto:
 	git clone git://mbuto.sh/mbuto
+
+mbuto/mbuto: pull-mbuto
 
 guest-key guest-key.pub:
 	ssh-keygen -f guest-key -N ''
 
-mbuto.img: passt.mbuto mbuto guest-key.pub $(TESTDATA_ASSETS)
+mbuto.img: passt.mbuto mbuto/mbuto guest-key.pub $(TESTDATA_ASSETS)
 	./mbuto/mbuto -p ./$< -c lz4 -f $@
 
 mbuto.mem.img: passt.mem.mbuto mbuto ../passt.avx2
