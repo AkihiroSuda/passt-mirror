@@ -308,4 +308,4 @@ cppcheck: $(SRCS) $(HEADERS)
 	--inline-suppr							\
 	--suppress=unusedStructMember					\
 	$(filter -D%,$(FLAGS) $(CFLAGS) $(CPPFLAGS))			\
-	.
+	$(SRCS) $(HEADERS)
