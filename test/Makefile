@@ -52,10 +52,10 @@ UBUNTU_NEW_IMGS = xenial-server-cloudimg-powerpc-disk1.img \
 	jammy-server-cloudimg-s390x.img
 UBUNTU_IMGS = $(UBUNTU_OLD_IMGS) $(UBUNTU_NEW_IMGS)
 
-DOWNLOAD_ASSETS = mbuto \
+DOWNLOAD_ASSETS = mbuto podman \
 	$(DEBIAN_IMGS) $(FEDORA_IMGS) $(OPENSUSE_IMGS) $(UBUNTU_IMGS)
 TESTDATA_ASSETS = small.bin big.bin medium.bin
-LOCAL_ASSETS = mbuto.img mbuto.mem.img QEMU_EFI.fd \
+LOCAL_ASSETS = mbuto.img mbuto.mem.img podman/bin/podman QEMU_EFI.fd \
 	$(DEBIAN_IMGS:%=prepared-%) $(FEDORA_IMGS:%=prepared-%) \
 	$(UBUNTU_NEW_IMGS:%=prepared-%) \
 	nstool guest-key guest-key.pub \
@@ -75,6 +75,14 @@ mbuto:
 	git clone git://mbuto.sh/mbuto
 
 mbuto/mbuto: pull-mbuto
+
+podman:
+	git clone https://github.com/containers/podman.git
+
+# To succesfully build podman, you will need gpgme and systemd
+# development packages
+podman/bin/podman: pull-podman
+	$(MAKE) -C podman
 
 guest-key guest-key.pub:
 	ssh-keygen -f guest-key -N ''
