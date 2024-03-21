@@ -33,6 +33,7 @@
 #include "util.h"
 #include "passt.h"
 #include "log.h"
+#include "ip.h"
 #include "netlink.h"
 
 /* Netlink expects a buffer of at least 8kiB or the system page size,
@@ -270,6 +271,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWROUTE) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
+		const void *dst = NULL;
 		unsigned thisifi = 0;
 
 		if (rtm->rtm_family != af)
@@ -284,11 +286,22 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 
 				rtnh = (struct rtnexthop *)RTA_DATA(rta);
 				thisifi = rtnh->rtnh_ifindex;
+			} else if (rta->rta_type == RTA_DST) {
+				dst = RTA_DATA(rta);
 			}
 		}
 
 		if (!thisifi)
 			continue; /* No interface for this route */
+
+		/* Skip routes to link-local addresses */
+		if (af == AF_INET && dst &&
+		    IN4_IS_PREFIX_LINKLOCAL(dst, rtm->rtm_dst_len))
+			continue;
+
+		if (af == AF_INET6 && dst &&
+		    IN6_IS_PREFIX_LINKLOCAL(dst, rtm->rtm_dst_len))
+			continue;
 
 		if (rtm->rtm_dst_len == 0) {
 			/* Default route */
@@ -322,7 +335,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	}
 
 	if (!nany)
-		info("No interfaces with %s routes", af_name(af));
+		info("No interfaces with usable %s routes", af_name(af));
 
 	return 0;
 }

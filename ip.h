@@ -24,6 +24,11 @@
 #define IN4ADDR_ANY_INIT \
 	{ .s_addr	= htonl_constant(INADDR_ANY) }
 
+#define IN4_IS_ADDR_LINKLOCAL(a)					\
+	((ntohl(((struct in_addr *)(a))->s_addr) >> 16) == 0xa9fe)
+#define IN4_IS_PREFIX_LINKLOCAL(a, len)					\
+	((len) >= 16 && IN4_IS_ADDR_LINKLOCAL(a))
+
 #define L2_BUF_IP4_INIT(proto)						\
 	{								\
 		.version	= 4,					\
@@ -39,6 +44,10 @@
 	}
 #define L2_BUF_IP4_PSUM(proto)	((uint32_t)htons_constant(0x4500) +	\
 				 (uint32_t)htons(0xff00 | (proto)))
+
+
+#define IN6_IS_PREFIX_LINKLOCAL(a, len)					\
+	((len) >= 10 && IN6_IS_ADDR_LINKLOCAL(a))
 
 #define L2_BUF_IP6_INIT(proto)						\
 	{								\
