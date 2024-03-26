@@ -342,16 +342,18 @@ speeding up local connections, and usually requiring NAT. _pasta_:
 
 ### Availability
 * official packages for:
+    * ✅ [Alpine Linux](https://pkgs.alpinelinux.org/packages?name=passt)
     * ✅ [Arch Linux](https://archlinux.org/packages/extra/x86_64/passt/) ([aarch64](https://archlinuxarm.org/packages/aarch64/passt), [i486](https://www.archlinux32.org/packages/?q=passt))
     * ✅ [CentOS Stream](https://gitlab.com/redhat/centos-stream/rpms/passt)
     * ✅ [Debian](https://tracker.debian.org/pkg/passt)
     * ✅ [Fedora](https://src.fedoraproject.org/rpms/passt)
     * ✅ [Gentoo](https://packages.gentoo.org/packages/net-misc/passt)
+    * ✅ [GNU Guix](https://packages.guix.gnu.org/packages/passt/)
+    * ✅ [OpenSUSE](https://build.opensuse.org/package/requests/Virtualization:containers/passt)
     * ✅ [Ubuntu](https://launchpad.net/ubuntu/+source/passt)
     * ✅ [Void Linux](https://voidlinux.org/packages/?q=passt)
 * unofficial packages for:
     * ✅ [EPEL, Mageia](https://copr.fedorainfracloud.org/coprs/sbrivio/passt/)
-    * 🛠 [openSUSE](https://build.opensuse.org/package/show/Virtualization:containers/passt)
 * ✅ unofficial [packages](https://passt.top/builds/latest/x86_64/) from x86_64
   static builds for other RPM-based distributions
 * ✅ unofficial [packages](https://passt.top/builds/latest/x86_64/) from x86_64
