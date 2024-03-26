@@ -1593,8 +1593,6 @@ static void tcp_update_seqack_from_tap(const struct ctx *c,
  */
 static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 {
-	uint32_t prev_ack_to_tap = conn->seq_ack_to_tap;
-	uint32_t prev_wnd_to_tap = conn->wnd_to_tap;
 	struct tcp4_l2_flags_buf_t *b4 = NULL;
 	struct tcp6_l2_flags_buf_t *b6 = NULL;
 	struct tcp_info tinfo = { 0 };
@@ -1675,9 +1673,7 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		*data++ = OPT_WS_LEN;
 		*data++ = conn->ws_to_tap;
 	} else if (!(flags & RST)) {
-		if (conn->seq_ack_to_tap != prev_ack_to_tap ||
-		    !prev_wnd_to_tap)
-			flags |= ACK;
+		flags |= ACK;
 	}
 
 	th->doff = (sizeof(*th) + optlen) / 4;
