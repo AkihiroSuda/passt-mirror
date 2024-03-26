@@ -1677,7 +1677,7 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 
 		th->ack = !!(flags & ACK);
 	} else {
-		th->ack = !!(flags & (ACK | DUP_ACK)) ||
+		th->ack = !!(flags & ACK)) ||
 			  conn->seq_ack_to_tap != prev_ack_to_tap ||
 			  !prev_wnd_to_tap;
 	}
@@ -2503,7 +2503,7 @@ out:
 		 */
 		if (conn->seq_dup_ack_approx != (conn->seq_from_tap & 0xff)) {
 			conn->seq_dup_ack_approx = conn->seq_from_tap & 0xff;
-			tcp_send_flag(c, conn, DUP_ACK);
+			tcp_send_flag(c, conn, ACK | DUP_ACK);
 		}
 		return p->count - idx;
 	}
