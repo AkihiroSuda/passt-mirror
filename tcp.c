@@ -1674,7 +1674,7 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		*data++ = OPT_WS;
 		*data++ = OPT_WS_LEN;
 		*data++ = conn->ws_to_tap;
-	} else {
+	} else if (!(flags & RST)) {
 		if (conn->seq_ack_to_tap != prev_ack_to_tap ||
 		    !prev_wnd_to_tap)
 			flags |= ACK;
