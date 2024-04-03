@@ -27,6 +27,7 @@
 
   /					r,	# isolate_prefork(), isolation.c
   mount options=(rw, runbindable) /,
+  mount		""	-> "/",
   mount		""	-> "/tmp/",
   pivot_root	"/tmp/" -> "/tmp/",
   umount	"/",
