@@ -546,12 +546,19 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
+			/* RTA_OIF and RTA_MULTIPATH attributes carry the
+			 * identifier of a host interface. Change them to match
+			 * the corresponding identifier in the target namespace.
+			 */
 			if (rta->rta_type == RTA_OIF) {
-				/* The host obviously list's the host interface
-				 * id here, we need to change it to the
-				 * namespace's interface id
-				 */
 				*(unsigned int *)RTA_DATA(rta) = ifi_dst;
+			} else if (rta->rta_type == RTA_MULTIPATH) {
+				struct rtnexthop *rtnh;
+
+				for (rtnh = (struct rtnexthop *)RTA_DATA(rta);
+				     RTNH_OK(rtnh, RTA_PAYLOAD(rta));
+				     rtnh = RTNH_NEXT(rtnh))
+					rtnh->rtnh_ifindex = ifi_dst;
 			} else if (rta->rta_type == RTA_PREFSRC) {
 				/* Host routes might include a preferred source
 				 * address, which must be one of the host's
