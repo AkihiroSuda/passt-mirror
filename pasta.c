@@ -211,12 +211,13 @@ static int pasta_spawn_cmd(void *arg)
 void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 		    int argc, char *argv[])
 {
+	char ns_fn_stack[NS_FN_STACK_SIZE]
+	__attribute__ ((aligned(__alignof__(max_align_t))));
 	struct pasta_spawn_cmd_arg arg = {
 		.exe = argv[0],
 		.argv = argv,
 	};
 	char uidmap[BUFSIZ], gidmap[BUFSIZ];
-	char ns_fn_stack[NS_FN_STACK_SIZE];
 	char *sh_argv[] = { NULL, NULL };
 	char sh_arg0[PATH_MAX + 1];
 	sigset_t set;

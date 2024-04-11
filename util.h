@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 #include <signal.h>
 
@@ -116,7 +117,8 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 	     void *arg);
 #define NS_CALL(fn, arg)						\
 	do {								\
-		char ns_fn_stack[NS_FN_STACK_SIZE];			\
+		char ns_fn_stack[NS_FN_STACK_SIZE]			\
+		__attribute__ ((aligned(__alignof__(max_align_t))));	\
 									\
 		do_clone((fn), ns_fn_stack, sizeof(ns_fn_stack),	\
 			 CLONE_VM | CLONE_VFORK | CLONE_FILES | SIGCHLD,\
