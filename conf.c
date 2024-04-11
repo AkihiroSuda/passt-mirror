@@ -625,7 +625,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 		int rc = nl_link_get_mac(nl_sock, ifi, mac);
 		if (rc < 0) {
 			char ifname[IFNAMSIZ];
-			err("Couldn't discover MAC for %s: %s",
+			err("Couldn't discover MAC address for %s: %s",
 			    if_indextoname(ifi, ifname), strerror(-rc));
 			return 0;
 		}
@@ -684,7 +684,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 		rc = nl_link_get_mac(nl_sock, ifi, mac);
 		if (rc < 0) {
 			char ifname[IFNAMSIZ];
-			err("Couldn't discover MAC for %s: %s",
+			err("Couldn't discover MAC address for %s: %s",
 			    if_indextoname(ifi, ifname), strerror(-rc));
 			return 0;
 		}
