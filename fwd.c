@@ -38,7 +38,7 @@
  * @exclude:	Bitmap of ports to exclude from setting (and clear)
  *
  * #syscalls:pasta lseek
- * #syscalls:pasta ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
+ * #syscalls:pasta ppc64le:_llseek ppc64:_llseek arm:_llseek
  */
 static void procfs_scan_listen(int fd, unsigned int lstate,
 			       uint8_t *map, const uint8_t *exclude)

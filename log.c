@@ -220,7 +220,7 @@ void logfile_init(const char *name, const char *path, size_t size)
  * @fd:		Log file descriptor
  * @now:	Current timestamp
  *
- * #syscalls lseek ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
+ * #syscalls lseek ppc64le:_llseek ppc64:_llseek arm:_llseek
  */
 static void logfile_rotate_fallocate(int fd, const struct timespec *now)
 {
@@ -257,7 +257,7 @@ static void logfile_rotate_fallocate(int fd, const struct timespec *now)
  * @fd:		Log file descriptor
  * @now:	Current timestamp
  *
- * #syscalls lseek ppc64le:_llseek ppc64:_llseek armv6l:_llseek armv7l:_llseek
+ * #syscalls lseek ppc64le:_llseek ppc64:_llseek arm:_llseek
  * #syscalls ftruncate
  */
 static void logfile_rotate_move(int fd, const struct timespec *now)

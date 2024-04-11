@@ -192,10 +192,9 @@ void exit_handler(int signal)
  * #syscalls read write writev
  * #syscalls socket bind connect getsockopt setsockopt s390x:socketcall close
  * #syscalls recvfrom sendto shutdown
- * #syscalls armv6l:recv armv7l:recv ppc64le:recv
- * #syscalls armv6l:send armv7l:send ppc64le:send
+ * #syscalls arm:recv ppc64le:recv arm:send ppc64le:send
  * #syscalls accept4|accept listen epoll_ctl epoll_wait|epoll_pwait epoll_pwait
- * #syscalls clock_gettime armv6l:clock_gettime64 armv7l:clock_gettime64
+ * #syscalls clock_gettime arm:clock_gettime64
  */
 int main(int argc, char **argv)
 {
