@@ -629,10 +629,12 @@ static unsigned int conf_ip4(unsigned int ifi,
 			    if_indextoname(ifi, ifname), strerror(-rc));
 			return 0;
 		}
+
+		if (MAC_IS_ZERO(mac))
+			memcpy(mac, MAC_LAA, ETH_ALEN);
 	}
 
-	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr) ||
-	    MAC_IS_ZERO(mac))
+	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr))
 		return 0;
 
 	return ifi;
@@ -688,11 +690,13 @@ static unsigned int conf_ip6(unsigned int ifi,
 			    if_indextoname(ifi, ifname), strerror(-rc));
 			return 0;
 		}
+
+		if (MAC_IS_ZERO(mac))
+			memcpy(mac, MAC_LAA, ETH_ALEN);
 	}
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
-	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr_ll) ||
-	    MAC_IS_ZERO(mac))
+	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr_ll))
 		return 0;
 
 	return ifi;
