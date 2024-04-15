@@ -32,6 +32,9 @@
 #ifndef ETH_MIN_MTU
 #define ETH_MIN_MTU			68
 #endif
+#ifndef IP_MAX_MTU
+#define IP_MAX_MTU			USHRT_MAX
+#endif
 
 #ifndef MIN
 #define MIN(x, y)		(((x) < (y)) ? (x) : (y))
