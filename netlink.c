@@ -554,21 +554,32 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 	     NLMSG_OK(nh, left) && (status = nl_status(nh, left, seq)) > 0;
 	     nh = NLMSG_NEXT(nh, left)) {
 		struct rtmsg *rtm = (struct rtmsg *)NLMSG_DATA(nh);
+		bool discard = false;
 		struct rtattr *rta;
 		size_t na;
 
 		if (nh->nlmsg_type != RTM_NEWROUTE)
 			continue;
 
-		dup_routes++;
-
 		for (rta = RTM_RTA(rtm), na = RTM_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
 			/* RTA_OIF and RTA_MULTIPATH attributes carry the
-			 * identifier of a host interface. Change them to match
-			 * the corresponding identifier in the target namespace.
-			 */
+			 * identifier of a host interface. If they match the
+			 * host interface we're copying from, change them to
+			 * match the corresponding identifier in the target
+			 * namespace.
+			 *
+			 * If RTA_OIF doesn't match (NETLINK_GET_STRICT_CHK not
+			 * available), or if any interface index in nexthop
+			 * objects differ from the host interface, discard the
+			 * route altogether.
+			*/
 			if (rta->rta_type == RTA_OIF) {
+				if (*(unsigned int *)RTA_DATA(rta) != ifi_src) {
+					discard = true;
+					break;
+				}
+
 				*(unsigned int *)RTA_DATA(rta) = ifi_dst;
 			} else if (rta->rta_type == RTA_MULTIPATH) {
 				size_t nh_len = RTA_PAYLOAD(rta);
@@ -576,8 +587,19 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 
 				for (rtnh = (struct rtnexthop *)RTA_DATA(rta);
 				     RTNH_OK(rtnh, nh_len);
-				     rtnh = RTNH_NEXT_AND_DEC(rtnh, nh_len))
+				     rtnh = RTNH_NEXT_AND_DEC(rtnh, nh_len)) {
+					int src = (int)ifi_src;
+
+					if (rtnh->rtnh_ifindex != src) {
+						discard = true;
+						break;
+					}
+
 					rtnh->rtnh_ifindex = ifi_dst;
+				}
+
+				if (discard)
+					break;
 			} else if (rta->rta_type == RTA_PREFSRC) {
 				/* Host routes might include a preferred source
 				 * address, which must be one of the host's
@@ -588,6 +610,11 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 				rta->rta_type = RTA_UNSPEC;
 			}
 		}
+
+		if (discard)
+			nh->nlmsg_type = NLMSG_NOOP;
+		else
+			dup_routes++;
 	}
 
 	if (!NLMSG_OK(nh, left)) {
