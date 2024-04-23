@@ -36,6 +36,10 @@
 #include "ip.h"
 #include "netlink.h"
 
+/* Same as RTA_NEXT() but for nexthops: RTNH_NEXT() doesn't take 'attrlen' */
+#define RTNH_NEXT_AND_DEC(rtnh, attrlen)				\
+	((attrlen) -= RTNH_ALIGN((rtnh)->rtnh_len), RTNH_NEXT(rtnh))
+
 /* Netlink expects a buffer of at least 8kiB or the system page size,
  * whichever is larger.  32kiB is recommended for more efficient.
  * Since the largest page size on any remotely common Linux setup is
@@ -349,12 +353,13 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
  */
 bool nl_route_get_def_multipath(struct rtattr *rta, void *gw)
 {
+	size_t nh_len = RTA_PAYLOAD(rta);
 	struct rtnexthop *rtnh;
 	bool found = false;
 	int hops = -1;
 
 	for (rtnh = (struct rtnexthop *)RTA_DATA(rta);
-	     RTNH_OK(rtnh, RTA_PAYLOAD(rta)); rtnh = RTNH_NEXT(rtnh)) {
+	     RTNH_OK(rtnh, nh_len); rtnh = RTNH_NEXT_AND_DEC(rtnh, nh_len)) {
 		size_t len = rtnh->rtnh_len - sizeof(*rtnh);
 		struct rtattr *rta_inner;
 
@@ -566,11 +571,12 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 			if (rta->rta_type == RTA_OIF) {
 				*(unsigned int *)RTA_DATA(rta) = ifi_dst;
 			} else if (rta->rta_type == RTA_MULTIPATH) {
+				size_t nh_len = RTA_PAYLOAD(rta);
 				struct rtnexthop *rtnh;
 
 				for (rtnh = (struct rtnexthop *)RTA_DATA(rta);
-				     RTNH_OK(rtnh, RTA_PAYLOAD(rta));
-				     rtnh = RTNH_NEXT(rtnh))
+				     RTNH_OK(rtnh, nh_len);
+				     rtnh = RTNH_NEXT_AND_DEC(rtnh, nh_len))
 					rtnh->rtnh_ifindex = ifi_dst;
 			} else if (rta->rta_type == RTA_PREFSRC) {
 				/* Host routes might include a preferred source
