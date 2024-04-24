@@ -33,15 +33,11 @@ test	Log creation
 set	PORTS -t 10001,10002 -u 10001,10002
 set	LOG_FILE __STATEDIR__/pasta.log
 
-passt	./pasta -l __LOG_FILE__
-passtb	exit
-sleep	1
+passt	./pasta -l __LOG_FILE__ -- /bin/true
 check	[ -s __LOG_FILE__ ]
 
 test	Log truncated on creation
-passt	./pasta -l __LOG_FILE__
-passtb	exit
-sleep	1
+passt	./pasta -l __LOG_FILE__ -- /bin/true
 check	[ $(cat __LOG_FILE__ | wc -l) -eq 1 ]
 
 test	Maximum log size
