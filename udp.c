@@ -829,6 +829,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 	 * and destination, so we can just take those from the first message.
 	 */
 	src = ntohs(uh->source);
+	src += c->udp.fwd_in.rdelta[src];
 	dst = ntohs(uh->dest);
 
 	if (af == AF_INET) {
@@ -1005,7 +1006,7 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP, addr,
 					 ifname, port, uref.u32);
 
-			udp_tap_map[V4][uref.port].sock = s < 0 ? -1 : s;
+			udp_tap_map[V4][port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V4][port].sock = s < 0 ? -1 : s;
 		} else {
 			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP,
@@ -1022,7 +1023,7 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			r6 = s = sock_l4(c, AF_INET6, IPPROTO_UDP, addr,
 					 ifname, port, uref.u32);
 
-			udp_tap_map[V6][uref.port].sock = s < 0 ? -1 : s;
+			udp_tap_map[V6][port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V6][port].sock = s < 0 ? -1 : s;
 		} else {
 			r6 = s = sock_l4(c, AF_INET6, IPPROTO_UDP,
