@@ -668,7 +668,8 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 
 		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
-			if (rta->rta_type != IFA_ADDRESS)
+			if ((af == AF_INET  && rta->rta_type != IFA_LOCAL) ||
+			    (af == AF_INET6 && rta->rta_type != IFA_ADDRESS))
 				continue;
 
 			if (af == AF_INET && ifa->ifa_prefixlen > prefix_max) {
