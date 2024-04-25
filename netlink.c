@@ -804,6 +804,8 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 			continue;
 
 		ifa->ifa_index = ifi_dst;
+		/* Same as nl_addr_set(), but here it's more than a default */
+		ifa->ifa_flags |= IFA_F_NODAD;
 
 		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
 		     rta = RTA_NEXT(rta, na)) {
@@ -811,6 +813,10 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 			if (rta->rta_type == IFA_LABEL ||
 			    rta->rta_type == IFA_CACHEINFO)
 				rta->rta_type = IFA_UNSPEC;
+
+			/* If 32-bit flags are used, add IFA_F_NODAD there */
+			if (rta->rta_type == IFA_FLAGS)
+				*(uint32_t *)RTA_DATA(rta) |= IFA_F_NODAD;
 		}
 
 		rc = nl_do(s_dst, nh, RTM_NEWADDR,
