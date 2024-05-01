@@ -1321,6 +1321,7 @@ static void tcp_fill_header(struct tcphdr *th,
  * tcp_fill_headers4() - Fill 802.3, IPv4, TCP headers in pre-cooked buffers
  * @c:		Execution context
  * @conn:	Connection pointer
+ * @taph:	tap backend specific header
  * @iph:	Pointer to IPv4 header
  * @th:		Pointer to TCP header
  * @dlen:	TCP payload length
@@ -1331,6 +1332,7 @@ static void tcp_fill_header(struct tcphdr *th,
  */
 static size_t tcp_fill_headers4(const struct ctx *c,
 				const struct tcp_tap_conn *conn,
+				struct tap_hdr *taph,
 				struct iphdr *iph, struct tcphdr *th,
 				size_t dlen, const uint16_t *check,
 				uint32_t seq)
@@ -1353,6 +1355,8 @@ static size_t tcp_fill_headers4(const struct ctx *c,
 
 	tcp_update_check_tcp4(iph, th);
 
+	tap_hdr_update(taph, l3len + sizeof(struct ethhdr));
+
 	return l4len;
 }
 
@@ -1360,6 +1364,7 @@ static size_t tcp_fill_headers4(const struct ctx *c,
  * tcp_fill_headers6() - Fill 802.3, IPv6, TCP headers in pre-cooked buffers
  * @c:		Execution context
  * @conn:	Connection pointer
+ * @taph:	tap backend specific header
  * @ip6h:	Pointer to IPv6 header
  * @th:		Pointer to TCP header
  * @dlen:	TCP payload length
@@ -1370,6 +1375,7 @@ static size_t tcp_fill_headers4(const struct ctx *c,
  */
 static size_t tcp_fill_headers6(const struct ctx *c,
 				const struct tcp_tap_conn *conn,
+				struct tap_hdr *taph,
 				struct ipv6hdr *ip6h, struct tcphdr *th,
 				size_t dlen, uint32_t seq)
 {
@@ -1394,6 +1400,8 @@ static size_t tcp_fill_headers6(const struct ctx *c,
 
 	tcp_update_check_tcp6(ip6h, th);
 
+	tap_hdr_update(taph, l4len + sizeof(*ip6h) + sizeof(struct ethhdr));
+
 	return l4len;
 }
 
@@ -1416,12 +1424,14 @@ static size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 	const struct in_addr *a4 = inany_v4(&conn->faddr);
 
 	if (a4) {
-		return tcp_fill_headers4(c, conn, iov[TCP_IOV_IP].iov_base,
+		return tcp_fill_headers4(c, conn, iov[TCP_IOV_TAP].iov_base,
+					 iov[TCP_IOV_IP].iov_base,
 					 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
 					 check, seq);
 	}
 
-	return tcp_fill_headers6(c, conn, iov[TCP_IOV_IP].iov_base,
+	return tcp_fill_headers6(c, conn, iov[TCP_IOV_TAP].iov_base,
+				 iov[TCP_IOV_IP].iov_base,
 				 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
 				 seq);
 }
@@ -1556,7 +1566,6 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	struct tcp_info tinfo = { 0 };
 	socklen_t sl = sizeof(tinfo);
 	int s = conn->sock;
-	uint32_t vnet_len;
 	size_t optlen = 0;
 	struct tcphdr *th;
 	struct iovec *iov;
@@ -1583,13 +1592,10 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	if (!tcp_update_seqack_wnd(c, conn, flags, &tinfo) && !flags)
 		return 0;
 
-	if (CONN_V4(conn)) {
+	if (CONN_V4(conn))
 		iov = tcp4_l2_flags_iov[tcp4_flags_used++];
-		vnet_len = sizeof(struct ethhdr) + sizeof(struct iphdr);
-	} else {
+	else
 		iov = tcp6_l2_flags_iov[tcp6_flags_used++];
-		vnet_len = sizeof(struct ethhdr) + sizeof(struct ipv6hdr);
-	}
 
 	payload = iov[TCP_IOV_PAYLOAD].iov_base;
 	th = &payload->th;
@@ -1643,8 +1649,6 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	l4len = tcp_l2_buf_fill_headers(c, conn, iov, optlen, NULL,
 					conn->seq_to_tap);
 	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
-
-	tap_hdr_update(iov[TCP_IOV_TAP].iov_base, vnet_len + l4len);
 
 	if (th->ack) {
 		if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap))
@@ -2144,8 +2148,6 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		iov = tcp4_l2_iov[tcp4_payload_used++];
 		l4len = tcp_l2_buf_fill_headers(c, conn, iov, dlen, check, seq);
 		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
-		tap_hdr_update(iov[TCP_IOV_TAP].iov_base, l4len
-			       + sizeof(struct iphdr) + sizeof(struct ethhdr));
 		if (tcp4_payload_used > TCP_FRAMES_MEM - 1)
 			tcp_payload_flush(c);
 	} else if (CONN_V6(conn)) {
@@ -2155,8 +2157,6 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		iov = tcp6_l2_iov[tcp6_payload_used++];
 		l4len = tcp_l2_buf_fill_headers(c, conn, iov, dlen, NULL, seq);
 		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
-		tap_hdr_update(iov[TCP_IOV_TAP].iov_base, l4len
-			       + sizeof(struct ipv6hdr) + sizeof(struct ethhdr));
 		if (tcp6_payload_used > TCP_FRAMES_MEM - 1)
 			tcp_payload_flush(c);
 	}
