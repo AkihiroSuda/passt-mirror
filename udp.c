@@ -316,79 +316,71 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 }
 
 /**
- * udp_sock4_iov_init_one() - Initialise a scatter-gather L2 buffer for IPv4
+ * udp_iov_init_one() - Initialise scatter-gather lists for one buffer
  * @c:		Execution context
  * @i:		Index of buffer to initialize
  */
-static void udp_sock4_iov_init_one(const struct ctx *c, size_t i)
+static void udp_iov_init_one(const struct ctx *c, size_t i)
 {
-	struct msghdr *mh = &udp4_l2_mh_sock[i].msg_hdr;
-	struct udp4_l2_buf_t *buf = &udp4_l2_buf[i];
-	struct iovec *siov = &udp4_l2_iov_sock[i];
-	struct iovec *tiov = udp4_l2_iov_tap[i];
+	if (c->ifi4) {
+		struct msghdr *mh = &udp4_l2_mh_sock[i].msg_hdr;
+		struct udp4_l2_buf_t *buf = &udp4_l2_buf[i];
+		struct iovec *siov = &udp4_l2_iov_sock[i];
+		struct iovec *tiov = udp4_l2_iov_tap[i];
 
-	*buf = (struct udp4_l2_buf_t) {
-		.eh  = ETH_HDR_INIT(ETH_P_IP),
-		.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
-	};
+		*buf = (struct udp4_l2_buf_t) {
+			.eh  = ETH_HDR_INIT(ETH_P_IP),
+			.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
+		};
 
-	*siov		= IOV_OF_LVALUE(buf->data);
+		*siov		= IOV_OF_LVALUE(buf->data);
 
-	mh->msg_name	= &buf->s_in;
-	mh->msg_namelen	= sizeof(buf->s_in);
-	mh->msg_iov	= siov;
-	mh->msg_iovlen	= 1;
+		mh->msg_name	= &buf->s_in;
+		mh->msg_namelen	= sizeof(buf->s_in);
+		mh->msg_iov	= siov;
+		mh->msg_iovlen	= 1;
 
-	tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
-	tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(buf->eh);
-	tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->iph);
-	tiov[UDP_IOV_PAYLOAD].iov_base = &buf->uh;
+		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
+		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(buf->eh);
+		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->iph);
+		tiov[UDP_IOV_PAYLOAD].iov_base = &buf->uh;
+	}
+
+	if (c->ifi6) {
+		struct msghdr *mh = &udp6_l2_mh_sock[i].msg_hdr;
+		struct udp6_l2_buf_t *buf = &udp6_l2_buf[i];
+		struct iovec *siov = &udp6_l2_iov_sock[i];
+		struct iovec *tiov = udp6_l2_iov_tap[i];
+
+		*buf = (struct udp6_l2_buf_t) {
+			.eh   = ETH_HDR_INIT(ETH_P_IPV6),
+			.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
+		};
+
+		*siov		 = IOV_OF_LVALUE(buf->data);
+
+		mh->msg_name	= &buf->s_in6;
+		mh->msg_namelen	= sizeof(buf->s_in6);
+		mh->msg_iov	= siov;
+		mh->msg_iovlen	= 1;
+
+		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
+		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(buf->eh);
+		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->ip6h);
+		tiov[UDP_IOV_PAYLOAD].iov_base = &buf->uh;
+	}
 }
 
 /**
- * udp_sock6_iov_init_one() - Initialise a scatter-gather L2 buffer for IPv6
- * @c:		Execution context
- * @i:		Index of buffer to initialize
- */
-static void udp_sock6_iov_init_one(const struct ctx *c, size_t i)
-{
-	struct msghdr *mh = &udp6_l2_mh_sock[i].msg_hdr;
-	struct udp6_l2_buf_t *buf = &udp6_l2_buf[i];
-	struct iovec *siov = &udp6_l2_iov_sock[i];
-	struct iovec *tiov = udp6_l2_iov_tap[i];
-
-	*buf = (struct udp6_l2_buf_t) {
-		.eh   = ETH_HDR_INIT(ETH_P_IPV6),
-		.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
-	};
-
-	*siov		= IOV_OF_LVALUE(buf->data);
-
-	mh->msg_name	= &buf->s_in6;
-	mh->msg_namelen	= sizeof(buf->s_in6);
-	mh->msg_iov	= siov;
-	mh->msg_iovlen	= 1;
-
-	tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
-	tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(buf->eh);
-	tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->ip6h);
-	tiov[UDP_IOV_PAYLOAD].iov_base = &buf->uh;
-}
-
-/**
- * udp_sock_iov_init() - Initialise scatter-gather L2 buffers
+ * udp_iov_init() - Initialise scatter-gather L2 buffers
  * @c:		Execution context
  */
-static void udp_sock_iov_init(const struct ctx *c)
+static void udp_iov_init(const struct ctx *c)
 {
 	size_t i;
 
-	for (i = 0; i < UDP_MAX_FRAMES; i++) {
-		if (c->ifi4)
-			udp_sock4_iov_init_one(c, i);
-		if (c->ifi6)
-			udp_sock6_iov_init_one(c, i);
-	}
+	for (i = 0; i < UDP_MAX_FRAMES; i++)
+		udp_iov_init_one(c, i);
 }
 
 /**
@@ -1259,7 +1251,7 @@ v6:
  */
 int udp_init(struct ctx *c)
 {
-	udp_sock_iov_init(c);
+	udp_iov_init(c);
 
 	udp_invert_portmap(&c->udp.fwd_in);
 	udp_invert_portmap(&c->udp.fwd_out);
