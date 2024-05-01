@@ -186,39 +186,40 @@ static struct udp_payload_t {
 #endif
 udp_payload[UDP_MAX_FRAMES];
 
+/* Ethernet header for IPv4 frames */
+static struct ethhdr udp4_eth_hdr;
+
 /**
  * udp4_l2_buf_t - Pre-cooked IPv4 packet buffers for tap connections
  * @s_in:	Source socket address, filled in by recvmmsg()
  * @taph:	Tap backend specific header
- * @eh:		Prefilled ethernet header
  * @iph:	Pre-filled IP header (except for tot_len and saddr)
  */
 static struct udp4_l2_buf_t {
 	struct sockaddr_in s_in;
 
 	struct tap_hdr taph;
-	struct ethhdr eh;
 	struct iphdr iph;
 } __attribute__ ((packed, aligned(__alignof__(unsigned int))))
 udp4_l2_buf[UDP_MAX_FRAMES];
+
+/* Ethernet header for IPv6 frames */
+static struct ethhdr udp6_eth_hdr;
 
 /**
  * udp6_l2_buf_t - Pre-cooked IPv6 packet buffers for tap connections
  * @s_in6:	Source socket address, filled in by recvmmsg()
  * @taph:	Tap backend specific header
- * @eh:		Pre-filled ethernet header
  * @ip6h:	Pre-filled IP header (except for payload_len and addresses)
  */
 struct udp6_l2_buf_t {
 	struct sockaddr_in6 s_in6;
 #ifdef __AVX2__
 	/* Align ip6h to 32-byte boundary. */
-	uint8_t pad[64 - (sizeof(struct sockaddr_in6) + sizeof(struct ethhdr) +
-			  sizeof(struct tap_hdr))];
+	uint8_t pad[64 - (sizeof(struct sockaddr_in6) + sizeof(struct tap_hdr))];
 #endif
 
 	struct tap_hdr taph;
-	struct ethhdr eh;
 	struct ipv6hdr ip6h;
 #ifdef __AVX2__
 } __attribute__ ((packed, aligned(32)))
@@ -307,15 +308,8 @@ static void udp_invert_portmap(struct udp_fwd_ports *fwd)
  */
 void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 {
-	int i;
-
-	for (i = 0; i < UDP_MAX_FRAMES; i++) {
-		struct udp4_l2_buf_t *b4 = &udp4_l2_buf[i];
-		struct udp6_l2_buf_t *b6 = &udp6_l2_buf[i];
-
-		eth_update_mac(&b4->eh, eth_d, eth_s);
-		eth_update_mac(&b6->eh, eth_d, eth_s);
-	}
+	eth_update_mac(&udp4_eth_hdr, eth_d, eth_s);
+	eth_update_mac(&udp6_eth_hdr, eth_d, eth_s);
 }
 
 /**
@@ -329,6 +323,8 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 	struct iovec *siov = &udp_l2_iov_sock[i];
 
 	*siov = IOV_OF_LVALUE(payload->data);
+	udp4_eth_hdr.h_proto = htons_constant(ETH_P_IP);
+	udp6_eth_hdr.h_proto = htons_constant(ETH_P_IPV6);
 
 	if (c->ifi4) {
 		struct msghdr *mh = &udp4_l2_mh_sock[i].msg_hdr;
@@ -336,7 +332,6 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 		struct iovec *tiov = udp4_l2_iov_tap[i];
 
 		*buf = (struct udp4_l2_buf_t) {
-			.eh  = ETH_HDR_INIT(ETH_P_IP),
 			.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
 		};
 
@@ -346,7 +341,7 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 		mh->msg_iovlen	= 1;
 
 		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
-		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(buf->eh);
+		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(udp4_eth_hdr);
 		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->iph);
 		tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 	}
@@ -357,7 +352,6 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 		struct iovec *tiov = udp6_l2_iov_tap[i];
 
 		*buf = (struct udp6_l2_buf_t) {
-			.eh   = ETH_HDR_INIT(ETH_P_IPV6),
 			.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
 		};
 
@@ -367,7 +361,7 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 		mh->msg_iovlen	= 1;
 
 		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
-		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(buf->eh);
+		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(udp6_eth_hdr);
 		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->ip6h);
 		tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 	}
@@ -631,7 +625,7 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *bh,
 	bp->uh.len = htons(l4len);
 	csum_udp4(&bp->uh, src, dst, bp->data, dlen);
 
-	tap_hdr_update(&bh->taph, l3len + sizeof(bh->eh));
+	tap_hdr_update(&bh->taph, l3len + sizeof(udp4_eth_hdr));
 	return l4len;
 }
 
@@ -702,7 +696,7 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *bh,
 	bp->uh.len = bh->ip6h.payload_len;
 	csum_udp6(&bp->uh, src, dst, bp->data, dlen);
 
-	tap_hdr_update(&bh->taph, l4len + sizeof(bh->ip6h) + sizeof(bh->eh));
+	tap_hdr_update(&bh->taph, l4len + sizeof(bh->ip6h) + sizeof(udp6_eth_hdr));
 	return l4len;
 }
 
