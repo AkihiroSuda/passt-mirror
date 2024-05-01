@@ -224,8 +224,8 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	union sockaddr_inany sa = { .sa_family = af };
 	const socklen_t sl = af == AF_INET ? sizeof(sa.sa4) : sizeof(sa.sa6);
 	struct icmp_ping_flow *pingf, **id_sock;
+	size_t dlen, l4len;
 	uint16_t id, seq;
-	size_t plen;
 	void *pkt;
 
 	(void)saddr;
@@ -234,11 +234,11 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	if (af == AF_INET) {
 		const struct icmphdr *ih;
 
-		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &plen)))
+		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &dlen)))
 			return 1;
 
 		ih =  (struct icmphdr *)pkt;
-		plen += sizeof(*ih);
+		l4len = dlen + sizeof(*ih);
 
 		if (ih->type != ICMP_ECHO)
 			return 1;
@@ -250,11 +250,11 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	} else if (af == AF_INET6) {
 		const struct icmp6hdr *ih;
 
-		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &plen)))
+		if (!(pkt = packet_get(p, 0, 0, sizeof(*ih), &dlen)))
 			return 1;
 
 		ih = (struct icmp6hdr *)pkt;
-		plen += sizeof(*ih);
+		l4len = dlen + sizeof(*ih);
 
 		if (ih->icmp6_type != ICMPV6_ECHO_REQUEST)
 			return 1;
@@ -274,7 +274,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 	pingf->ts = now->tv_sec;
 
-	if (sendto(pingf->sock, pkt, plen, MSG_NOSIGNAL, &sa.sa, sl) < 0) {
+	if (sendto(pingf->sock, pkt, l4len, MSG_NOSIGNAL, &sa.sa, sl) < 0) {
 		flow_dbg(pingf, "failed to relay request to socket: %s",
 			 strerror(errno));
 	} else {

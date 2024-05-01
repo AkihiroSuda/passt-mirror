@@ -54,7 +54,7 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr)
 	struct icmp6hdr *ihr;
 	struct ethhdr *ehr;
 	unsigned char *p;
-	size_t len;
+	size_t dlen;
 
 	if (ih->icmp6_type < RS || ih->icmp6_type > NA)
 		return 0;
@@ -175,7 +175,7 @@ dns_done:
 		return 1;
 	}
 
-	len = (uintptr_t)p - (uintptr_t)ihr - sizeof(*ihr);
+	dlen = (uintptr_t)p - (uintptr_t)ihr - sizeof(*ihr);
 
 	if (IN6_IS_ADDR_LINKLOCAL(saddr))
 		c->ip6.addr_ll_seen = *saddr;
@@ -187,7 +187,7 @@ dns_done:
 	else
 		rsaddr = &c->ip6.addr_ll;
 
-	tap_icmp6_send(c, rsaddr, saddr, ihr, len + sizeof(*ihr));
+	tap_icmp6_send(c, rsaddr, saddr, ihr, dlen + sizeof(*ihr));
 
 	return 1;
 }

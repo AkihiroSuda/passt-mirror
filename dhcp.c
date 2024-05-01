@@ -275,7 +275,7 @@ static void opt_set_dns_search(const struct ctx *c, size_t max_len)
  */
 int dhcp(const struct ctx *c, const struct pool *p)
 {
-	size_t mlen, len, offset = 0, opt_len, opt_off = 0;
+	size_t mlen, dlen, offset = 0, opt_len, opt_off = 0;
 	const struct ethhdr *eh;
 	const struct iphdr *iph;
 	const struct udphdr *uh;
@@ -377,8 +377,8 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	if (!c->no_dhcp_dns_search)
 		opt_set_dns_search(c, sizeof(m->o));
 
-	len = offsetof(struct msg, o) + fill(m);
-	tap_udp4_send(c, c->ip4.gw, 67, c->ip4.addr, 68, m, len);
+	dlen = offsetof(struct msg, o) + fill(m);
+	tap_udp4_send(c, c->ip4.gw, 67, c->ip4.addr, 68, m, dlen);
 
 	return 1;
 }

@@ -43,7 +43,7 @@ int arp(const struct ctx *c, const struct pool *p)
 	struct ethhdr *eh;
 	struct arphdr *ah;
 	struct arpmsg *am;
-	size_t len;
+	size_t l2len;
 
 	eh = packet_get(p, 0, 0,			 sizeof(*eh), NULL);
 	ah = packet_get(p, 0, sizeof(*eh),		 sizeof(*ah), NULL);
@@ -78,11 +78,11 @@ int arp(const struct ctx *c, const struct pool *p)
 	memcpy(am->tip,		am->sip,	sizeof(am->tip));
 	memcpy(am->sip,		swap,		sizeof(am->sip));
 
-	len = sizeof(*eh) + sizeof(*ah) + sizeof(*am);
+	l2len = sizeof(*eh) + sizeof(*ah) + sizeof(*am);
 	memcpy(eh->h_dest,	eh->h_source,	sizeof(eh->h_dest));
 	memcpy(eh->h_source,	c->mac,		sizeof(eh->h_source));
 
-	tap_send_single(c, eh, len);
+	tap_send_single(c, eh, l2len);
 
 	return 1;
 }

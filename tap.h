@@ -41,35 +41,35 @@ static inline void *tap_frame_base(const struct ctx *c, struct tap_hdr *taph)
  * tap_frame_len() - Finalize tap frame and return total length
  * @c:		Execution context
  * @taph:	Tap header to finalize
- * @plen:	L2 packet length (includes L2, excludes tap specific headers)
+ * @l2len:	L2 packet length (includes L2, excludes tap specific headers)
  *
  * Returns: length of the tap frame including tap specific headers - suitable
  *          for an iov_len to be passed to tap_send_frames()
  */
 static inline size_t tap_frame_len(const struct ctx *c, struct tap_hdr *taph,
-				   size_t plen)
+				   size_t l2len)
 {
 	if (c->mode == MODE_PASST)
-		taph->vnet_len = htonl(plen);
-	return plen + tap_hdr_len_(c);
+		taph->vnet_len = htonl(l2len);
+	return l2len + tap_hdr_len_(c);
 }
 
 struct in_addr tap_ip4_daddr(const struct ctx *c);
 void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 		   struct in_addr dst, in_port_t dport,
-		   const void *in, size_t len);
+		   const void *in, size_t dlen);
 void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
-		    const void *in, size_t len);
+		    const void *in, size_t l4len);
 const struct in6_addr *tap_ip6_daddr(const struct ctx *c,
 				     const struct in6_addr *src);
 void tap_udp6_send(const struct ctx *c,
 		   const struct in6_addr *src, in_port_t sport,
 		   const struct in6_addr *dst, in_port_t dport,
-		   uint32_t flow, const void *in, size_t len);
+		   uint32_t flow, const void *in, size_t dlen);
 void tap_icmp6_send(const struct ctx *c,
 		    const struct in6_addr *src, const struct in6_addr *dst,
-		    const void *in, size_t len);
-void tap_send_single(const struct ctx *c, const void *data, size_t len);
+		    const void *in, size_t l4len);
+void tap_send_single(const struct ctx *c, const void *data, size_t l2len);
 size_t tap_send_frames(const struct ctx *c, const struct iovec *iov,
 		       size_t bufs_per_frame, size_t nframes);
 void eth_update_mac(struct ethhdr *eh,

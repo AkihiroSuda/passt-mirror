@@ -116,19 +116,19 @@ uint16_t csum_fold(uint32_t sum)
 
 /**
  * csum_ip4_header() - Calculate IPv4 header checksum
- * @tot_len:	IPv4 packet length (data + IP header, host order)
+ * @l3len:	IPv4 packet length (host order)
  * @protocol:	Protocol number
  * @saddr:	IPv4 source address
  * @daddr:	IPv4 destination address
  *
  * Return: 16-bit folded sum of the IPv4 header
  */
-uint16_t csum_ip4_header(uint16_t tot_len, uint8_t protocol,
+uint16_t csum_ip4_header(uint16_t l3len, uint8_t protocol,
 			 struct in_addr saddr, struct in_addr daddr)
 {
 	uint32_t sum = L2_BUF_IP4_PSUM(protocol);
 
-	sum += htons(tot_len);
+	sum += htons(l3len);
 	sum += (saddr.s_addr >> 16) & 0xffff;
 	sum += saddr.s_addr & 0xffff;
 	sum += (daddr.s_addr >> 16) & 0xffff;
@@ -140,13 +140,13 @@ uint16_t csum_ip4_header(uint16_t tot_len, uint8_t protocol,
 /**
  * proto_ipv4_header_psum() - Calculates the partial checksum of an
  * 			      IPv4 header for UDP or TCP
- * @tot_len:	IPv4 Payload length (host order)
+ * @l4len:	IPv4 Payload length (host order)
  * @proto:	Protocol number
  * @saddr:	Source address
  * @daddr:	Destination address
  * Returns:	Partial checksum of the IPv4 header
  */
-uint32_t proto_ipv4_header_psum(uint16_t tot_len, uint8_t protocol,
+uint32_t proto_ipv4_header_psum(uint16_t l4len, uint8_t protocol,
 				struct in_addr saddr, struct in_addr daddr)
 {
 	uint32_t psum = htons(protocol);
@@ -155,7 +155,7 @@ uint32_t proto_ipv4_header_psum(uint16_t tot_len, uint8_t protocol,
 	psum += saddr.s_addr & 0xffff;
 	psum += (daddr.s_addr >> 16) & 0xffff;
 	psum += daddr.s_addr & 0xffff;
-	psum += htons(tot_len);
+	psum += htons(l4len);
 
 	return psum;
 }
@@ -165,22 +165,22 @@ uint32_t proto_ipv4_header_psum(uint16_t tot_len, uint8_t protocol,
  * @udp4hr:	UDP header, initialised apart from checksum
  * @saddr:	IPv4 source address
  * @daddr:	IPv4 destination address
- * @payload:	ICMPv4 packet payload
- * @len:	Length of @payload (not including UDP)
+ * @payload:	UDP packet payload
+ * @dlen:	Length of @payload (not including UDP header)
  */
 void csum_udp4(struct udphdr *udp4hr,
 	       struct in_addr saddr, struct in_addr daddr,
-	       const void *payload, size_t len)
+	       const void *payload, size_t dlen)
 {
 	/* UDP checksums are optional, so don't bother */
 	udp4hr->check = 0;
 
 	if (UDP4_REAL_CHECKSUMS) {
-		uint16_t tot_len = len + sizeof(struct udphdr);
-		uint32_t psum = proto_ipv4_header_psum(tot_len, IPPROTO_UDP,
+		uint16_t l4len = dlen + sizeof(struct udphdr);
+		uint32_t psum = proto_ipv4_header_psum(l4len, IPPROTO_UDP,
 						       saddr, daddr);
 		psum = csum_unfolded(udp4hr, sizeof(struct udphdr), psum);
-		udp4hr->check = csum(payload, len, psum);
+		udp4hr->check = csum(payload, dlen, psum);
 	}
 }
 
@@ -188,9 +188,9 @@ void csum_udp4(struct udphdr *udp4hr,
  * csum_icmp4() - Calculate and set checksum for an ICMP packet
  * @icmp4hr:	ICMP header, initialised apart from checksum
  * @payload:	ICMP packet payload
- * @len:	Length of @payload (not including ICMP header)
+ * @dlen:	Length of @payload (not including ICMP header)
  */
-void csum_icmp4(struct icmphdr *icmp4hr, const void *payload, size_t len)
+void csum_icmp4(struct icmphdr *icmp4hr, const void *payload, size_t dlen)
 {
 	uint32_t psum;
 
@@ -199,7 +199,7 @@ void csum_icmp4(struct icmphdr *icmp4hr, const void *payload, size_t len)
 	/* Partial checksum for ICMP header alone */
 	psum = sum_16b(icmp4hr, sizeof(*icmp4hr));
 
-	icmp4hr->checksum = csum(payload, len, psum);
+	icmp4hr->checksum = csum(payload, dlen, psum);
 }
 
 /**
@@ -227,18 +227,18 @@ uint32_t proto_ipv6_header_psum(uint16_t payload_len, uint8_t protocol,
  * csum_udp6() - Calculate and set checksum for a UDP over IPv6 packet
  * @udp6hr:	UDP header, initialised apart from checksum
  * @payload:	UDP packet payload
- * @len:	Length of @payload (not including UDP header)
+ * @dlen:	Length of @payload (not including UDP header)
  */
 void csum_udp6(struct udphdr *udp6hr,
 	       const struct in6_addr *saddr, const struct in6_addr *daddr,
-	       const void *payload, size_t len)
+	       const void *payload, size_t dlen)
 {
-	uint32_t psum = proto_ipv6_header_psum(len + sizeof(struct udphdr),
+	uint32_t psum = proto_ipv6_header_psum(dlen + sizeof(struct udphdr),
 					       IPPROTO_UDP, saddr, daddr);
 	udp6hr->check = 0;
 
 	psum = csum_unfolded(udp6hr, sizeof(struct udphdr), psum);
-	udp6hr->check = csum(payload, len, psum);
+	udp6hr->check = csum(payload, dlen, psum);
 }
 
 /**
@@ -247,19 +247,19 @@ void csum_udp6(struct udphdr *udp6hr,
  * @saddr:	IPv6 source address
  * @daddr:	IPv6 destination address
  * @payload:	ICMP packet payload
- * @len:	Length of @payload (not including ICMPv6 header)
+ * @dlen:	Length of @payload (not including ICMPv6 header)
  */
 void csum_icmp6(struct icmp6hdr *icmp6hr,
 		const struct in6_addr *saddr, const struct in6_addr *daddr,
-		const void *payload, size_t len)
+		const void *payload, size_t dlen)
 {
-	uint32_t psum = proto_ipv6_header_psum(len + sizeof(*icmp6hr),
+	uint32_t psum = proto_ipv6_header_psum(dlen + sizeof(*icmp6hr),
 					       IPPROTO_ICMPV6, saddr, daddr);
 
 	icmp6hr->icmp6_cksum = 0;
 	/* Add in partial checksum for the ICMPv6 header alone */
 	psum += sum_16b(icmp6hr, sizeof(*icmp6hr));
-	icmp6hr->icmp6_cksum = csum(payload, len, psum);
+	icmp6hr->icmp6_cksum = csum(payload, dlen, psum);
 }
 
 #ifdef __AVX2__

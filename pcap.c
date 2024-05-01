@@ -79,30 +79,30 @@ struct pcap_pkthdr {
 static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 		       size_t offset, const struct timespec *now)
 {
-	size_t len = iov_size(iov, iovcnt) - offset;
+	size_t l2len = iov_size(iov, iovcnt) - offset;
 	struct pcap_pkthdr h = {
 		.tv_sec = now->tv_sec,
 		.tv_usec = DIV_ROUND_CLOSEST(now->tv_nsec, 1000),
-		.caplen = len,
-		.len = len
+		.caplen = l2len,
+		.len = l2len
 	};
 	struct iovec hiov = { &h, sizeof(h) };
 
 	if (write_remainder(pcap_fd, &hiov, 1, 0) < 0 ||
 	    write_remainder(pcap_fd, iov, iovcnt, offset) < 0) {
 		debug("Cannot log packet, length %zu: %s",
-		      len, strerror(errno));
+		      l2len, strerror(errno));
 	}
 }
 
 /**
  * pcap() - Capture a single frame to pcap file
  * @pkt:	Pointer to data buffer, including L2 headers
- * @len:	L2 packet length
+ * @l2len:	L2 frame length
  */
-void pcap(const char *pkt, size_t len)
+void pcap(const char *pkt, size_t l2len)
 {
-	struct iovec iov = { (char *)pkt, len };
+	struct iovec iov = { (char *)pkt, l2len };
 	struct timespec now;
 
 	if (pcap_fd == -1)

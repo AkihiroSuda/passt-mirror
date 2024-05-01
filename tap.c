@@ -70,11 +70,11 @@ static PACKET_POOL_NOINIT(pool_tap6, TAP_MSGS, pkt_buf);
  * tap_send_single() - Send a single frame
  * @c:		Execution context
  * @data:	Packet buffer
- * @len:	Total L2 packet length
+ * @l2len:	Total L2 packet length
  */
-void tap_send_single(const struct ctx *c, const void *data, size_t len)
+void tap_send_single(const struct ctx *c, const void *data, size_t l2len)
 {
-	uint32_t vnet_len = htonl(len);
+	uint32_t vnet_len = htonl(l2len);
 	struct iovec iov[2];
 	size_t iovcnt = 0;
 
@@ -85,7 +85,7 @@ void tap_send_single(const struct ctx *c, const void *data, size_t len)
 	}
 
 	iov[iovcnt].iov_base = (void *)data;
-	iov[iovcnt].iov_len = len;
+	iov[iovcnt].iov_len = l2len;
 	iovcnt++;
 
 	tap_send_frames(c, iov, iovcnt, 1);
@@ -141,27 +141,27 @@ static void *tap_push_l2h(const struct ctx *c, void *buf, uint16_t proto)
  * @c:		Execution context
  * @src:	IPv4 source address
  * @dst:	IPv4 destination address
- * @len:	L4 payload length
+ * @l4len:	IPv4 payload length
  * @proto:	L4 protocol number
  *
  * Return: pointer at which to write the packet's payload
  */
 static void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
-			   struct in_addr dst, size_t len, uint8_t proto)
+			   struct in_addr dst, size_t l4len, uint8_t proto)
 {
-	uint16_t tot_len = len + sizeof(*ip4h);
+	uint16_t l3len = l4len + sizeof(*ip4h);
 
 	ip4h->version = 4;
 	ip4h->ihl = sizeof(struct iphdr) / 4;
 	ip4h->tos = 0;
-	ip4h->tot_len = htons(tot_len);
+	ip4h->tot_len = htons(l3len);
 	ip4h->id = 0;
 	ip4h->frag_off = 0;
 	ip4h->ttl = 255;
 	ip4h->protocol = proto;
 	ip4h->saddr = src.s_addr;
 	ip4h->daddr = dst.s_addr;
-	ip4h->check = csum_ip4_header(tot_len, proto, src, dst);
+	ip4h->check = csum_ip4_header(l3len, proto, src, dst);
 	return ip4h + 1;
 }
 
@@ -173,25 +173,25 @@ static void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
  * @dst:	IPv4 destination address
  * @dport:	UDP destination port
  * @in:		UDP payload contents (not including UDP header)
- * @len:	UDP payload length (not including UDP header)
+ * @dlen:	UDP payload length (not including UDP header)
  */
 void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 		   struct in_addr dst, in_port_t dport,
-		   const void *in, size_t len)
+		   const void *in, size_t dlen)
 {
-	size_t udplen = len + sizeof(struct udphdr);
+	size_t l4len = dlen + sizeof(struct udphdr);
 	char buf[USHRT_MAX];
 	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
-	struct udphdr *uh = tap_push_ip4h(ip4h, src, dst, udplen, IPPROTO_UDP);
+	struct udphdr *uh = tap_push_ip4h(ip4h, src, dst, l4len, IPPROTO_UDP);
 	char *data = (char *)(uh + 1);
 
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
-	uh->len = htons(udplen);
-	csum_udp4(uh, src, dst, in, len);
-	memcpy(data, in, len);
+	uh->len = htons(l4len);
+	csum_udp4(uh, src, dst, in, dlen);
+	memcpy(data, in, dlen);
 
-	tap_send_single(c, buf, len + (data - buf));
+	tap_send_single(c, buf, dlen + (data - buf));
 }
 
 /**
@@ -200,20 +200,20 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
  * @src:	IPv4 source address
  * @dst:	IPv4 destination address
  * @in:		ICMP packet, including ICMP header
- * @len:	ICMP packet length, including ICMP header
+ * @l4len:	ICMP packet length, including ICMP header
  */
 void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
-		    const void *in, size_t len)
+		    const void *in, size_t l4len)
 {
 	char buf[USHRT_MAX];
 	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
 	struct icmphdr *icmp4h = tap_push_ip4h(ip4h, src, dst,
-					       len, IPPROTO_ICMP);
+					       l4len, IPPROTO_ICMP);
 
-	memcpy(icmp4h, in, len);
-	csum_icmp4(icmp4h, icmp4h + 1, len - sizeof(*icmp4h));
+	memcpy(icmp4h, in, l4len);
+	csum_icmp4(icmp4h, icmp4h + 1, l4len - sizeof(*icmp4h));
 
-	tap_send_single(c, buf, len + ((char *)icmp4h - buf));
+	tap_send_single(c, buf, l4len + ((char *)icmp4h - buf));
 }
 
 /**
@@ -221,7 +221,7 @@ void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
  * @c:		Execution context
  * @src:	IPv6 source address
  * @dst:	IPv6 destination address
- * @len:	L4 payload length
+ * @l4len:	L4 payload length
  * @proto:	L4 protocol number
  * @flow:	IPv6 flow identifier
  *
@@ -230,9 +230,9 @@ void tap_icmp4_send(const struct ctx *c, struct in_addr src, struct in_addr dst,
 static void *tap_push_ip6h(struct ipv6hdr *ip6h,
 			   const struct in6_addr *src,
 			   const struct in6_addr *dst,
-			   size_t len, uint8_t proto, uint32_t flow)
+			   size_t l4len, uint8_t proto, uint32_t flow)
 {
-	ip6h->payload_len = htons(len);
+	ip6h->payload_len = htons(l4len);
 	ip6h->priority = 0;
 	ip6h->version = 6;
 	ip6h->nexthdr = proto;
@@ -254,27 +254,27 @@ static void *tap_push_ip6h(struct ipv6hdr *ip6h,
  * @dport:	UDP destination port
  * @flow:	Flow label
  * @in:		UDP payload contents (not including UDP header)
- * @len:	UDP payload length (not including UDP header)
+ * @dlen:	UDP payload length (not including UDP header)
  */
 void tap_udp6_send(const struct ctx *c,
 		   const struct in6_addr *src, in_port_t sport,
 		   const struct in6_addr *dst, in_port_t dport,
-		   uint32_t flow, const void *in, size_t len)
+		   uint32_t flow, const void *in, size_t dlen)
 {
-	size_t udplen = len + sizeof(struct udphdr);
+	size_t l4len = dlen + sizeof(struct udphdr);
 	char buf[USHRT_MAX];
 	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
 	struct udphdr *uh = tap_push_ip6h(ip6h, src, dst,
-					  udplen, IPPROTO_UDP, flow);
+					  l4len, IPPROTO_UDP, flow);
 	char *data = (char *)(uh + 1);
 
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
-	uh->len = htons(udplen);
-	csum_udp6(uh, src, dst, in, len);
-	memcpy(data, in, len);
+	uh->len = htons(l4len);
+	csum_udp6(uh, src, dst, in, dlen);
+	memcpy(data, in, dlen);
 
-	tap_send_single(c, buf, len + (data - buf));
+	tap_send_single(c, buf, dlen + (data - buf));
 }
 
 /**
@@ -283,21 +283,21 @@ void tap_udp6_send(const struct ctx *c,
  * @src:	IPv6 source address
  * @dst:	IPv6 destination address
  * @in:		ICMP packet, including ICMP header
- * @len:	ICMP packet length, including ICMP header
+ * @l4len:	ICMP packet length, including ICMP header
  */
 void tap_icmp6_send(const struct ctx *c,
 		    const struct in6_addr *src, const struct in6_addr *dst,
-		    const void *in, size_t len)
+		    const void *in, size_t l4len)
 {
 	char buf[USHRT_MAX];
 	struct ipv6hdr *ip6h = tap_push_l2h(c, buf, ETH_P_IPV6);
-	struct icmp6hdr *icmp6h = tap_push_ip6h(ip6h, src, dst, len,
+	struct icmp6hdr *icmp6h = tap_push_ip6h(ip6h, src, dst, l4len,
 						IPPROTO_ICMPV6, 0);
 
-	memcpy(icmp6h, in, len);
-	csum_icmp6(icmp6h, src, dst, icmp6h + 1, len - sizeof(*icmp6h));
+	memcpy(icmp6h, in, l4len);
+	csum_icmp6(icmp6h, src, dst, icmp6h + 1, l4len - sizeof(*icmp6h));
 
-	tap_send_single(c, buf, len + ((char *)icmp6h - buf));
+	tap_send_single(c, buf, l4len + ((char *)icmp6h - buf));
 }
 
 /**
@@ -591,21 +591,21 @@ static int tap4_handler(struct ctx *c, const struct pool *in,
 	i = 0;
 resume:
 	for (seq_count = 0, seq = NULL; i < in->count; i++) {
-		size_t l2_len, l3_len, hlen, l4_len;
+		size_t l2len, l3len, hlen, l4len;
 		const struct ethhdr *eh;
 		const struct udphdr *uh;
 		struct iphdr *iph;
 		const char *l4h;
 
-		packet_get(in, i, 0, 0, &l2_len);
+		packet_get(in, i, 0, 0, &l2len);
 
-		eh = packet_get(in, i, 0, sizeof(*eh), &l3_len);
+		eh = packet_get(in, i, 0, sizeof(*eh), &l3len);
 		if (!eh)
 			continue;
 		if (ntohs(eh->h_proto) == ETH_P_ARP) {
 			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
 
-			packet_add(pkt, l2_len, (char *)eh);
+			packet_add(pkt, l2len, (char *)eh);
 			arp(c, pkt);
 			continue;
 		}
@@ -615,15 +615,15 @@ resume:
 			continue;
 
 		hlen = iph->ihl * 4UL;
-		if (hlen < sizeof(*iph) || htons(iph->tot_len) > l3_len ||
-		    hlen > l3_len)
+		if (hlen < sizeof(*iph) || htons(iph->tot_len) > l3len ||
+		    hlen > l3len)
 			continue;
 
 		/* We don't handle IP fragments, drop them */
 		if (tap4_is_fragment(iph, now))
 			continue;
 
-		l4_len = htons(iph->tot_len) - hlen;
+		l4len = htons(iph->tot_len) - hlen;
 
 		if (IN4_IS_ADDR_LOOPBACK(&iph->saddr) ||
 		    IN4_IS_ADDR_LOOPBACK(&iph->daddr)) {
@@ -638,7 +638,7 @@ resume:
 		if (iph->saddr && c->ip4.addr_seen.s_addr != iph->saddr)
 			c->ip4.addr_seen.s_addr = iph->saddr;
 
-		l4h = packet_get(in, i, sizeof(*eh) + hlen, l4_len, NULL);
+		l4h = packet_get(in, i, sizeof(*eh) + hlen, l4len, NULL);
 		if (!l4h)
 			continue;
 
@@ -650,7 +650,7 @@ resume:
 
 			tap_packet_debug(iph, NULL, NULL, 0, NULL, 1);
 
-			packet_add(pkt, l4_len, l4h);
+			packet_add(pkt, l4len, l4h);
 			icmp_tap_handler(c, PIF_TAP, AF_INET,
 					 &iph->saddr, &iph->daddr,
 					 pkt, now);
@@ -664,7 +664,7 @@ resume:
 		if (iph->protocol == IPPROTO_UDP) {
 			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
 
-			packet_add(pkt, l2_len, (char *)eh);
+			packet_add(pkt, l2len, (char *)eh);
 			if (dhcp(c, pkt))
 				continue;
 		}
@@ -713,7 +713,7 @@ resume:
 #undef L4_SET
 
 append:
-		packet_add((struct pool *)&seq->p, l4_len, l4h);
+		packet_add((struct pool *)&seq->p, l4len, l4h);
 	}
 
 	for (j = 0, seq = tap4_l4; j < seq_count; j++, seq++) {
@@ -765,7 +765,7 @@ static int tap6_handler(struct ctx *c, const struct pool *in,
 	i = 0;
 resume:
 	for (seq_count = 0, seq = NULL; i < in->count; i++) {
-		size_t l4_len, plen, check;
+		size_t l4len, plen, check;
 		struct in6_addr *saddr, *daddr;
 		const struct ethhdr *eh;
 		const struct udphdr *uh;
@@ -788,7 +788,7 @@ resume:
 		if (plen != check)
 			continue;
 
-		if (!(l4h = ipv6_l4hdr(in, i, sizeof(*eh), &proto, &l4_len)))
+		if (!(l4h = ipv6_l4hdr(in, i, sizeof(*eh), &proto, &l4len)))
 			continue;
 
 		if (IN6_IS_ADDR_LOOPBACK(saddr) || IN6_IS_ADDR_LOOPBACK(daddr)) {
@@ -816,7 +816,7 @@ resume:
 			if (c->no_icmp)
 				continue;
 
-			if (l4_len < sizeof(struct icmp6hdr))
+			if (l4len < sizeof(struct icmp6hdr))
 				continue;
 
 			if (ndp(c, (struct icmp6hdr *)l4h, saddr))
@@ -824,20 +824,20 @@ resume:
 
 			tap_packet_debug(NULL, ip6h, NULL, proto, NULL, 1);
 
-			packet_add(pkt, l4_len, l4h);
+			packet_add(pkt, l4len, l4h);
 			icmp_tap_handler(c, PIF_TAP, AF_INET6,
 					 saddr, daddr, pkt, now);
 			continue;
 		}
 
-		if (l4_len < sizeof(*uh))
+		if (l4len < sizeof(*uh))
 			continue;
 		uh = (struct udphdr *)l4h;
 
 		if (proto == IPPROTO_UDP) {
 			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
 
-			packet_add(pkt, l4_len, l4h);
+			packet_add(pkt, l4len, l4h);
 
 			if (dhcpv6(c, pkt, saddr, daddr))
 				continue;
@@ -888,7 +888,7 @@ resume:
 #undef L4_SET
 
 append:
-		packet_add((struct pool *)&seq->p, l4_len, l4h);
+		packet_add((struct pool *)&seq->p, l4len, l4h);
 	}
 
 	for (j = 0, seq = tap6_l4; j < seq_count; j++, seq++) {
@@ -971,7 +971,7 @@ redo:
 	}
 
 	while (n > (ssize_t)sizeof(uint32_t)) {
-		ssize_t len = ntohl(*(uint32_t *)p);
+		ssize_t l2len = ntohl(*(uint32_t *)p);
 
 		p += sizeof(uint32_t);
 		n -= sizeof(uint32_t);
@@ -979,19 +979,20 @@ redo:
 		/* At most one packet might not fit in a single read, and this
 		 * needs to be blocking.
 		 */
-		if (len > n) {
-			rem = recv(c->fd_tap, p + n, len - n, 0);
-			if ((n += rem) != len)
+		if (l2len > n) {
+			rem = recv(c->fd_tap, p + n, l2len - n, 0);
+			if ((n += rem) != l2len)
 				return;
 		}
 
 		/* Complete the partial read above before discarding a malformed
 		 * frame, otherwise the stream will be inconsistent.
 		 */
-		if (len < (ssize_t)sizeof(*eh) || len > (ssize_t)ETH_MAX_MTU)
+		if (l2len < (ssize_t)sizeof(*eh) ||
+		    l2len > (ssize_t)ETH_MAX_MTU)
 			goto next;
 
-		pcap(p, len);
+		pcap(p, l2len);
 
 		eh = (struct ethhdr *)p;
 
@@ -1003,18 +1004,18 @@ redo:
 		switch (ntohs(eh->h_proto)) {
 		case ETH_P_ARP:
 		case ETH_P_IP:
-			packet_add(pool_tap4, len, p);
+			packet_add(pool_tap4, l2len, p);
 			break;
 		case ETH_P_IPV6:
-			packet_add(pool_tap6, len, p);
+			packet_add(pool_tap6, l2len, p);
 			break;
 		default:
 			break;
 		}
 
 next:
-		p += len;
-		n -= len;
+		p += l2len;
+		n -= l2len;
 	}
 
 	tap4_handler(c, pool_tap4, now);

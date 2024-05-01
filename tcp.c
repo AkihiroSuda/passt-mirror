@@ -891,13 +891,13 @@ static void tcp_sock_set_bufsize(const struct ctx *c, int s)
  */
 static void tcp_update_check_tcp4(const struct iphdr *iph, struct tcphdr *th)
 {
-	uint16_t tlen = ntohs(iph->tot_len) - sizeof(struct iphdr);
+	uint16_t l4len = ntohs(iph->tot_len) - sizeof(struct iphdr);
 	struct in_addr saddr = { .s_addr = iph->saddr };
 	struct in_addr daddr = { .s_addr = iph->daddr };
-	uint32_t sum = proto_ipv4_header_psum(tlen, IPPROTO_TCP, saddr, daddr);
+	uint32_t sum = proto_ipv4_header_psum(l4len, IPPROTO_TCP, saddr, daddr);
 
 	th->check = 0;
-	th->check = csum(th, tlen, sum);
+	th->check = csum(th, l4len, sum);
 }
 
 /**
@@ -907,12 +907,12 @@ static void tcp_update_check_tcp4(const struct iphdr *iph, struct tcphdr *th)
  */
 static void tcp_update_check_tcp6(struct ipv6hdr *ip6h, struct tcphdr *th)
 {
-	uint16_t payload_len = ntohs(ip6h->payload_len);
-	uint32_t sum = proto_ipv6_header_psum(payload_len, IPPROTO_TCP,
+	uint16_t l4len = ntohs(ip6h->payload_len);
+	uint32_t sum = proto_ipv6_header_psum(l4len, IPPROTO_TCP,
 					      &ip6h->saddr, &ip6h->daddr);
 
 	th->check = 0;
-	th->check = csum(th, payload_len, sum);
+	th->check = csum(th, l4len, sum);
 }
 
 /**
@@ -1337,7 +1337,7 @@ static void tcp_fill_header(struct tcphdr *th,
  * @conn:	Connection pointer
  * @iph:	Pointer to IPv4 header
  * @th:		Pointer to TCP header
- * @plen:	Payload length (including TCP header options)
+ * @dlen:	TCP payload length
  * @check:	Checksum, if already known
  * @seq:	Sequence number for this segment
  *
@@ -1346,27 +1346,28 @@ static void tcp_fill_header(struct tcphdr *th,
 static size_t tcp_fill_headers4(const struct ctx *c,
 				const struct tcp_tap_conn *conn,
 				struct iphdr *iph, struct tcphdr *th,
-				size_t plen, const uint16_t *check,
+				size_t dlen, const uint16_t *check,
 				uint32_t seq)
 {
-	size_t ip_len = plen + sizeof(struct iphdr) + sizeof(struct tcphdr);
 	const struct in_addr *a4 = inany_v4(&conn->faddr);
+	size_t l4len = dlen + sizeof(*th);
+	size_t l3len = l4len + sizeof(*iph);
 
 	ASSERT(a4);
 
-	iph->tot_len = htons(ip_len);
+	iph->tot_len = htons(l3len);
 	iph->saddr = a4->s_addr;
 	iph->daddr = c->ip4.addr_seen.s_addr;
 
 	iph->check = check ? *check :
-			     csum_ip4_header(ip_len, IPPROTO_TCP,
+			     csum_ip4_header(l3len, IPPROTO_TCP,
 					     *a4, c->ip4.addr_seen);
 
 	tcp_fill_header(th, conn, seq);
 
 	tcp_update_check_tcp4(iph, th);
 
-	return ip_len;
+	return l3len;
 }
 
 /**
@@ -1375,7 +1376,7 @@ static size_t tcp_fill_headers4(const struct ctx *c,
  * @conn:	Connection pointer
  * @ip6h:	Pointer to IPv6 header
  * @th:		Pointer to TCP header
- * @plen:	Payload length (including TCP header options)
+ * @dlen:	TCP payload length
  * @check:	Checksum, if already known
  * @seq:	Sequence number for this segment
  *
@@ -1384,11 +1385,12 @@ static size_t tcp_fill_headers4(const struct ctx *c,
 static size_t tcp_fill_headers6(const struct ctx *c,
 				const struct tcp_tap_conn *conn,
 				struct ipv6hdr *ip6h, struct tcphdr *th,
-				size_t plen, uint32_t seq)
+				size_t dlen, uint32_t seq)
 {
-	size_t ip_len = plen + sizeof(struct ipv6hdr) + sizeof(struct tcphdr);
+	size_t l4len = dlen + sizeof(*th);
+	size_t l3len = l4len + sizeof(*ip6h);
 
-	ip6h->payload_len = htons(plen + sizeof(struct tcphdr));
+	ip6h->payload_len = htons(l4len);
 	ip6h->saddr = conn->faddr.a6;
 	if (IN6_IS_ADDR_LINKLOCAL(&ip6h->saddr))
 		ip6h->daddr = c->ip6.addr_ll_seen;
@@ -1407,7 +1409,7 @@ static size_t tcp_fill_headers6(const struct ctx *c,
 
 	tcp_update_check_tcp6(ip6h, th);
 
-	return ip_len;
+	return l3len;
 }
 
 /**
@@ -1415,7 +1417,7 @@ static size_t tcp_fill_headers6(const struct ctx *c,
  * @c:		Execution context
  * @conn:	Connection pointer
  * @iov:	Pointer to an array of iovec of TCP pre-cooked buffers
- * @plen:	Payload length (including TCP header options)
+ * @dlen:	TCP payload length
  * @check:	Checksum, if already known
  * @seq:	Sequence number for this segment
  *
@@ -1423,25 +1425,25 @@ static size_t tcp_fill_headers6(const struct ctx *c,
  */
 static size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 				      const struct tcp_tap_conn *conn,
-				      struct iovec *iov, size_t plen,
+				      struct iovec *iov, size_t dlen,
 				      const uint16_t *check, uint32_t seq)
 {
 	const struct in_addr *a4 = inany_v4(&conn->faddr);
-	size_t ip_len, tlen;
+	size_t l3len, l4len;
 
 	if (a4) {
-		ip_len = tcp_fill_headers4(c, conn, iov[TCP_IOV_IP].iov_base,
-					   iov[TCP_IOV_PAYLOAD].iov_base, plen,
+		l3len = tcp_fill_headers4(c, conn, iov[TCP_IOV_IP].iov_base,
+					   iov[TCP_IOV_PAYLOAD].iov_base, dlen,
 					   check, seq);
-		tlen = ip_len - sizeof(struct iphdr);
+		l4len = l3len - sizeof(struct iphdr);
 	} else {
-		ip_len = tcp_fill_headers6(c, conn, iov[TCP_IOV_IP].iov_base,
-					   iov[TCP_IOV_PAYLOAD].iov_base, plen,
+		l3len = tcp_fill_headers6(c, conn, iov[TCP_IOV_IP].iov_base,
+					   iov[TCP_IOV_PAYLOAD].iov_base, dlen,
 					   seq);
-		tlen = ip_len - sizeof(struct ipv6hdr);
+		l4len = l3len - sizeof(struct ipv6hdr);
 	}
 
-	return tlen;
+	return l4len;
 }
 
 /**
@@ -1578,7 +1580,7 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	size_t optlen = 0;
 	struct tcphdr *th;
 	struct iovec *iov;
-	size_t ip_len;
+	size_t l4len;
 	char *data;
 
 	if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap) &&
@@ -1658,11 +1660,11 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	th->syn = !!(flags & SYN);
 	th->fin = !!(flags & FIN);
 
-	ip_len = tcp_l2_buf_fill_headers(c, conn, iov, optlen, NULL,
-					 conn->seq_to_tap);
-	iov[TCP_IOV_PAYLOAD].iov_len = ip_len;
+	l4len = tcp_l2_buf_fill_headers(c, conn, iov, optlen, NULL,
+					conn->seq_to_tap);
+	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 
-	*(uint32_t *)iov[TCP_IOV_VLEN].iov_base = htonl(vnet_len + ip_len);
+	*(uint32_t *)iov[TCP_IOV_VLEN].iov_base = htonl(vnet_len + l4len);
 
 	if (th->ack) {
 		if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap))
@@ -2136,17 +2138,17 @@ static int tcp_sock_consume(const struct tcp_tap_conn *conn, uint32_t ack_seq)
  * tcp_data_to_tap() - Finalise (queue) highest-numbered scatter-gather buffer
  * @c:		Execution context
  * @conn:	Connection pointer
- * @plen:	Payload length at L4
+ * @dlen:	TCP payload length
  * @no_csum:	Don't compute IPv4 checksum, use the one from previous buffer
  * @seq:	Sequence number to be sent
  */
 static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
-			    ssize_t plen, int no_csum, uint32_t seq)
+			    ssize_t dlen, int no_csum, uint32_t seq)
 {
 	uint32_t *seq_update = &conn->seq_to_tap;
 	struct iovec *iov;
-	size_t ip_len;
 	uint32_t vnet_len;
+	size_t l4len;
 
 	if (CONN_V4(conn)) {
 		struct iovec *iov_prev = tcp4_l2_iov[tcp4_payload_used - 1];
@@ -2158,26 +2160,24 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		}
 
 		tcp4_seq_update[tcp4_payload_used].seq = seq_update;
-		tcp4_seq_update[tcp4_payload_used].len = plen;
+		tcp4_seq_update[tcp4_payload_used].len = dlen;
 
 		iov = tcp4_l2_iov[tcp4_payload_used++];
-		ip_len = tcp_l2_buf_fill_headers(c, conn, iov, plen, check,
-						 seq);
-		iov[TCP_IOV_PAYLOAD].iov_len = ip_len;
-		vnet_len = sizeof(struct ethhdr) + sizeof(struct iphdr) +
-                           ip_len;
+		l4len = tcp_l2_buf_fill_headers(c, conn, iov, dlen, check, seq);
+		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
+		vnet_len = sizeof(struct ethhdr) + sizeof(struct iphdr) + l4len;
 		*(uint32_t *)iov[TCP_IOV_VLEN].iov_base = htonl(vnet_len);
 		if (tcp4_payload_used > TCP_FRAMES_MEM - 1)
 			tcp_payload_flush(c);
 	} else if (CONN_V6(conn)) {
 		tcp6_seq_update[tcp6_payload_used].seq = seq_update;
-		tcp6_seq_update[tcp6_payload_used].len = plen;
+		tcp6_seq_update[tcp6_payload_used].len = dlen;
 
 		iov = tcp6_l2_iov[tcp6_payload_used++];
-		ip_len = tcp_l2_buf_fill_headers(c, conn, iov, plen, NULL, seq);
-		iov[TCP_IOV_PAYLOAD].iov_len = ip_len;
-		vnet_len = sizeof(struct ethhdr) + sizeof(struct ipv6hdr) +
-			   ip_len;
+		l4len = tcp_l2_buf_fill_headers(c, conn, iov, dlen, NULL, seq);
+		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
+		vnet_len = sizeof(struct ethhdr) + sizeof(struct ipv6hdr)
+			+ l4len;
 		*(uint32_t *)iov[TCP_IOV_VLEN].iov_base = htonl(vnet_len);
 		if (tcp6_payload_used > TCP_FRAMES_MEM - 1)
 			tcp_payload_flush(c);
@@ -2197,7 +2197,7 @@ static int tcp_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 {
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	int fill_bufs, send_bufs = 0, last_len, iov_rem = 0;
-	int sendlen, len, plen, v4 = CONN_V4(conn);
+	int sendlen, len, dlen, v4 = CONN_V4(conn);
 	int s = conn->sock, i, ret = 0;
 	struct msghdr mh_sock = { 0 };
 	uint16_t mss = MSS_GET(conn);
@@ -2289,16 +2289,16 @@ static int tcp_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 	tcp_update_seqack_wnd(c, conn, 0, NULL);
 
 	/* Finally, queue to tap */
-	plen = mss;
+	dlen = mss;
 	seq = conn->seq_to_tap;
 	for (i = 0; i < send_bufs; i++) {
 		int no_csum = i && i != send_bufs - 1 && tcp4_payload_used;
 
 		if (i == send_bufs - 1)
-			plen = last_len;
+			dlen = last_len;
 
-		tcp_data_to_tap(c, conn, plen, no_csum, seq);
-		seq += plen;
+		tcp_data_to_tap(c, conn, dlen, no_csum, seq);
+		seq += dlen;
 	}
 
 	conn_flag(c, conn, ACK_FROM_TAP_DUE);
