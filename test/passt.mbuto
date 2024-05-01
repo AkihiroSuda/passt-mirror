@@ -54,7 +54,7 @@ EOF
 	ln -s /run /var/run
 	:> /etc/fstab
 
-	# sshd(dropbear) via vsock
+	# sshd via vsock
 	cat > /etc/passwd << EOF
 root:x:0:0:root:/root:/bin/sh
 sshd:x:100:100:Privilege-separated SSH:/var/empty/sshd:/sbin/nologin
@@ -64,7 +64,9 @@ root:::0:99999:7:::
 EOF
 	chmod 000 /etc/shadow
 
-	:> /etc/ssh/sshd_config
+	cat > /etc/ssh/sshd_config << EOF
+Subsystem sftp internal-sftp
+EOF
 	ssh-keygen -A
 	chmod 700 /root/.ssh
 	chmod 700 /run/sshd
