@@ -95,7 +95,7 @@ void tap_send_single(const struct ctx *c, const void *data, size_t len)
  * tap_ip4_daddr() - Normal IPv4 destination address for inbound packets
  * @c:		Execution context
  *
- * Return: IPv4 address, network order
+ * Return: IPv4 address
  */
 struct in_addr tap_ip4_daddr(const struct ctx *c)
 {
@@ -139,8 +139,8 @@ static void *tap_push_l2h(const struct ctx *c, void *buf, uint16_t proto)
 /**
  * tap_push_ip4h() - Build IPv4 header for inbound packet, with checksum
  * @c:		Execution context
- * @src:	IPv4 source address, network order
- * @dst:	IPv4 destination address, network order
+ * @src:	IPv4 source address
+ * @dst:	IPv4 destination address
  * @len:	L4 payload length
  * @proto:	L4 protocol number
  *

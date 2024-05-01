@@ -124,10 +124,10 @@ enum passt_modes {
  * @addr:		IPv4 address for external, routable interface
  * @addr_seen:		Latest IPv4 address seen as source from tap
  * @prefixlen:		IPv4 prefix length (netmask)
- * @gw:			Default IPv4 gateway, network order
- * @dns:		DNS addresses for DHCP, zero-terminated, network order
- * @dns_match:		Forward DNS query if sent to this address, network order
- * @dns_host:		Use this DNS on the host for forwarding, network order
+ * @gw:			Default IPv4 gateway
+ * @dns:		DNS addresses for DHCP, zero-terminated
+ * @dns_match:		Forward DNS query if sent to this address
+ * @dns_host:		Use this DNS on the host for forwarding
  * @addr_out:		Optional source address for outbound traffic
  * @ifname_out:		Optional interface name to bind outbound sockets to
  */

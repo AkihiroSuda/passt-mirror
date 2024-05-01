@@ -117,9 +117,9 @@ uint16_t csum_fold(uint32_t sum)
 /**
  * csum_ip4_header() - Calculate IPv4 header checksum
  * @tot_len:	IPv4 payload length (data + IP header, network order)
- * @protocol:	Protocol number (network order)
- * @saddr:	IPv4 source address (network order)
- * @daddr:	IPv4 destination address (network order)
+ * @protocol:	Protocol number
+ * @saddr:	IPv4 source address
+ * @daddr:	IPv4 destination address
  *
  * Return: 16-bit folded sum of the IPv4 header
  */
@@ -141,9 +141,9 @@ uint16_t csum_ip4_header(uint16_t tot_len, uint8_t protocol,
  * proto_ipv4_header_psum() - Calculates the partial checksum of an
  * 			      IPv4 header for UDP or TCP
  * @tot_len:	IPv4 Payload length (host order)
- * @proto:	Protocol number (host order)
- * @saddr:	Source address  (network order)
- * @daddr:	Destination address (network order)
+ * @proto:	Protocol number
+ * @saddr:	Source address
+ * @daddr:	Destination address
  * Returns:	Partial checksum of the IPv4 header
  */
 uint32_t proto_ipv4_header_psum(uint16_t tot_len, uint8_t protocol,
@@ -206,9 +206,9 @@ void csum_icmp4(struct icmphdr *icmp4hr, const void *payload, size_t len)
  * proto_ipv6_header_psum() - Calculates the partial checksum of an
  * 			      IPv6 header for UDP or TCP
  * @payload_len:	IPv6 payload length (host order)
- * @proto:		Protocol number (host order)
- * @saddr:		Source address (network order)
- * @daddr:		Destination address (network order)
+ * @proto:		Protocol number
+ * @saddr:		Source address
+ * @daddr:		Destination address
  * Returns:	Partial checksum of the IPv6 header
  */
 uint32_t proto_ipv6_header_psum(uint16_t payload_len, uint8_t protocol,
