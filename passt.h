@@ -9,26 +9,6 @@
 #define UNIX_SOCK_MAX		100
 #define UNIX_SOCK_PATH		"/tmp/passt_%i.socket"
 
-/**
- * struct tap_msg - Generic message descriptor for arrays of messages
- * @pkt_buf_offset:	Offset from @pkt_buf
- * @len:		Message length, with L2 headers
- */
-struct tap_msg {
-	uint32_t pkt_buf_offset;
-	uint16_t len;
-};
-
-/**
- * struct tap_l4_msg - Layer-4 message descriptor for protocol handlers
- * @pkt_buf_offset:	Offset of message from @pkt_buf
- * @l4_len:		Length of Layer-4 payload, host order
- */
-struct tap_l4_msg {
-	uint32_t pkt_buf_offset;
-	uint16_t l4_len;
-};
-
 union epoll_ref;
 
 #include <stdbool.h>
