@@ -592,6 +592,7 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 			      in_port_t dstport, size_t dlen,
 			      const struct timespec *now)
 {
+	const struct in_addr dst = c->ip4.addr_seen;
 	size_t l4len = dlen + sizeof(b->uh);
 	size_t l3len = l4len + sizeof(b->iph);
 	in_port_t srcport = ntohs(b->s_in.sin_port);
@@ -617,14 +618,14 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 	}
 
 	b->iph.tot_len = htons(l3len);
-	b->iph.daddr = c->ip4.addr_seen.s_addr;
+	b->iph.daddr = dst.s_addr;
 	b->iph.saddr = src.s_addr;
-	b->iph.check = csum_ip4_header(l3len, IPPROTO_UDP,
-				       src, c->ip4.addr_seen);
+	b->iph.check = csum_ip4_header(l3len, IPPROTO_UDP, src, dst);
 
 	b->uh.source = b->s_in.sin_port;
 	b->uh.dest = htons(dstport);
 	b->uh.len = htons(l4len);
+	csum_udp4(&b->uh, src, dst, b->data, dlen);
 
 	tap_hdr_update(&b->taph, l3len + sizeof(b->eh));
 	return l4len;
