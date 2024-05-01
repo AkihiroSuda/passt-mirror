@@ -113,6 +113,7 @@
 
 #include "checksum.h"
 #include "util.h"
+#include "iov.h"
 #include "ip.h"
 #include "siphash.h"
 #include "inany.h"
@@ -315,8 +316,7 @@ static void udp_sock4_iov_init_one(const struct ctx *c, size_t i)
 		.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
 	};
 
-	siov->iov_base	= buf->data;
-	siov->iov_len	= sizeof(buf->data);
+	*siov		= IOV_OF_LVALUE(buf->data);
 
 	mh->msg_name	= &buf->s_in;
 	mh->msg_namelen	= sizeof(buf->s_in);
@@ -343,8 +343,7 @@ static void udp_sock6_iov_init_one(const struct ctx *c, size_t i)
 		.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
 	};
 
-	siov->iov_base	= buf->data;
-	siov->iov_len	= sizeof(buf->data);
+	*siov		= IOV_OF_LVALUE(buf->data);
 
 	mh->msg_name	= &buf->s_in6;
 	mh->msg_namelen	= sizeof(buf->s_in6);

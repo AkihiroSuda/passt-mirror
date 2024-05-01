@@ -79,8 +79,7 @@ void tap_send_single(const struct ctx *c, const void *data, size_t l2len)
 	size_t iovcnt = 0;
 
 	if (c->mode == MODE_PASST) {
-		iov[iovcnt].iov_base = &vnet_len;
-		iov[iovcnt].iov_len = sizeof(vnet_len);
+		iov[iovcnt] = IOV_OF_LVALUE(vnet_len);
 		iovcnt++;
 	}
 

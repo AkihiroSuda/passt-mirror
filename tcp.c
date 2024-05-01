@@ -290,6 +290,7 @@
 
 #include "checksum.h"
 #include "util.h"
+#include "iov.h"
 #include "ip.h"
 #include "passt.h"
 #include "tap.h"
@@ -954,10 +955,8 @@ static void tcp_sock4_iov_init(const struct ctx *c)
 		iov = tcp4_l2_iov[i];
 
 		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp4_payload_tap_hdr[i]);
-		iov[TCP_IOV_ETH].iov_base = &tcp4_eth_src;
-		iov[TCP_IOV_ETH].iov_len = sizeof(tcp4_eth_src);
-		iov[TCP_IOV_IP].iov_base = &tcp4_payload_ip[i];
-		iov[TCP_IOV_IP].iov_len = sizeof(tcp4_payload_ip[i]);
+		iov[TCP_IOV_ETH] = IOV_OF_LVALUE(tcp4_eth_src);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp4_payload_ip[i]);
 		iov[TCP_IOV_PAYLOAD].iov_base = &tcp4_payload[i];
 	}
 
@@ -966,9 +965,8 @@ static void tcp_sock4_iov_init(const struct ctx *c)
 
 		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp4_flags_tap_hdr[i]);
 		iov[TCP_IOV_ETH].iov_base = &tcp4_eth_src;
-		iov[TCP_IOV_ETH].iov_len = sizeof(tcp4_eth_src);
-		iov[TCP_IOV_IP].iov_base = &tcp4_flags_ip[i];
-		iov[TCP_IOV_IP].iov_len = sizeof(tcp4_flags_ip[i]);
+		iov[TCP_IOV_ETH] = IOV_OF_LVALUE(tcp4_eth_src);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp4_flags_ip[i]);
 		iov[TCP_IOV_PAYLOAD].iov_base = &tcp4_flags[i];
 	}
 }
@@ -1001,10 +999,8 @@ static void tcp_sock6_iov_init(const struct ctx *c)
 		iov = tcp6_l2_iov[i];
 
 		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp6_payload_tap_hdr[i]);
-		iov[TCP_IOV_ETH].iov_base = &tcp6_eth_src;
-		iov[TCP_IOV_ETH].iov_len = sizeof(tcp6_eth_src);
-		iov[TCP_IOV_IP].iov_base = &tcp6_payload_ip[i];
-		iov[TCP_IOV_IP].iov_len = sizeof(tcp6_payload_ip[i]);
+		iov[TCP_IOV_ETH] = IOV_OF_LVALUE(tcp6_eth_src);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp6_payload_ip[i]);
 		iov[TCP_IOV_PAYLOAD].iov_base = &tcp6_payload[i];
 	}
 
@@ -1012,10 +1008,8 @@ static void tcp_sock6_iov_init(const struct ctx *c)
 		iov = tcp6_l2_flags_iov[i];
 
 		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp6_flags_tap_hdr[i]);
-		iov[TCP_IOV_ETH].iov_base = &tcp6_eth_src;
-		iov[TCP_IOV_ETH].iov_len = sizeof(tcp6_eth_src);
-		iov[TCP_IOV_IP].iov_base = &tcp6_flags_ip[i];
-		iov[TCP_IOV_IP].iov_len = sizeof(tcp6_flags_ip[i]);
+		iov[TCP_IOV_ETH] = IOV_OF_LVALUE(tcp6_eth_src);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp6_flags_ip[i]);
 		iov[TCP_IOV_PAYLOAD].iov_base = &tcp6_flags[i];
 	}
 }
