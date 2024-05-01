@@ -189,44 +189,27 @@ udp_payload[UDP_MAX_FRAMES];
 /* Ethernet header for IPv4 frames */
 static struct ethhdr udp4_eth_hdr;
 
-/**
- * udp4_l2_buf_t - Pre-cooked IPv4 packet buffers for tap connections
- * @s_in:	Source socket address, filled in by recvmmsg()
- * @taph:	Tap backend specific header
- * @iph:	Pre-filled IP header (except for tot_len and saddr)
- */
-static struct udp4_l2_buf_t {
-	struct sockaddr_in s_in;
-
-	struct tap_hdr taph;
-	struct iphdr iph;
-} __attribute__ ((packed, aligned(__alignof__(unsigned int))))
-udp4_l2_buf[UDP_MAX_FRAMES];
-
 /* Ethernet header for IPv6 frames */
 static struct ethhdr udp6_eth_hdr;
 
 /**
- * udp6_l2_buf_t - Pre-cooked IPv6 packet buffers for tap connections
- * @s_in6:	Source socket address, filled in by recvmmsg()
+ * struct udp_meta_t - Pre-cooked headers and metadata for UDP packets
+ * @ip6h:	Pre-filled IPv6 header (except for payload_len and addresses)
+ * @ip4h:	Pre-filled IPv4 header (except for tot_len and saddr)
  * @taph:	Tap backend specific header
- * @ip6h:	Pre-filled IP header (except for payload_len and addresses)
+ * @s_in:	Source socket address, filled in by recvmmsg()
  */
-struct udp6_l2_buf_t {
-	struct sockaddr_in6 s_in6;
-#ifdef __AVX2__
-	/* Align ip6h to 32-byte boundary. */
-	uint8_t pad[64 - (sizeof(struct sockaddr_in6) + sizeof(struct tap_hdr))];
-#endif
-
-	struct tap_hdr taph;
+static struct udp_meta_t {
 	struct ipv6hdr ip6h;
+	struct iphdr ip4h;
+	struct tap_hdr taph;
+
+	union sockaddr_inany s_in;
+}
 #ifdef __AVX2__
-} __attribute__ ((packed, aligned(32)))
-#else
-} __attribute__ ((packed, aligned(__alignof__(unsigned int))))
+__attribute__ ((aligned(32)))
 #endif
-udp6_l2_buf[UDP_MAX_FRAMES];
+udp_meta[UDP_MAX_FRAMES];
 
 /**
  * enum udp_iov_idx - Indices for the buffers making up a single UDP frame
@@ -321,6 +304,12 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 {
 	struct udp_payload_t *payload = &udp_payload[i];
 	struct iovec *siov = &udp_l2_iov_sock[i];
+	struct udp_meta_t *meta = &udp_meta[i];
+
+	*meta = (struct udp_meta_t) {
+		.ip4h = L2_BUF_IP4_INIT(IPPROTO_UDP),
+		.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP),
+	};
 
 	*siov = IOV_OF_LVALUE(payload->data);
 	udp4_eth_hdr.h_proto = htons_constant(ETH_P_IP);
@@ -328,41 +317,31 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 
 	if (c->ifi4) {
 		struct msghdr *mh = &udp4_l2_mh_sock[i].msg_hdr;
-		struct udp4_l2_buf_t *buf = &udp4_l2_buf[i];
 		struct iovec *tiov = udp4_l2_iov_tap[i];
 
-		*buf = (struct udp4_l2_buf_t) {
-			.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
-		};
-
-		mh->msg_name	= &buf->s_in;
-		mh->msg_namelen	= sizeof(buf->s_in);
+		mh->msg_name	= &meta->s_in;
+		mh->msg_namelen	= sizeof(struct sockaddr_in);
 		mh->msg_iov	= siov;
 		mh->msg_iovlen	= 1;
 
-		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
+		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
 		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(udp4_eth_hdr);
-		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->iph);
+		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(meta->ip4h);
 		tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 	}
 
 	if (c->ifi6) {
 		struct msghdr *mh = &udp6_l2_mh_sock[i].msg_hdr;
-		struct udp6_l2_buf_t *buf = &udp6_l2_buf[i];
 		struct iovec *tiov = udp6_l2_iov_tap[i];
 
-		*buf = (struct udp6_l2_buf_t) {
-			.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
-		};
-
-		mh->msg_name	= &buf->s_in6;
-		mh->msg_namelen	= sizeof(buf->s_in6);
+		mh->msg_name	= &meta->s_in;
+		mh->msg_namelen	= sizeof(struct sockaddr_in6);
 		mh->msg_iov	= siov;
 		mh->msg_iovlen	= 1;
 
-		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &buf->taph);
+		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
 		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(udp6_eth_hdr);
-		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(buf->ip6h);
+		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(meta->ip6h);
 		tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 	}
 }
@@ -577,7 +556,7 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
 /**
  * udp_update_hdr4() - Update headers for one IPv4 datagram
  * @c:		Execution context
- * @bh:		Pointer to udp4_l2_buf to update
+ * @bm:		Pointer to udp_meta_t to update
  * @bp:		Pointer to udp_payload_t to update
  * @dstport:	Destination port number
  * @dlen:	Length of UDP payload
@@ -585,16 +564,16 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
  *
  * Return: size of IPv4 payload (UDP header + data)
  */
-static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *bh,
-			      struct udp_payload_t *bp,
+static size_t udp_update_hdr4(const struct ctx *c,
+			      struct udp_meta_t *bm, struct udp_payload_t *bp,
 			      in_port_t dstport, size_t dlen,
 			      const struct timespec *now)
 {
-	in_port_t srcport = ntohs(bh->s_in.sin_port);
+	in_port_t srcport = ntohs(bm->s_in.sa4.sin_port);
 	const struct in_addr dst = c->ip4.addr_seen;
-	struct in_addr src = bh->s_in.sin_addr;
+	struct in_addr src = bm->s_in.sa4.sin_addr;
 	size_t l4len = dlen + sizeof(bp->uh);
-	size_t l3len = l4len + sizeof(bh->iph);
+	size_t l3len = l4len + sizeof(bm->ip4h);
 
 	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match) &&
 	    IN4_ARE_ADDR_EQUAL(&src, &c->ip4.dns_host) && srcport == 53 &&
@@ -615,24 +594,24 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *bh,
 		src = c->ip4.gw;
 	}
 
-	bh->iph.tot_len = htons(l3len);
-	bh->iph.daddr = dst.s_addr;
-	bh->iph.saddr = src.s_addr;
-	bh->iph.check = csum_ip4_header(l3len, IPPROTO_UDP, src, dst);
+	bm->ip4h.tot_len = htons(l3len);
+	bm->ip4h.daddr = dst.s_addr;
+	bm->ip4h.saddr = src.s_addr;
+	bm->ip4h.check = csum_ip4_header(l3len, IPPROTO_UDP, src, dst);
 
-	bp->uh.source = bh->s_in.sin_port;
+	bp->uh.source = bm->s_in.sa4.sin_port;
 	bp->uh.dest = htons(dstport);
 	bp->uh.len = htons(l4len);
 	csum_udp4(&bp->uh, src, dst, bp->data, dlen);
 
-	tap_hdr_update(&bh->taph, l3len + sizeof(udp4_eth_hdr));
+	tap_hdr_update(&bm->taph, l3len + sizeof(udp4_eth_hdr));
 	return l4len;
 }
 
 /**
  * udp_update_hdr6() - Update headers for one IPv6 datagram
  * @c:		Execution context
- * @bh:		Pointer to udp6_l2_buf to update
+ * @bm:		Pointer to udp_meta_t to update
  * @bp:		Pointer to udp_payload_t to update
  * @dstport:	Destination port number
  * @dlen:	Length of UDP payload
@@ -640,14 +619,14 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *bh,
  *
  * Return: size of IPv6 payload (UDP header + data)
  */
-static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *bh,
-			      struct udp_payload_t *bp,
+static size_t udp_update_hdr6(const struct ctx *c,
+			      struct udp_meta_t *bm, struct udp_payload_t *bp,
 			      in_port_t dstport, size_t dlen,
 			      const struct timespec *now)
 {
-	const struct in6_addr *src = &bh->s_in6.sin6_addr;
+	const struct in6_addr *src = &bm->s_in.sa6.sin6_addr;
 	const struct in6_addr *dst = &c->ip6.addr_seen;
-	in_port_t srcport = ntohs(bh->s_in6.sin6_port);
+	in_port_t srcport = ntohs(bm->s_in.sa6.sin6_port);
 	uint16_t l4len = dlen + sizeof(bp->uh);
 
 	if (IN6_IS_ADDR_LINKLOCAL(src)) {
@@ -684,19 +663,19 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *bh,
 
 	}
 
-	bh->ip6h.payload_len = htons(l4len);
-	bh->ip6h.daddr = *dst;
-	bh->ip6h.saddr = *src;
-	bh->ip6h.version = 6;
-	bh->ip6h.nexthdr = IPPROTO_UDP;
-	bh->ip6h.hop_limit = 255;
+	bm->ip6h.payload_len = htons(l4len);
+	bm->ip6h.daddr = *dst;
+	bm->ip6h.saddr = *src;
+	bm->ip6h.version = 6;
+	bm->ip6h.nexthdr = IPPROTO_UDP;
+	bm->ip6h.hop_limit = 255;
 
-	bp->uh.source = bh->s_in6.sin6_port;
+	bp->uh.source = bm->s_in.sa6.sin6_port;
 	bp->uh.dest = htons(dstport);
-	bp->uh.len = bh->ip6h.payload_len;
+	bp->uh.len = bm->ip6h.payload_len;
 	csum_udp6(&bp->uh, src, dst, bp->data, dlen);
 
-	tap_hdr_update(&bh->taph, l4len + sizeof(bh->ip6h) + sizeof(udp6_eth_hdr));
+	tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip6h) + sizeof(udp6_eth_hdr));
 	return l4len;
 }
 
@@ -725,15 +704,14 @@ static void udp_tap_send(const struct ctx *c,
 
 	for (i = start; i < start + n; i++) {
 		struct udp_payload_t *bp = &udp_payload[i];
+		struct udp_meta_t *bm = &udp_meta[i];
 		size_t l4len;
 
 		if (v6) {
-			l4len = udp_update_hdr6(c, &udp6_l2_buf[i], bp,
-						dstport,
+			l4len = udp_update_hdr6(c, bm, bp, dstport,
 						udp6_l2_mh_sock[i].msg_len, now);
 		} else {
-			l4len = udp_update_hdr4(c, &udp4_l2_buf[i], bp,
-						dstport,
+			l4len = udp_update_hdr4(c, bm, bp, dstport,
 						udp4_l2_mh_sock[i].msg_len, now);
 		}
 		tap_iov[i][UDP_IOV_PAYLOAD].iov_len = l4len;
