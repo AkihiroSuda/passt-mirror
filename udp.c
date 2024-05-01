@@ -173,7 +173,8 @@ static uint8_t udp_act[IP_VERSIONS][UDP_ACT_TYPE_MAX][DIV_ROUND_UP(NUM_PORTS, 8)
 /**
  * udp4_l2_buf_t - Pre-cooked IPv4 packet buffers for tap connections
  * @s_in:	Source socket address, filled in by recvmmsg()
- * @taph:	Tap-level headers (partially pre-filled)
+ * @taph:	Tap backend specific header
+ * @eh:		Prefilled ethernet header
  * @iph:	Pre-filled IP header (except for tot_len and saddr)
  * @uh:		Headroom for UDP header
  * @data:	Storage for UDP payload
@@ -182,6 +183,7 @@ static struct udp4_l2_buf_t {
 	struct sockaddr_in s_in;
 
 	struct tap_hdr taph;
+	struct ethhdr eh;
 	struct iphdr iph;
 	struct udphdr uh;
 	uint8_t data[USHRT_MAX -
@@ -192,7 +194,8 @@ udp4_l2_buf[UDP_MAX_FRAMES];
 /**
  * udp6_l2_buf_t - Pre-cooked IPv6 packet buffers for tap connections
  * @s_in6:	Source socket address, filled in by recvmmsg()
- * @taph:	Tap-level headers (partially pre-filled)
+ * @taph:	Tap backend specific header
+ * @eh:		Pre-filled ethernet header
  * @ip6h:	Pre-filled IP header (except for payload_len and addresses)
  * @uh:		Headroom for UDP header
  * @data:	Storage for UDP payload
@@ -202,10 +205,11 @@ struct udp6_l2_buf_t {
 #ifdef __AVX2__
 	/* Align ip6h to 32-byte boundary. */
 	uint8_t pad[64 - (sizeof(struct sockaddr_in6) + sizeof(struct ethhdr) +
-			  sizeof(uint32_t))];
+			  sizeof(struct tap_hdr))];
 #endif
 
 	struct tap_hdr taph;
+	struct ethhdr eh;
 	struct ipv6hdr ip6h;
 	struct udphdr uh;
 	uint8_t data[USHRT_MAX -
@@ -289,8 +293,8 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 		struct udp4_l2_buf_t *b4 = &udp4_l2_buf[i];
 		struct udp6_l2_buf_t *b6 = &udp6_l2_buf[i];
 
-		eth_update_mac(&b4->taph.eh, eth_d, eth_s);
-		eth_update_mac(&b6->taph.eh, eth_d, eth_s);
+		eth_update_mac(&b4->eh, eth_d, eth_s);
+		eth_update_mac(&b6->eh, eth_d, eth_s);
 	}
 }
 
@@ -307,7 +311,7 @@ static void udp_sock4_iov_init_one(const struct ctx *c, size_t i)
 	struct iovec *tiov = &udp4_l2_iov_tap[i];
 
 	*buf = (struct udp4_l2_buf_t) {
-		.taph = TAP_HDR_INIT(ETH_P_IP),
+		.eh  = ETH_HDR_INIT(ETH_P_IP),
 		.iph = L2_BUF_IP4_INIT(IPPROTO_UDP)
 	};
 
@@ -335,7 +339,7 @@ static void udp_sock6_iov_init_one(const struct ctx *c, size_t i)
 	struct iovec *tiov = &udp6_l2_iov_tap[i];
 
 	*buf = (struct udp6_l2_buf_t) {
-		.taph = TAP_HDR_INIT(ETH_P_IPV6),
+		.eh   = ETH_HDR_INIT(ETH_P_IPV6),
 		.ip6h = L2_BUF_IP6_INIT(IPPROTO_UDP)
 	};
 
@@ -608,7 +612,7 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 	b->uh.dest = htons(dstport);
 	b->uh.len = htons(datalen + sizeof(b->uh));
 
-	return tap_frame_len(c, &b->taph, ip_len);
+	return tap_frame_len(c, &b->taph, ip_len + sizeof(b->eh));
 }
 
 /**
@@ -676,7 +680,8 @@ static size_t udp_update_hdr6(const struct ctx *c, struct udp6_l2_buf_t *b,
 	b->uh.len = b->ip6h.payload_len;
 	csum_udp6(&b->uh, src, dst, b->data, datalen);
 
-	return tap_frame_len(c, &b->taph, payload_len + sizeof(b->ip6h));
+	return tap_frame_len(c, &b->taph, payload_len +
+			                  sizeof(b->ip6h) + sizeof(b->eh));
 }
 
 /**

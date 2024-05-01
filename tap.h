@@ -6,30 +6,28 @@
 #ifndef TAP_H
 #define TAP_H
 
+#define ETH_HDR_INIT(proto) { .h_proto = htons_constant(proto) }
+
 /**
- * struct tap_hdr - L2 and tap specific headers
+ * struct tap_hdr - tap backend specific headers
  * @vnet_len:	Frame length (for qemu socket transport)
- * @eh:		Ethernet header
  */
 struct tap_hdr {
 	uint32_t vnet_len;
-	struct ethhdr eh;
 } __attribute__((packed));
-
-#define TAP_HDR_INIT(proto) { .eh.h_proto = htons_constant(proto) }
 
 static inline size_t tap_hdr_len_(const struct ctx *c)
 {
 	if (c->mode == MODE_PASST)
 		return sizeof(struct tap_hdr);
 	else
-		return sizeof(struct ethhdr);
+		return 0;
 }
 
 /**
  * tap_frame_base() - Find start of tap frame
  * @c:		Execution context
- * @taph:	Pointer to L2 and tap specific header buffer
+ * @taph:	Pointer to tap specific header buffer
  *
  * Returns: pointer to the start of tap frame - suitable for an
  *          iov_base to be passed to tap_send_frames())
@@ -43,17 +41,16 @@ static inline void *tap_frame_base(const struct ctx *c, struct tap_hdr *taph)
  * tap_frame_len() - Finalize tap frame and return total length
  * @c:		Execution context
  * @taph:	Tap header to finalize
- * @plen:	L3 packet length (excludes L2 and tap specific headers)
+ * @plen:	L2 packet length (includes L2, excludes tap specific headers)
  *
- * Returns: length of the tap frame including L2 and tap specific
- *          headers - suitable for an iov_len to be passed to
- *          tap_send_frames()
+ * Returns: length of the tap frame including tap specific headers - suitable
+ *          for an iov_len to be passed to tap_send_frames()
  */
 static inline size_t tap_frame_len(const struct ctx *c, struct tap_hdr *taph,
 				   size_t plen)
 {
 	if (c->mode == MODE_PASST)
-		taph->vnet_len = htonl(plen + sizeof(taph->eh));
+		taph->vnet_len = htonl(plen);
 	return plen + tap_hdr_len_(c);
 }
 
