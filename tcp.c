@@ -1341,7 +1341,7 @@ static void tcp_fill_header(struct tcphdr *th,
  * @check:	Checksum, if already known
  * @seq:	Sequence number for this segment
  *
- * Return: The total length of the IPv4 packet, host order
+ * Return: The IPv4 payload length, host order
  */
 static size_t tcp_fill_headers4(const struct ctx *c,
 				const struct tcp_tap_conn *conn,
@@ -1367,7 +1367,7 @@ static size_t tcp_fill_headers4(const struct ctx *c,
 
 	tcp_update_check_tcp4(iph, th);
 
-	return l3len;
+	return l4len;
 }
 
 /**
@@ -1380,7 +1380,7 @@ static size_t tcp_fill_headers4(const struct ctx *c,
  * @check:	Checksum, if already known
  * @seq:	Sequence number for this segment
  *
- * Return: The total length of the IPv6 packet, host order
+ * Return: The IPv6 payload length, host order
  */
 static size_t tcp_fill_headers6(const struct ctx *c,
 				const struct tcp_tap_conn *conn,
@@ -1388,7 +1388,6 @@ static size_t tcp_fill_headers6(const struct ctx *c,
 				size_t dlen, uint32_t seq)
 {
 	size_t l4len = dlen + sizeof(*th);
-	size_t l3len = l4len + sizeof(*ip6h);
 
 	ip6h->payload_len = htons(l4len);
 	ip6h->saddr = conn->faddr.a6;
@@ -1409,7 +1408,7 @@ static size_t tcp_fill_headers6(const struct ctx *c,
 
 	tcp_update_check_tcp6(ip6h, th);
 
-	return l3len;
+	return l4len;
 }
 
 /**
@@ -1429,21 +1428,16 @@ static size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 				      const uint16_t *check, uint32_t seq)
 {
 	const struct in_addr *a4 = inany_v4(&conn->faddr);
-	size_t l3len, l4len;
 
 	if (a4) {
-		l3len = tcp_fill_headers4(c, conn, iov[TCP_IOV_IP].iov_base,
-					   iov[TCP_IOV_PAYLOAD].iov_base, dlen,
-					   check, seq);
-		l4len = l3len - sizeof(struct iphdr);
-	} else {
-		l3len = tcp_fill_headers6(c, conn, iov[TCP_IOV_IP].iov_base,
-					   iov[TCP_IOV_PAYLOAD].iov_base, dlen,
-					   seq);
-		l4len = l3len - sizeof(struct ipv6hdr);
+		return tcp_fill_headers4(c, conn, iov[TCP_IOV_IP].iov_base,
+					 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
+					 check, seq);
 	}
 
-	return l4len;
+	return tcp_fill_headers6(c, conn, iov[TCP_IOV_IP].iov_base,
+				 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
+				 seq);
 }
 
 /**
