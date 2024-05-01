@@ -253,10 +253,8 @@ void csum_icmp6(struct icmp6hdr *icmp6hr,
 		const struct in6_addr *saddr, const struct in6_addr *daddr,
 		const void *payload, size_t len)
 {
-	/* Partial checksum for the pseudo-IPv6 header */
-	uint32_t psum = sum_16b(saddr, sizeof(*saddr)) +
-		        sum_16b(daddr, sizeof(*daddr)) +
-		        htons(len + sizeof(*icmp6hr)) + htons(IPPROTO_ICMPV6);
+	uint32_t psum = proto_ipv6_header_psum(len + sizeof(*icmp6hr),
+					       IPPROTO_ICMPV6, saddr, daddr);
 
 	icmp6hr->icmp6_cksum = 0;
 	/* Add in partial checksum for the ICMPv6 header alone */
