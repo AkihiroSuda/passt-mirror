@@ -16,6 +16,33 @@ struct tap_hdr {
 	uint32_t vnet_len;
 } __attribute__((packed));
 
+/**
+ * tap_hdr_iov() - struct iovec for a tap header
+ * @c:		Execution context
+ * @taph:	Pointer to tap specific header buffer
+ *
+ * Returns: A struct iovec covering the correct portion of @taph to use as the
+ *          tap specific header in the current configuration.
+ */
+static inline struct iovec tap_hdr_iov(const struct ctx *c,
+				       struct tap_hdr *thdr)
+{
+	return (struct iovec){
+		.iov_base = thdr,
+		.iov_len = c->mode == MODE_PASST ? sizeof(*thdr) : 0,
+	};
+}
+
+/**
+ * tap_hdr_update() - Update the tap specific header for a frame
+ * @taph:	Tap specific header buffer to update
+ * @l2len:	Frame length (including L2 headers)
+ */
+static inline void tap_hdr_update(struct tap_hdr *thdr, size_t l2len)
+{
+	thdr->vnet_len = htonl(l2len);
+}
+
 static inline size_t tap_hdr_len_(const struct ctx *c)
 {
 	if (c->mode == MODE_PASST)
