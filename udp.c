@@ -605,7 +605,7 @@ static size_t udp_update_hdr4(const struct ctx *c, struct udp4_l2_buf_t *b,
 	b->iph.tot_len = htons(ip_len);
 	b->iph.daddr = c->ip4.addr_seen.s_addr;
 	b->iph.saddr = src.s_addr;
-	b->iph.check = csum_ip4_header(b->iph.tot_len, IPPROTO_UDP,
+	b->iph.check = csum_ip4_header(ip_len, IPPROTO_UDP,
 				       src, c->ip4.addr_seen);
 
 	b->uh.source = b->s_in.sin_port;

@@ -1359,7 +1359,7 @@ static size_t tcp_fill_headers4(const struct ctx *c,
 	iph->daddr = c->ip4.addr_seen.s_addr;
 
 	iph->check = check ? *check :
-			     csum_ip4_header(iph->tot_len, IPPROTO_TCP,
+			     csum_ip4_header(ip_len, IPPROTO_TCP,
 					     *a4, c->ip4.addr_seen);
 
 	tcp_fill_header(th, conn, seq);

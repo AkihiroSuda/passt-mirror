@@ -149,17 +149,19 @@ static void *tap_push_l2h(const struct ctx *c, void *buf, uint16_t proto)
 static void *tap_push_ip4h(struct iphdr *ip4h, struct in_addr src,
 			   struct in_addr dst, size_t len, uint8_t proto)
 {
+	uint16_t tot_len = len + sizeof(*ip4h);
+
 	ip4h->version = 4;
 	ip4h->ihl = sizeof(struct iphdr) / 4;
 	ip4h->tos = 0;
-	ip4h->tot_len = htons(len + sizeof(*ip4h));
+	ip4h->tot_len = htons(tot_len);
 	ip4h->id = 0;
 	ip4h->frag_off = 0;
 	ip4h->ttl = 255;
 	ip4h->protocol = proto;
 	ip4h->saddr = src.s_addr;
 	ip4h->daddr = dst.s_addr;
-	ip4h->check = csum_ip4_header(ip4h->tot_len, proto, src, dst);
+	ip4h->check = csum_ip4_header(tot_len, proto, src, dst);
 	return ip4h + 1;
 }
 

@@ -116,7 +116,7 @@ uint16_t csum_fold(uint32_t sum)
 
 /**
  * csum_ip4_header() - Calculate IPv4 header checksum
- * @tot_len:	IPv4 payload length (data + IP header, network order)
+ * @tot_len:	IPv4 packet length (data + IP header, host order)
  * @protocol:	Protocol number
  * @saddr:	IPv4 source address
  * @daddr:	IPv4 destination address
@@ -128,7 +128,7 @@ uint16_t csum_ip4_header(uint16_t tot_len, uint8_t protocol,
 {
 	uint32_t sum = L2_BUF_IP4_PSUM(protocol);
 
-	sum += tot_len;
+	sum += htons(tot_len);
 	sum += (saddr.s_addr >> 16) & 0xffff;
 	sum += saddr.s_addr & 0xffff;
 	sum += (daddr.s_addr >> 16) & 0xffff;
