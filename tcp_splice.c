@@ -616,7 +616,7 @@ eintr:
 			if (errno != EAGAIN)
 				goto close;
 
-			if (never_read)
+			if (conn->read[fromside] == conn->written[fromside])
 				break;
 
 			conn_event(c, conn,
