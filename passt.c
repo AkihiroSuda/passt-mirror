@@ -35,6 +35,7 @@
 #include <syslog.h>
 #include <sys/prctl.h>
 #include <netinet/if_ether.h>
+#include <libgen.h>
 #ifdef HAS_GETRANDOM
 #include <sys/random.h>
 #endif
