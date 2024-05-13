@@ -11,6 +11,7 @@
 #define	NUM_PORTS	(1U << 16)
 
 enum fwd_ports_mode {
+	FWD_UNSET = 0,
 	FWD_SPEC = 1,
 	FWD_NONE,
 	FWD_AUTO,

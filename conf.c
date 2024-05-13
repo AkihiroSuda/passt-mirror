@@ -1203,8 +1203,8 @@ void conf(struct ctx *c, int argc, char **argv)
 		optstring = "dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:461t:u:";
 	}
 
-	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = 0;
-	c->udp.fwd_in.f.mode = c->udp.fwd_out.f.mode = 0;
+	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
+	c->udp.fwd_in.f.mode = c->udp.fwd_out.f.mode = FWD_UNSET;
 
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
