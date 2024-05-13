@@ -257,6 +257,12 @@ docs: README.md
 #	we use.  That sounds nice, but means it will often want a OS
 #	specific header instead of a mostly standard one, such as
 #	<linux/limits.h> instead of <limits.h>.
+#
+# - cppcoreguidelines-macro-to-enum
+#	Want to replace all #defines of integers with enums.  Kind of
+#	makes sense when those defines form an enum-like set, but
+#	weird for cases like standalone constants, and causes other
+#	awkwardness for a bunch of cases we use
 
 clang-tidy: $(SRCS) $(HEADERS)
 	clang-tidy -checks=*,-modernize-*,\
@@ -283,7 +289,8 @@ clang-tidy: $(SRCS) $(HEADERS)
 	-altera-struct-pack-align,\
 	-concurrency-mt-unsafe,\
 	-readability-identifier-length,\
-	-misc-include-cleaner \
+	-misc-include-cleaner,\
+	-cppcoreguidelines-macro-to-enum \
 	-config='{CheckOptions: [{key: bugprone-suspicious-string-compare.WarnOnImplicitComparison, value: "false"}]}' \
 	--warnings-as-errors=* $(SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
 
