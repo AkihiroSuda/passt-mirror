@@ -303,10 +303,6 @@
 
 #include "flow_table.h"
 
-/* Sides of a flow as we use them in "tap" connections */
-#define	SOCKSIDE	0
-#define	TAPSIDE		1
-
 #define TCP_FRAMES_MEM			128
 #define TCP_FRAMES							\
 	(c->mode == MODE_PASST ? TCP_FRAMES_MEM : 1)
@@ -581,7 +577,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
-				.flowside = FLOW_SIDX(conn, SOCKSIDE) };
+				.flowside = FLOW_SIDX(conn, !conn->tapside), };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
 	if (conn->events == CLOSED) {
@@ -1134,7 +1130,7 @@ static uint64_t tcp_conn_hash(const struct ctx *c,
 static inline unsigned tcp_hash_probe(const struct ctx *c,
 				      const struct tcp_tap_conn *conn)
 {
-	flow_sidx_t sidx = FLOW_SIDX(conn, TAPSIDE);
+	flow_sidx_t sidx = FLOW_SIDX(conn, conn->tapside);
 	unsigned b = tcp_conn_hash(c, conn) % TCP_HASH_TABLE_SIZE;
 
 	/* Linear probing */
@@ -1154,7 +1150,7 @@ static void tcp_hash_insert(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	unsigned b = tcp_hash_probe(c, conn);
 
-	tc_hash[b] = FLOW_SIDX(conn, TAPSIDE);
+	tc_hash[b] = FLOW_SIDX(conn, conn->tapside);
 	flow_dbg(conn, "hash table insert: sock %i, bucket: %u", conn->sock, b);
 }
 
@@ -2004,7 +2000,8 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			goto cancel;
 	}
 
-	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp, TAPSIDE);
+	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
+	conn->tapside = INISIDE;
 	conn->sock = s;
 	conn->timer = -1;
 	conn_event(c, conn, TAP_SYN_RCVD);
@@ -2716,9 +2713,9 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 				   const union sockaddr_inany *sa,
 				   const struct timespec *now)
 {
-	struct tcp_tap_conn *conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp,
-						  SOCKSIDE);
+	struct tcp_tap_conn *conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
+	conn->tapside = TGTSIDE;
 	conn->sock = s;
 	conn->timer = -1;
 	conn->ws_to_tap = conn->ws_from_tap = 0;
@@ -2870,7 +2867,7 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 	struct tcp_tap_conn *conn = CONN(ref.flowside.flow);
 
 	ASSERT(conn->f.type == FLOW_TCP);
-	ASSERT(ref.flowside.side == SOCKSIDE);
+	ASSERT(ref.flowside.side == !conn->tapside);
 
 	if (conn->events == CLOSED)
 		return;

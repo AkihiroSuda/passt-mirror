@@ -471,7 +471,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		return false;
 	}
 
-	conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE, tcp_splice, 0);
+	conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE, tcp_splice);
 
 	conn->flags = af == AF_INET ? 0 : SPLICE_V6;
 	conn->s[0] = s0;

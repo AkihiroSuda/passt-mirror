@@ -100,6 +100,11 @@ extern const uint8_t flow_proto[];
 #define FLOW_PROTO(f)				\
 	((f)->type < FLOW_NUM_TYPES ? flow_proto[(f)->type] : 0)
 
+#define SIDES			2
+
+#define INISIDE			0	/* Initiating side */
+#define TGTSIDE			1	/* Target side */
+
 /**
  * struct flow_common - Common fields for packet flows
  * @state:	State of the flow table entry

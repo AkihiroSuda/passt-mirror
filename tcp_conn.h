@@ -13,6 +13,7 @@
  * struct tcp_tap_conn - Descriptor for a TCP connection (not spliced)
  * @f:			Generic flow information
  * @in_epoll:		Is the connection in the epoll set?
+ * @tapside:		Which side of the flow faces the tap/guest interface
  * @tap_mss:		MSS advertised by tap/guest, rounded to 2 ^ TCP_MSS_BITS
  * @sock:		Socket descriptor number
  * @events:		Connection events, implying connection states
@@ -39,6 +40,7 @@ struct tcp_tap_conn {
 	struct flow_common f;
 
 	bool		in_epoll	:1;
+	unsigned	tapside		:1;
 
 #define TCP_RETRANS_BITS		3
 	unsigned int	retrans		:TCP_RETRANS_BITS;
@@ -106,7 +108,6 @@ struct tcp_tap_conn {
 	uint32_t	seq_init_from_tap;
 };
 
-#define SIDES			2
 /**
  * struct tcp_splice_conn - Descriptor for a spliced TCP connection
  * @f:			Generic flow information

@@ -45,10 +45,6 @@
 #define ICMP_ECHO_TIMEOUT	60 /* s, timeout for ICMP socket activity */
 #define ICMP_NUM_IDS		(1U << 16)
 
-/* Sides of a flow as we use them for ping streams */
-#define	SOCKSIDE	0
-#define	TAPSIDE		1
-
 #define PINGF(idx)		(&(FLOW(idx)->ping))
 
 /* Indexed by ICMP echo identifier */
@@ -167,7 +163,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	if (!flow)
 		return NULL;
 
-	pingf = FLOW_SET_TYPE(flow, flowtype, ping, TAPSIDE);
+	pingf = FLOW_SET_TYPE(flow, flowtype, ping);
 
 	pingf->seq = -1;
 	pingf->id = id;
@@ -180,7 +176,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 		bind_if = c->ip6.ifname_out;
 	}
 
-	ref.flowside = FLOW_SIDX(flow, SOCKSIDE);
+	ref.flowside = FLOW_SIDX(flow, TGTSIDE);
 	pingf->sock = sock_l4(c, af, flow_proto[flowtype], bind_addr, bind_if,
 			      0, ref.data);
 

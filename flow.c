@@ -152,12 +152,10 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
  * flow_set_type() - Set type and move to TYPED
  * @flow:	Flow to change state
  * @type:	Type for new flow
- * @iniside:	Which side initiated the new flow
  *
  * Return: @flow
  */
-union flow *flow_set_type(union flow *flow, enum flow_type type,
-			  unsigned iniside)
+union flow *flow_set_type(union flow *flow, enum flow_type type)
 {
 	struct flow_common *f = &flow->f;
 
@@ -165,7 +163,6 @@ union flow *flow_set_type(union flow *flow, enum flow_type type,
 	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_NEW);
 	ASSERT(f->type == FLOW_TYPE_NONE);
 
-	(void)iniside;
 	f->type = type;
 	flow_set_state(f, FLOW_STATE_TYPED);
 	return flow;
