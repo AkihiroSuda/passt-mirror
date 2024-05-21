@@ -2758,6 +2758,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 			const struct timespec *now)
 {
+	char sastr[SOCKADDR_STRLEN];
 	union sockaddr_inany sa;
 	socklen_t sl = sizeof(sa);
 	union flow *flow;
@@ -2776,25 +2777,15 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 
 		if (IN4_IS_ADDR_UNSPECIFIED(addr) ||
 		    IN4_IS_ADDR_BROADCAST(addr) ||
-		    IN4_IS_ADDR_MULTICAST(addr) || port == 0) {
-			char str[INET_ADDRSTRLEN];
-
-			err("Invalid endpoint from TCP accept(): %s:%hu",
-			    inet_ntop(AF_INET, addr, str, sizeof(str)), port);
-			goto cancel;
-		}
+		    IN4_IS_ADDR_MULTICAST(addr) || port == 0)
+			goto bad_endpoint;
 	} else if (sa.sa_family == AF_INET6) {
 		const struct in6_addr *addr = &sa.sa6.sin6_addr;
 		in_port_t port = sa.sa6.sin6_port;
 
 		if (IN6_IS_ADDR_UNSPECIFIED(addr) ||
-		    IN6_IS_ADDR_MULTICAST(addr) || port == 0) {
-			char str[INET6_ADDRSTRLEN];
-
-			err("Invalid endpoint from TCP accept(): %s:%hu",
-			    inet_ntop(AF_INET6, addr, str, sizeof(str)), port);
-			goto cancel;
-		}
+		    IN6_IS_ADDR_MULTICAST(addr) || port == 0)
+			goto bad_endpoint;
 	}
 
 	if (tcp_splice_conn_from_sock(c, ref.tcp_listen.pif,
@@ -2803,6 +2794,10 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 
 	tcp_tap_conn_from_sock(c, ref.tcp_listen.port, flow, s, &sa, now);
 	return;
+
+bad_endpoint:
+	err("Invalid endpoint from TCP accept(): %s",
+	    sockaddr_ntop(&sa, sastr, sizeof(sastr)));
 
 cancel:
 	flow_alloc_cancel(flow);

@@ -553,3 +553,59 @@ int write_remainder(int fd, const struct iovec *iov, int iovcnt, size_t skip)
 
 	return 0;
 }
+
+/** sockaddr_ntop() - Convert a socket address to text format
+ * @sa:		Socket address
+ * @dst:	output buffer, minimum SOCKADDR_STRLEN bytes
+ * @size:	size of buffer at @dst
+ *
+ * Return: On success, a non-null pointer to @dst, NULL on failure
+ */
+const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size)
+{
+	sa_family_t family = ((const struct sockaddr *)sa)->sa_family;
+	socklen_t off = 0;
+
+#define IPRINTF(...)							\
+	do {								\
+		off += snprintf(dst + off, size - off, __VA_ARGS__);	\
+		if (off >= size)					\
+			return NULL;					\
+	} while (0)
+
+#define INTOP(af, addr)							\
+	do {								\
+		if (!inet_ntop((af), (addr), dst + off, size - off))	\
+			return NULL;					\
+		off += strlen(dst + off);				\
+	} while (0)
+
+	switch (family) {
+	case AF_INET: {
+		const struct sockaddr_in *sa4 = sa;
+
+		INTOP(AF_INET, &sa4->sin_addr);
+		IPRINTF(":%hu", ntohs(sa4->sin_port));
+		break;
+	}
+
+	case AF_INET6: {
+		const struct sockaddr_in6 *sa6 = sa;
+
+		IPRINTF("[");
+		INTOP(AF_INET6, &sa6->sin6_addr);
+		IPRINTF("]:%hu", ntohs(sa6->sin6_port));
+		break;
+	}
+
+		/* FIXME: Implement AF_UNIX */
+	default:
+		errno = EAFNOSUPPORT;
+		return NULL;
+	}
+
+#undef IPRINTF
+#undef INTOP
+
+	return dst;
+}

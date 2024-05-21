@@ -180,6 +180,20 @@ static inline const char *af_name(sa_family_t af)
 	}
 }
 
+#define UINT16_STRLEN		(sizeof("65535"))
+
+/* inet address (- '\0') + port (u16) (- '\0') + ':' + '\0' */
+#define SOCKADDR_INET_STRLEN					\
+	(INET_ADDRSTRLEN-1 + UINT16_STRLEN-1 + sizeof(":"))
+
+/* inet6 address (- '\0') + port (u16) (- '\0') + '[' + ']' + ':' + '\0' */
+#define SOCKADDR_INET6_STRLEN				\
+	(INET6_ADDRSTRLEN-1 + UINT16_STRLEN-1 + sizeof("[]:"))
+
+#define SOCKADDR_STRLEN		MAX(SOCKADDR_INET_STRLEN, SOCKADDR_INET6_STRLEN)
+
+const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size);
+
 /**
  * mod_sub() - Modular arithmetic subtraction
  * @a:		Minued, unsigned value < @m
