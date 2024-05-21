@@ -2687,24 +2687,17 @@ static void tcp_connect_finish(struct ctx *c, struct tcp_tap_conn *conn)
  */
 static void tcp_snat_inbound(const struct ctx *c, union inany_addr *addr)
 {
-	struct in_addr *addr4 = inany_v4(addr);
-
-	if (addr4) {
-		if (IN4_IS_ADDR_LOOPBACK(addr4) ||
-		    IN4_IS_ADDR_UNSPECIFIED(addr4) ||
-		    IN4_ARE_ADDR_EQUAL(addr4, &c->ip4.addr_seen))
-			*addr4 = c->ip4.gw;
-	} else {
-		struct in6_addr *addr6 = &addr->a6;
-
-		if (IN6_IS_ADDR_LOOPBACK(addr6) ||
-		    IN6_ARE_ADDR_EQUAL(addr6, &c->ip6.addr_seen) ||
-		    IN6_ARE_ADDR_EQUAL(addr6, &c->ip6.addr)) {
-			if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
-				*addr6 = c->ip6.gw;
-			else
-				*addr6 = c->ip6.addr_ll;
-		}
+	if (inany_is_loopback4(addr) ||
+	    inany_is_unspecified4(addr) ||
+	    inany_equals4(addr, &c->ip4.addr_seen)) {
+		*addr = inany_from_v4(c->ip4.gw);
+	} else if (inany_is_loopback6(addr) ||
+		   inany_equals6(addr, &c->ip6.addr_seen) ||
+		   inany_equals6(addr, &c->ip6.addr)) {
+		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
+			addr->a6 = c->ip6.gw;
+		else
+			addr->a6 = c->ip6.addr_ll;
 	}
 }
 

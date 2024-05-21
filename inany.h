@@ -43,6 +43,17 @@ extern const union inany_addr inany_any4;
 #define in4addr_loopback	(inany_loopback4.v4mapped.a4)
 #define in4addr_any		(inany_any4.v4mapped.a4)
 
+#define INANY_INIT4(a4init)	{					\
+					.v4mapped = {			\
+						.zero = { 0 },		\
+						.one = { 0xff, 0xff },	\
+						.a4 = a4init,		\
+					},				\
+				}
+
+#define inany_from_v4(a4)	\
+	((union inany_addr)INANY_INIT4((a4)))
+
 /** union sockaddr_inany - Either a sockaddr_in or a sockaddr_in6
  * @sa_family:	Address family, AF_INET or AF_INET6
  * @sa:		Plain struct sockaddr (useful to avoid casts)
@@ -79,6 +90,54 @@ static inline bool inany_equals(const union inany_addr *a,
 	return IN6_ARE_ADDR_EQUAL(&a->a6, &b->a6);
 }
 
+/** inany_equals4 - Compare an IPv[46] address to an IPv4 address
+ * @a:		IPv[46] addresses
+ * @b:		IPv4 address
+ *
+ * Return: true if @a and @b are the same address
+ */
+static inline bool inany_equals4(const union inany_addr *a,
+				 const struct in_addr *b)
+{
+	const struct in_addr *a4 = inany_v4(a);
+
+	return a4 && IN4_ARE_ADDR_EQUAL(a4, b);
+}
+
+/** inany_equals6 - Compare an IPv[46] address to an IPv6 address
+ * @a:		IPv[46] addresses
+ * @b:		IPv6 address
+ *
+ * Return: true if @a and @b are the same address
+ */
+static inline bool inany_equals6(const union inany_addr *a,
+				 const struct in6_addr *b)
+{
+	return IN6_ARE_ADDR_EQUAL(&a->a6, b);
+}
+
+/** inany_is_loopback4() - Check if address is IPv4 loopback
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is in 127.0.0.1/8
+ */
+static inline bool inany_is_loopback4(const union inany_addr *a)
+{
+	const struct in_addr *v4 = inany_v4(a);
+
+	return v4 && IN4_IS_ADDR_LOOPBACK(v4);
+}
+
+/** inany_is_loopback6() - Check if address is IPv6 loopback
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is in ::1
+ */
+static inline bool inany_is_loopback6(const union inany_addr *a)
+{
+	return IN6_IS_ADDR_LOOPBACK(&a->a6);
+}
+
 /** inany_is_loopback() - Check if address is loopback
  * @a:		IPv[46] address
  *
@@ -86,9 +145,29 @@ static inline bool inany_equals(const union inany_addr *a,
  */
 static inline bool inany_is_loopback(const union inany_addr *a)
 {
+	return inany_is_loopback4(a) || inany_is_loopback6(a);
+}
+
+/** inany_is_unspecified4() - Check if address is unspecified IPv4
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is 0.0.0.0
+ */
+static inline bool inany_is_unspecified4(const union inany_addr *a)
+{
 	const struct in_addr *v4 = inany_v4(a);
 
-	return IN6_IS_ADDR_LOOPBACK(&a->a6) || (v4 && IN4_IS_ADDR_LOOPBACK(v4));
+	return v4 && IN4_IS_ADDR_UNSPECIFIED(v4);
+}
+
+/** inany_is_unspecified6() - Check if address is unspecified IPv6
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is ::
+ */
+static inline bool inany_is_unspecified6(const union inany_addr *a)
+{
+	return IN6_IS_ADDR_UNSPECIFIED(&a->a6);
 }
 
 /** inany_is_unspecified() - Check if address is unspecified
@@ -98,10 +177,20 @@ static inline bool inany_is_loopback(const union inany_addr *a)
  */
 static inline bool inany_is_unspecified(const union inany_addr *a)
 {
-	const struct in_addr *v4 = inany_v4(a);
+	return inany_is_unspecified4(a) || inany_is_unspecified6(a);
+}
 
-	return IN6_IS_ADDR_UNSPECIFIED(&a->a6) ||
-		(v4 && IN4_IS_ADDR_UNSPECIFIED(v4));
+/* FIXME: consider handling of IPv4 link-local addresses */
+
+/** inany_is_linklocal6() - Check if address is link-local IPv6
+ * @a:		IPv[46] address
+ *
+ * Return: true if @a is in fe80::/10 (IPv6 link local unicast)
+ */
+/* cppcheck-suppress unusedFunction */
+static inline bool inany_is_linklocal6(const union inany_addr *a)
+{
+	return IN6_IS_ADDR_LINKLOCAL(&a->a6);
 }
 
 /** inany_is_multicast() - Check if address is multicast or broadcast
