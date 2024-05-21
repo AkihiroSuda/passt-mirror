@@ -18,6 +18,15 @@
 #include "flow.h"
 #include "flow_table.h"
 
+const char *flow_state_str[] = {
+	[FLOW_STATE_FREE]	= "FREE",
+	[FLOW_STATE_NEW]	= "NEW",
+	[FLOW_STATE_TYPED]	= "TYPED",
+	[FLOW_STATE_ACTIVE]	= "ACTIVE",
+};
+static_assert(ARRAY_SIZE(flow_state_str) == FLOW_NUM_STATES,
+	      "flow_state_str[] doesn't match enum flow_state");
+
 const char *flow_type_str[] = {
 	[FLOW_TYPE_NONE]	= "<none>",
 	[FLOW_TCP]		= "TCP connection",
@@ -38,46 +47,6 @@ static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 	      "flow_proto[] doesn't match enum flow_type");
 
 /* Global Flow Table */
-
-/**
- * DOC: Theory of Operation - flow entry life cycle
- *
- * An individual flow table entry moves through these logical states, usually in
- * this order.
- *
- *    FREE - Part of the general pool of free flow table entries
- *        Operations:
- *            - flow_alloc() finds an entry and moves it to ALLOC state
- *
- *    ALLOC - A tentatively allocated entry
- *        Operations:
- *            - flow_alloc_cancel() returns the entry to FREE state
- *            - FLOW_START() set the entry's type and moves to START state
- *        Caveats:
- *            - It's not safe to write fields in the flow entry
- *            - It's not safe to allocate further entries with flow_alloc()
- *            - It's not safe to return to the main epoll loop (use FLOW_START()
- *              to move to START state before doing so)
- *            - It's not safe to use flow_*() logging functions
- *
- *    START - An entry being prepared by flow type specific code
- *        Operations:
- *            - Flow type specific fields may be accessed
- *            - flow_*() logging functions
- *            - flow_alloc_cancel() returns the entry to FREE state
- *        Caveats:
- *            - Returning to the main epoll loop or allocating another entry
- *              with flow_alloc() implicitly moves the entry to ACTIVE state.
- *
- *    ACTIVE - An active flow entry managed by flow type specific code
- *        Operations:
- *            - Flow type specific fields may be accessed
- *            - flow_*() logging functions
- *            - Flow may be expired by returning 'true' from flow type specific
- *              deferred or timer handler.  This will return it to FREE state.
- *        Caveats:
- *            - It's not safe to call flow_alloc_cancel()
- */
 
 /**
  * DOC: Theory of Operation - allocating and freeing flow entries
@@ -132,6 +101,7 @@ static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 
 unsigned flow_first_free;
 union flow flowtab[FLOW_MAX];
+static const union flow *flow_new_entry; /* = NULL */
 
 /* Last time the flow timers ran */
 static struct timespec flow_timer_run;
@@ -144,6 +114,7 @@ static struct timespec flow_timer_run;
  */
 void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 {
+	const char *type_or_state;
 	char msg[BUFSIZ];
 	va_list args;
 
@@ -151,40 +122,65 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 	(void)vsnprintf(msg, sizeof(msg), fmt, args);
 	va_end(args);
 
-	logmsg(pri, "Flow %u (%s): %s", flow_idx(f), FLOW_TYPE(f), msg);
+	/* Show type if it's set, otherwise the state */
+	if (f->state < FLOW_STATE_TYPED)
+		type_or_state = FLOW_STATE(f);
+	else
+		type_or_state = FLOW_TYPE(f);
+
+	logmsg(pri, "Flow %u (%s): %s", flow_idx(f), type_or_state, msg);
 }
 
 /**
- * flow_start() - Set flow type for new flow and log
- * @flow:	Flow to set type for
+ * flow_set_state() - Change flow's state
+ * @f:		Flow changing state
+ * @state:	New state
+ */
+static void flow_set_state(struct flow_common *f, enum flow_state state)
+{
+	uint8_t oldstate = f->state;
+
+	ASSERT(state < FLOW_NUM_STATES);
+	ASSERT(oldstate < FLOW_NUM_STATES);
+
+	f->state = state;
+	flow_log_(f, LOG_DEBUG, "%s -> %s", flow_state_str[oldstate],
+		  FLOW_STATE(f));
+}
+
+/**
+ * flow_set_type() - Set type and move to TYPED
+ * @flow:	Flow to change state
  * @type:	Type for new flow
  * @iniside:	Which side initiated the new flow
  *
  * Return: @flow
- *
- * Should be called before setting any flow type specific fields in the flow
- * table entry.
  */
-union flow *flow_start(union flow *flow, enum flow_type type,
-		       unsigned iniside)
+union flow *flow_set_type(union flow *flow, enum flow_type type,
+			  unsigned iniside)
 {
+	struct flow_common *f = &flow->f;
+
+	ASSERT(type != FLOW_TYPE_NONE);
+	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_NEW);
+	ASSERT(f->type == FLOW_TYPE_NONE);
+
 	(void)iniside;
-	flow->f.type = type;
-	flow_dbg(flow, "START %s", flow_type_str[flow->f.type]);
+	f->type = type;
+	flow_set_state(f, FLOW_STATE_TYPED);
 	return flow;
 }
 
 /**
- * flow_end() - Clear flow type for finished flow and log
- * @flow:	Flow to clear
+ * flow_activate() - Move flow to ACTIVE
+ * @f:		Flow to change state
  */
-static void flow_end(union flow *flow)
+void flow_activate(struct flow_common *f)
 {
-	if (flow->f.type == FLOW_TYPE_NONE)
-		return; /* Nothing to do */
+	ASSERT(&flow_new_entry->f == f && f->state == FLOW_STATE_TYPED);
 
-	flow_dbg(flow, "END %s", flow_type_str[flow->f.type]);
-	flow->f.type = FLOW_TYPE_NONE;
+	flow_set_state(f, FLOW_STATE_ACTIVE);
+	flow_new_entry = NULL;
 }
 
 /**
@@ -196,9 +192,12 @@ union flow *flow_alloc(void)
 {
 	union flow *flow = &flowtab[flow_first_free];
 
+	ASSERT(!flow_new_entry);
+
 	if (flow_first_free >= FLOW_MAX)
 		return NULL;
 
+	ASSERT(flow->f.state == FLOW_STATE_FREE);
 	ASSERT(flow->f.type == FLOW_TYPE_NONE);
 	ASSERT(flow->free.n >= 1);
 	ASSERT(flow_first_free + flow->free.n <= FLOW_MAX);
@@ -221,7 +220,10 @@ union flow *flow_alloc(void)
 		flow_first_free = flow->free.next;
 	}
 
+	flow_new_entry = flow;
 	memset(flow, 0, sizeof(*flow));
+	flow_set_state(&flow->f, FLOW_STATE_NEW);
+
 	return flow;
 }
 
@@ -233,15 +235,21 @@ union flow *flow_alloc(void)
  */
 void flow_alloc_cancel(union flow *flow)
 {
+	ASSERT(flow_new_entry == flow);
+	ASSERT(flow->f.state == FLOW_STATE_NEW ||
+	       flow->f.state == FLOW_STATE_TYPED);
 	ASSERT(flow_first_free > FLOW_IDX(flow));
 
-	flow_end(flow);
+	flow_set_state(&flow->f, FLOW_STATE_FREE);
+	memset(flow, 0, sizeof(*flow));
+
 	/* Put it back in a length 1 free cluster, don't attempt to fully
 	 * reverse flow_alloc()s steps.  This will get folded together the next
 	 * time flow_defer_handler runs anyway() */
 	flow->free.n = 1;
 	flow->free.next = flow_first_free;
 	flow_first_free = FLOW_IDX(flow);
+	flow_new_entry = NULL;
 }
 
 /**
@@ -261,11 +269,14 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 		flow_timer_run = *now;
 	}
 
+	ASSERT(!flow_new_entry); /* Incomplete flow at end of cycle */
+
 	for (idx = 0; idx < FLOW_MAX; idx++) {
 		union flow *flow = &flowtab[idx];
 		bool closed = false;
 
-		if (flow->f.type == FLOW_TYPE_NONE) {
+		switch (flow->f.state) {
+		case FLOW_STATE_FREE: {
 			unsigned skip = flow->free.n;
 
 			/* First entry of a free cluster must have n >= 1 */
@@ -285,6 +296,20 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 			/* Skip remaining empty entries */
 			idx += skip - 1;
 			continue;
+		}
+
+		case FLOW_STATE_NEW:
+		case FLOW_STATE_TYPED:
+			/* Incomplete flow at end of cycle */
+			ASSERT(false);
+			break;
+
+		case FLOW_STATE_ACTIVE:
+			/* Nothing to do */
+			break;
+
+		default:
+			ASSERT(false);
 		}
 
 		switch (flow->f.type) {
@@ -310,7 +335,8 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 		}
 
 		if (closed) {
-			flow_end(flow);
+			flow_set_state(&flow->f, FLOW_STATE_FREE);
+			memset(flow, 0, sizeof(*flow));
 
 			if (free_head) {
 				/* Add slot to current free cluster */

@@ -107,4 +107,13 @@ static inline flow_sidx_t flow_sidx(const struct flow_common *f,
 union flow *flow_alloc(void);
 void flow_alloc_cancel(union flow *flow);
 
+union flow *flow_set_type(union flow *flow, enum flow_type type,
+			  unsigned iniside);
+#define FLOW_SET_TYPE(flow_, t_, var_, i_)	\
+	(&flow_set_type((flow_), (t_), (i_))->var_)
+
+void flow_activate(struct flow_common *f);
+#define FLOW_ACTIVATE(flow_)			\
+	(flow_activate(&(flow_)->f))
+
 #endif /* FLOW_TABLE_H */

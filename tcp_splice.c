@@ -471,7 +471,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		return false;
 	}
 
-	conn = FLOW_START(flow, FLOW_TCP_SPLICE, tcp_splice, 0);
+	conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE, tcp_splice, 0);
 
 	conn->flags = af == AF_INET ? 0 : SPLICE_V6;
 	conn->s[0] = s0;
@@ -484,6 +484,8 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 
 	if (tcp_splice_connect(c, conn, af, pif1, dstport))
 		conn_flag(c, conn, CLOSING);
+
+	FLOW_ACTIVATE(conn);
 
 	return true;
 }

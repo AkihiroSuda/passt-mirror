@@ -2004,7 +2004,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			goto cancel;
 	}
 
-	conn = FLOW_START(flow, FLOW_TCP, tcp, TAPSIDE);
+	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp, TAPSIDE);
 	conn->sock = s;
 	conn->timer = -1;
 	conn_event(c, conn, TAP_SYN_RCVD);
@@ -2075,6 +2075,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	}
 
 	tcp_epoll_ctl(c, conn);
+	FLOW_ACTIVATE(conn);
 	return;
 
 cancel:
@@ -2715,7 +2716,8 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 				   const union sockaddr_inany *sa,
 				   const struct timespec *now)
 {
-	struct tcp_tap_conn *conn = FLOW_START(flow, FLOW_TCP, tcp, SOCKSIDE);
+	struct tcp_tap_conn *conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp,
+						  SOCKSIDE);
 
 	conn->sock = s;
 	conn->timer = -1;
@@ -2738,6 +2740,8 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 	conn_flag(c, conn, ACK_FROM_TAP_DUE);
 
 	tcp_get_sndbuf(conn);
+
+	FLOW_ACTIVATE(conn);
 }
 
 /**

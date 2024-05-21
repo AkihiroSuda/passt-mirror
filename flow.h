@@ -10,6 +10,68 @@
 #define FLOW_TIMER_INTERVAL		1000	/* ms */
 
 /**
+ * enum flow_state - States of a flow table entry
+ *
+ * An individual flow table entry moves through these states, usually in this
+ * order.
+ *  General rules:
+ *    - Code outside flow.c should never write common fields of union flow.
+ *    - The state field may always be read.
+ *
+ *    FREE - Part of the general pool of free flow table entries
+ *        Operations:
+ *            - flow_alloc() finds an entry and moves it to NEW
+ *
+ *    NEW - Freshly allocated, uninitialised entry
+ *        Operations:
+ *            - flow_alloc_cancel() returns the entry to FREE
+ *            - FLOW_SET_TYPE() sets the entry's type and moves to TYPED
+ *        Caveats:
+ *            - No fields other than state may be accessed
+ *            - At most one entry may be NEW or TYPED at a time, so it's unsafe
+ *              to use flow_alloc() again until this entry moves to ACTIVE or
+ *              FREE
+ *            - You may not return to the main epoll loop while any flow is NEW
+ *
+ *    TYPED - Generic info initialised, type specific initialisation underway
+ *        Operations:
+ *            - All common fields may be read
+ *            - Type specific fields may be read and written
+ *            - flow_alloc_cancel() returns the entry to FREE
+ *            - FLOW_ACTIVATE() moves the entry to ACTIVE
+ *        Caveats:
+ *            - At most one entry may be NEW or TYPED at a time, so it's unsafe
+ *              to use flow_alloc() again until this entry moves to ACTIVE or
+ *              FREE
+ *            - You may not return to the main epoll loop while any flow is
+ *              TYPED
+ *
+ *    ACTIVE - An active, fully-initialised flow entry
+ *        Operations:
+ *            - All common fields may be read
+ *            - Type specific fields may be read and written
+ *            - Flow returns to FREE when it expires, signalled by returning
+ *              'true' from flow type specific deferred or timer handler
+ *        Caveats:
+ *            - flow_alloc_cancel() may not be called on it
+ */
+enum flow_state {
+	FLOW_STATE_FREE,
+	FLOW_STATE_NEW,
+	FLOW_STATE_TYPED,
+	FLOW_STATE_ACTIVE,
+
+	FLOW_NUM_STATES,
+};
+#define FLOW_STATE_BITS		8
+static_assert(FLOW_NUM_STATES <= (1 << FLOW_STATE_BITS),
+	      "Too many flow states for FLOW_STATE_BITS");
+
+extern const char *flow_state_str[];
+#define FLOW_STATE(f)							\
+        ((f)->state < FLOW_NUM_STATES ? flow_state_str[(f)->state] : "?")
+
+/**
  * enum flow_type - Different types of packet flows we track
  */
 enum flow_type {
@@ -26,6 +88,9 @@ enum flow_type {
 
 	FLOW_NUM_TYPES,
 };
+#define FLOW_TYPE_BITS		8
+static_assert(FLOW_NUM_TYPES <= (1 << FLOW_TYPE_BITS),
+	      "Too many flow types for FLOW_TYPE_BITS");
 
 extern const char *flow_type_str[];
 #define FLOW_TYPE(f)							\
@@ -37,10 +102,21 @@ extern const uint8_t flow_proto[];
 
 /**
  * struct flow_common - Common fields for packet flows
+ * @state:	State of the flow table entry
  * @type:	Type of packet flow
  */
 struct flow_common {
+#ifdef __GNUC__
+	enum flow_state	state:FLOW_STATE_BITS;
+	enum flow_type	type:FLOW_TYPE_BITS;
+#else
+	uint8_t		state;
+	static_assert(sizeof(uint8_t) * 8 >= FLOW_STATE_BITS,
+		      "Not enough bits for state field");
 	uint8_t		type;
+	static_assert(sizeof(uint8_t) * 8 >= FLOW_TYPE_BITS,
+		      "Not enough bits for type field");
+#endif
 };
 
 #define FLOW_INDEX_BITS		17	/* 128k - 1 */
@@ -48,11 +124,6 @@ struct flow_common {
 
 #define FLOW_TABLE_PRESSURE		30	/* % of FLOW_MAX */
 #define FLOW_FILE_PRESSURE		30	/* % of c->nofile */
-
-union flow *flow_start(union flow *flow, enum flow_type type,
-		       unsigned iniside);
-#define FLOW_START(flow_, t_, var_, i_)		\
-	(&flow_start((flow_), (t_), (i_))->var_)
 
 /**
  * struct flow_sidx - ID for one side of a specific flow

@@ -167,7 +167,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	if (!flow)
 		return NULL;
 
-	pingf = FLOW_START(flow, flowtype, ping, TAPSIDE);
+	pingf = FLOW_SET_TYPE(flow, flowtype, ping, TAPSIDE);
 
 	pingf->seq = -1;
 	pingf->id = id;
@@ -197,6 +197,8 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	flow_dbg(pingf, "new socket %i for echo ID %"PRIu16, pingf->sock, id);
 
 	*id_sock = pingf;
+
+	FLOW_ACTIVATE(pingf);
 
 	return pingf;
 
