@@ -155,9 +155,9 @@ struct tcp_splice_conn {
 extern int init_sock_pool4	[TCP_SOCK_POOL_SIZE];
 extern int init_sock_pool6	[TCP_SOCK_POOL_SIZE];
 
-bool tcp_flow_defer(union flow *flow);
-bool tcp_splice_flow_defer(union flow *flow);
-void tcp_splice_timer(const struct ctx *c, union flow *flow);
+bool tcp_flow_defer(const struct tcp_tap_conn *conn);
+bool tcp_splice_flow_defer(struct tcp_splice_conn *conn);
+void tcp_splice_timer(const struct ctx *c, struct tcp_splice_conn *conn);
 int tcp_conn_pool_sock(int pool[]);
 int tcp_conn_sock(const struct ctx *c, sa_family_t af);
 int tcp_sock_refill_pool(const struct ctx *c, int pool[], sa_family_t af);

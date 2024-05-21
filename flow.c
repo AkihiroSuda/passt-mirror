@@ -292,17 +292,17 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 			ASSERT(false);
 			break;
 		case FLOW_TCP:
-			closed = tcp_flow_defer(flow);
+			closed = tcp_flow_defer(&flow->tcp);
 			break;
 		case FLOW_TCP_SPLICE:
-			closed = tcp_splice_flow_defer(flow);
+			closed = tcp_splice_flow_defer(&flow->tcp_splice);
 			if (!closed && timer)
-				tcp_splice_timer(c, flow);
+				tcp_splice_timer(c, &flow->tcp_splice);
 			break;
 		case FLOW_PING4:
 		case FLOW_PING6:
 			if (timer)
-				closed = icmp_ping_timer(c, flow, now);
+				closed = icmp_ping_timer(c, &flow->ping, now);
 			break;
 		default:
 			/* Assume other flow types don't need any handling */

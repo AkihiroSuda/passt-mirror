@@ -235,16 +235,15 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
 
 /**
  * tcp_splice_flow_defer() - Deferred per-flow handling (clean up closed)
- * @flow:	Flow table entry for this connection
+ * @conn:	Connection entry to handle
  *
  * Return: true if the flow is ready to free, false otherwise
  */
-bool tcp_splice_flow_defer(union flow *flow)
+bool tcp_splice_flow_defer(struct tcp_splice_conn *conn)
 {
-	struct tcp_splice_conn *conn = &flow->tcp_splice;
 	unsigned side;
 
-	if (!(flow->tcp_splice.flags & CLOSING))
+	if (!(conn->flags & CLOSING))
 		return false;
 
 	for (side = 0; side < SIDES; side++) {
@@ -786,11 +785,10 @@ void tcp_splice_init(struct ctx *c)
 /**
  * tcp_splice_timer() - Timer for spliced connections
  * @c:		Execution context
- * @flow:	Flow table entry
+ * @conn:	Connection to handle
  */
-void tcp_splice_timer(const struct ctx *c, union flow *flow)
+void tcp_splice_timer(const struct ctx *c, struct tcp_splice_conn *conn)
 {
-	struct tcp_splice_conn *conn = &flow->tcp_splice;
 	int side;
 
 	ASSERT(!(conn->flags & CLOSING));

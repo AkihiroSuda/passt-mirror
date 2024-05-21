@@ -289,16 +289,14 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 /**
  * icmp_ping_timer() - Handler for timed events related to a given flow
  * @c:		Execution context
- * @flow:	flow table entry to check for timeout
+ * @pingf:	Ping flow to check for timeout
  * @now:	Current timestamp
  *
  * Return: true if the flow is ready to free, false otherwise
  */
-bool icmp_ping_timer(const struct ctx *c, union flow *flow,
+bool icmp_ping_timer(const struct ctx *c, const struct icmp_ping_flow *pingf,
 		     const struct timespec *now)
 {
-	const struct icmp_ping_flow *pingf = &flow->ping;
-
 	if (now->tv_sec - pingf->ts <= ICMP_ECHO_TIMEOUT)
 		return false;
 

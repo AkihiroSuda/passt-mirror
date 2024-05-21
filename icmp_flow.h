@@ -25,7 +25,7 @@ struct icmp_ping_flow {
 	uint16_t id;
 };
 
-bool icmp_ping_timer(const struct ctx *c, union flow *flow,
+bool icmp_ping_timer(const struct ctx *c, const struct icmp_ping_flow *pingf,
 		     const struct timespec *now);
 
 #endif /* ICMP_FLOW_H */

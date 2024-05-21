@@ -1221,15 +1221,13 @@ static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
 
 /**
  * tcp_flow_defer() - Deferred per-flow handling (clean up closed connections)
- * @flow:	Flow table entry for this connection
+ * @conn:	Connection to handle
  *
- * Return: true if the flow is ready to free, false otherwise
+ * Return: true if the connection is ready to free, false otherwise
  */
-bool tcp_flow_defer(union flow *flow)
+bool tcp_flow_defer(const struct tcp_tap_conn *conn)
 {
-	const struct tcp_tap_conn *conn = &flow->tcp;
-
-	if (flow->tcp.events != CLOSED)
+	if (conn->events != CLOSED)
 		return false;
 
 	close(conn->sock);
