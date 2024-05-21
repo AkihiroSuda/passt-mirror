@@ -431,7 +431,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	union inany_addr src;
 	in_port_t srcport;
 	sa_family_t af;
-	uint8_t pif1;
+	uint8_t tgtpif;
 
 	if (c->mode != MODE_PASTA)
 		return false;
@@ -455,7 +455,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 			return true;
 		}
 
-		pif1 = PIF_HOST;
+		tgtpif = PIF_HOST;
 		dstport += c->tcp.fwd_out.delta[dstport];
 		break;
 
@@ -463,7 +463,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		if (!inany_is_loopback(&src))
 			return false;
 
-		pif1 = PIF_SPLICE;
+		tgtpif = PIF_SPLICE;
 		dstport += c->tcp.fwd_in.delta[dstport];
 		break;
 
@@ -471,6 +471,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		return false;
 	}
 
+	flow_target(flow, tgtpif);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE, tcp_splice);
 
 	conn->flags = af == AF_INET ? 0 : SPLICE_V6;
@@ -482,7 +483,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	if (setsockopt(s0, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
 		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s0);
 
-	if (tcp_splice_connect(c, conn, af, pif1, dstport))
+	if (tcp_splice_connect(c, conn, af, tgtpif, dstport))
 		conn_flag(c, conn, CLOSING);
 
 	FLOW_ACTIVATE(conn);

@@ -107,6 +107,9 @@ static inline flow_sidx_t flow_sidx(const struct flow_common *f,
 union flow *flow_alloc(void);
 void flow_alloc_cancel(union flow *flow);
 
+void flow_initiate(union flow *flow, uint8_t pif);
+void flow_target(union flow *flow, uint8_t pif);
+
 union flow *flow_set_type(union flow *flow, enum flow_type type);
 #define FLOW_SET_TYPE(flow_, t_, var_)	(&flow_set_type((flow_), (t_))->var_)
 

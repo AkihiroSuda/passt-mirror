@@ -163,6 +163,8 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	if (!flow)
 		return NULL;
 
+	flow_initiate(flow, PIF_TAP);
+	flow_target(flow, PIF_HOST);
 	pingf = FLOW_SET_TYPE(flow, flowtype, ping);
 
 	pingf->seq = -1;

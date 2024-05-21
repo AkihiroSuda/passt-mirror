@@ -21,6 +21,8 @@
 const char *flow_state_str[] = {
 	[FLOW_STATE_FREE]	= "FREE",
 	[FLOW_STATE_NEW]	= "NEW",
+	[FLOW_STATE_INI]	= "INI",
+	[FLOW_STATE_TGT]	= "TGT",
 	[FLOW_STATE_TYPED]	= "TYPED",
 	[FLOW_STATE_ACTIVE]	= "ACTIVE",
 };
@@ -146,22 +148,63 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 	f->state = state;
 	flow_log_(f, LOG_DEBUG, "%s -> %s", flow_state_str[oldstate],
 		  FLOW_STATE(f));
+
+	if (MAX(state, oldstate) >= FLOW_STATE_TGT)
+		flow_log_(f, LOG_DEBUG, "%s => %s", pif_name(f->pif[INISIDE]),
+			                            pif_name(f->pif[TGTSIDE]));
+	else if (MAX(state, oldstate) >= FLOW_STATE_INI)
+		flow_log_(f, LOG_DEBUG, "%s => ?", pif_name(f->pif[INISIDE]));
+}
+
+/**
+ * flow_initiate() - Move flow to INI, setting INISIDE details
+ * @flow:	Flow to change state
+ * @pif:	pif of the initiating side
+ */
+void flow_initiate(union flow *flow, uint8_t pif)
+{
+	struct flow_common *f = &flow->f;
+
+	ASSERT(pif != PIF_NONE);
+	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_NEW);
+	ASSERT(f->type == FLOW_TYPE_NONE);
+	ASSERT(f->pif[INISIDE] == PIF_NONE && f->pif[TGTSIDE] == PIF_NONE);
+
+	f->pif[INISIDE] = pif;
+	flow_set_state(f, FLOW_STATE_INI);
+}
+
+/**
+ * flow_target() - Move flow to TGT, setting TGTSIDE details
+ * @flow:	Flow to change state
+ * @pif:	pif of the target side
+ */
+void flow_target(union flow *flow, uint8_t pif)
+{
+	struct flow_common *f = &flow->f;
+
+	ASSERT(pif != PIF_NONE);
+	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_INI);
+	ASSERT(f->type == FLOW_TYPE_NONE);
+	ASSERT(f->pif[INISIDE] != PIF_NONE && f->pif[TGTSIDE] == PIF_NONE);
+
+	f->pif[TGTSIDE] = pif;
+	flow_set_state(f, FLOW_STATE_TGT);
 }
 
 /**
  * flow_set_type() - Set type and move to TYPED
  * @flow:	Flow to change state
- * @type:	Type for new flow
- *
- * Return: @flow
+ * @pif:	pif of the initiating side
  */
 union flow *flow_set_type(union flow *flow, enum flow_type type)
 {
 	struct flow_common *f = &flow->f;
 
 	ASSERT(type != FLOW_TYPE_NONE);
-	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_NEW);
+	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_TGT);
 	ASSERT(f->type == FLOW_TYPE_NONE);
+	ASSERT(f->pif[INISIDE] != PIF_NONE && f->pif[TGTSIDE] != PIF_NONE);
 
 	f->type = type;
 	flow_set_state(f, FLOW_STATE_TYPED);
@@ -175,6 +218,7 @@ union flow *flow_set_type(union flow *flow, enum flow_type type)
 void flow_activate(struct flow_common *f)
 {
 	ASSERT(&flow_new_entry->f == f && f->state == FLOW_STATE_TYPED);
+	ASSERT(f->pif[INISIDE] != PIF_NONE && f->pif[TGTSIDE] != PIF_NONE);
 
 	flow_set_state(f, FLOW_STATE_ACTIVE);
 	flow_new_entry = NULL;
@@ -234,6 +278,8 @@ void flow_alloc_cancel(union flow *flow)
 {
 	ASSERT(flow_new_entry == flow);
 	ASSERT(flow->f.state == FLOW_STATE_NEW ||
+	       flow->f.state == FLOW_STATE_INI ||
+	       flow->f.state == FLOW_STATE_TGT ||
 	       flow->f.state == FLOW_STATE_TYPED);
 	ASSERT(flow_first_free > FLOW_IDX(flow));
 
@@ -296,6 +342,8 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 		}
 
 		case FLOW_STATE_NEW:
+		case FLOW_STATE_INI:
+		case FLOW_STATE_TGT:
 		case FLOW_STATE_TYPED:
 			/* Incomplete flow at end of cycle */
 			ASSERT(false);

@@ -25,13 +25,41 @@
  *    NEW - Freshly allocated, uninitialised entry
  *        Operations:
  *            - flow_alloc_cancel() returns the entry to FREE
+ *            - flow_initiate() sets the entry's INISIDE details and moves to
+ *              INI
  *            - FLOW_SET_TYPE() sets the entry's type and moves to TYPED
  *        Caveats:
  *            - No fields other than state may be accessed
- *            - At most one entry may be NEW or TYPED at a time, so it's unsafe
- *              to use flow_alloc() again until this entry moves to ACTIVE or
- *              FREE
+ *            - At most one entry may be NEW, INI, TGT or TYPED at a time, so
+ *              it's unsafe to use flow_alloc() again until this entry moves to
+ *              ACTIVE or FREE
  *            - You may not return to the main epoll loop while any flow is NEW
+ *
+ *    INI - An entry with INISIDE common information completed
+ *        Operations:
+ *            - Common fields related to INISIDE may be read
+ *            - flow_alloc_cancel() returns the entry to FREE
+ *            - flow_target() sets the entry's TGTSIDE details and moves to TGT
+ *        Caveats:
+ *            - Other common fields may not be read
+ *            - Type specific fields may not be read or written
+ *            - At most one entry may be NEW, INI, TGT or TYPED at a time, so
+ *              it's unsafe to use flow_alloc() again until this entry moves to
+ *              ACTIVE or FREE
+ *            - You may not return to the main epoll loop while any flow is INI
+ *
+ *    TGT - An entry with only INISIDE and TGTSIDE common information completed
+ *        Operations:
+ *            - Common fields related to INISIDE & TGTSIDE may be read
+ *            - flow_alloc_cancel() returns the entry to FREE
+ *            - FLOW_SET_TYPE() sets the entry's type and moves to TYPED
+ *        Caveats:
+ *            - Other common fields may not be read
+ *            - Type specific fields may not be read or written
+ *            - At most one entry may be NEW, INI, TGT or TYPED at a time, so
+ *              it's unsafe to use flow_alloc() again until this entry moves to
+ *              ACTIVE or FREE
+ *            - You may not return to the main epoll loop while any flow is TGT
  *
  *    TYPED - Generic info initialised, type specific initialisation underway
  *        Operations:
@@ -40,9 +68,9 @@
  *            - flow_alloc_cancel() returns the entry to FREE
  *            - FLOW_ACTIVATE() moves the entry to ACTIVE
  *        Caveats:
- *            - At most one entry may be NEW or TYPED at a time, so it's unsafe
- *              to use flow_alloc() again until this entry moves to ACTIVE or
- *              FREE
+ *            - At most one entry may be NEW, INI, TGT or TYPED at a time, so
+ *              it's unsafe to use flow_alloc() again until this entry moves to
+ *              ACTIVE or FREE
  *            - You may not return to the main epoll loop while any flow is
  *              TYPED
  *
@@ -58,6 +86,8 @@
 enum flow_state {
 	FLOW_STATE_FREE,
 	FLOW_STATE_NEW,
+	FLOW_STATE_INI,
+	FLOW_STATE_TGT,
 	FLOW_STATE_TYPED,
 	FLOW_STATE_ACTIVE,
 
@@ -109,6 +139,7 @@ extern const uint8_t flow_proto[];
  * struct flow_common - Common fields for packet flows
  * @state:	State of the flow table entry
  * @type:	Type of packet flow
+ * @pif[]:	Interface for each side of the flow
  */
 struct flow_common {
 #ifdef __GNUC__
@@ -122,6 +153,7 @@ struct flow_common {
 	static_assert(sizeof(uint8_t) * 8 >= FLOW_TYPE_BITS,
 		      "Not enough bits for type field");
 #endif
+	uint8_t		pif[SIDES];
 };
 
 #define FLOW_INDEX_BITS		17	/* 128k - 1 */

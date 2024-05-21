@@ -1948,6 +1948,8 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	if (!(flow = flow_alloc()))
 		return;
 
+	flow_initiate(flow, PIF_TAP);
+
 	if (af == AF_INET) {
 		if (IN4_IS_ADDR_UNSPECIFIED(saddr) ||
 		    IN4_IS_ADDR_BROADCAST(saddr) ||
@@ -2000,6 +2002,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			goto cancel;
 	}
 
+	flow_target(flow, PIF_HOST);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 	conn->tapside = INISIDE;
 	conn->sock = s;
@@ -2713,7 +2716,10 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 				   const union sockaddr_inany *sa,
 				   const struct timespec *now)
 {
-	struct tcp_tap_conn *conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
+	struct tcp_tap_conn *conn;
+
+	flow_target(flow, PIF_TAP);
+	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
 	conn->tapside = TGTSIDE;
 	conn->sock = s;
@@ -2762,6 +2768,8 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	s = accept4(ref.fd, &sa.sa, &sl, SOCK_NONBLOCK);
 	if (s < 0)
 		goto cancel;
+
+	flow_initiate(flow, ref.tcp_listen.pif);
 
 	if (sa.sa_family == AF_INET) {
 		const struct in_addr *addr = &sa.sa4.sin_addr;
