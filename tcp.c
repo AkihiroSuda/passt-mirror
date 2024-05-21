@@ -368,6 +368,8 @@
 #define OPT_SACK	5
 #define OPT_TS		8
 
+#define TAPSIDE(conn_)	((conn_)->f.pif[1] == PIF_TAP)
+
 #define CONN_V4(conn)		(!!inany_v4(&(conn)->faddr))
 #define CONN_V6(conn)		(!CONN_V4(conn))
 #define CONN_IS_CLOSING(conn)						\
@@ -577,7 +579,7 @@ static int tcp_epoll_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	int m = conn->in_epoll ? EPOLL_CTL_MOD : EPOLL_CTL_ADD;
 	union epoll_ref ref = { .type = EPOLL_TYPE_TCP, .fd = conn->sock,
-				.flowside = FLOW_SIDX(conn, !conn->tapside), };
+		                .flowside = FLOW_SIDX(conn, !TAPSIDE(conn)), };
 	struct epoll_event ev = { .data.u64 = ref.u64 };
 
 	if (conn->events == CLOSED) {
@@ -1130,8 +1132,8 @@ static uint64_t tcp_conn_hash(const struct ctx *c,
 static inline unsigned tcp_hash_probe(const struct ctx *c,
 				      const struct tcp_tap_conn *conn)
 {
-	flow_sidx_t sidx = FLOW_SIDX(conn, conn->tapside);
 	unsigned b = tcp_conn_hash(c, conn) % TCP_HASH_TABLE_SIZE;
+	flow_sidx_t sidx = FLOW_SIDX(conn, TAPSIDE(conn));
 
 	/* Linear probing */
 	while (!flow_sidx_eq(tc_hash[b], FLOW_SIDX_NONE) &&
@@ -1150,7 +1152,7 @@ static void tcp_hash_insert(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	unsigned b = tcp_hash_probe(c, conn);
 
-	tc_hash[b] = FLOW_SIDX(conn, conn->tapside);
+	tc_hash[b] = FLOW_SIDX(conn, TAPSIDE(conn));
 	flow_dbg(conn, "hash table insert: sock %i, bucket: %u", conn->sock, b);
 }
 
@@ -2004,7 +2006,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 
 	flow_target(flow, PIF_HOST);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
-	conn->tapside = INISIDE;
 	conn->sock = s;
 	conn->timer = -1;
 	conn_event(c, conn, TAP_SYN_RCVD);
@@ -2721,7 +2722,6 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 	flow_target(flow, PIF_TAP);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
-	conn->tapside = TGTSIDE;
 	conn->sock = s;
 	conn->timer = -1;
 	conn->ws_to_tap = conn->ws_from_tap = 0;
@@ -2875,7 +2875,7 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 	struct tcp_tap_conn *conn = CONN(ref.flowside.flow);
 
 	ASSERT(conn->f.type == FLOW_TCP);
-	ASSERT(ref.flowside.side == !conn->tapside);
+	ASSERT(conn->f.pif[ref.flowside.side] != PIF_TAP);
 
 	if (conn->events == CLOSED)
 		return;
