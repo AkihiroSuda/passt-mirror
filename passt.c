@@ -199,7 +199,7 @@ void exit_handler(int signal)
  */
 int main(int argc, char **argv)
 {
-	int nfds, i, devnull_fd = -1, pidfile_fd = -1;
+	int nfds, i, devnull_fd = -1, pidfile_fd;
 	struct epoll_event events[EPOLL_EVENTS];
 	char *log_name, argv0[PATH_MAX], *name;
 	struct ctx c = { 0 };
@@ -299,14 +299,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (*c.pid_file) {
-		if ((pidfile_fd = open(c.pid_file,
-				       O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC,
-				       S_IRUSR | S_IWUSR)) < 0) {
-			perror("PID file open");
-			exit(EXIT_FAILURE);
-		}
-	}
+	pidfile_fd = pidfile_open(c.pid_file);
 
 	if (isolate_prefork(&c))
 		die("Failed to sandbox process, exiting");

@@ -156,6 +156,7 @@ char *line_read(char *buf, size_t len, int fd);
 void ns_enter(const struct ctx *c);
 bool ns_is_init(void);
 int open_in_ns(const struct ctx *c, const char *path, int flags);
+int pidfile_open(const char *path);
 void pidfile_write(int fd, pid_t pid);
 int __daemon(int pidfile_fd, int devnull_fd);
 int fls(unsigned long x);

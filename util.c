@@ -403,6 +403,28 @@ void pidfile_write(int fd, pid_t pid)
 }
 
 /**
+ * pidfile_open() - Open PID file if needed
+ * @path:	Path for PID file, empty string if no PID file is requested
+ *
+ * Return: descriptor for PID file, -1 if path is NULL, won't return on failure
+ */
+int pidfile_open(const char *path)
+{
+	int fd;
+
+	if (!*path)
+		return -1;
+
+	if ((fd = open(path, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC,
+			     S_IRUSR | S_IWUSR)) < 0) {
+		perror("PID file open");
+		exit(EXIT_FAILURE);
+	}
+
+	return fd;
+}
+
+/**
  * __daemon() - daemon()-like function writing PID file before parent exits
  * @pidfile_fd:	Open PID file descriptor
  * @devnull_fd:	Open file descriptor for /dev/null
