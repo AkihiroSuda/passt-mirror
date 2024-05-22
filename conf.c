@@ -1093,7 +1093,7 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 		return;
 
 	/* ...otherwise use nobody:nobody */
-	warn("Don't run as root. Changing to nobody...");
+	warn("Started as root. Changing to nobody...");
 	{
 #ifndef GLIBC_NO_STATIC_NSS
 		const struct passwd *pw;
