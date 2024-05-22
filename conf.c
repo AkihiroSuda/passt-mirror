@@ -38,6 +38,7 @@
 #include "ip.h"
 #include "passt.h"
 #include "netlink.h"
+#include "tap.h"
 #include "udp.h"
 #include "tcp.h"
 #include "pasta.h"
@@ -1093,7 +1094,7 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 		return;
 
 	/* ...otherwise use nobody:nobody */
-	warn("Started as root. Changing to nobody...");
+	warn("Started as root, will change to nobody.");
 	{
 #ifndef GLIBC_NO_STATIC_NSS
 		const struct passwd *pw;
@@ -1111,6 +1112,18 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 		*uid = *gid = 65534;
 #endif
 	}
+}
+
+/**
+ * conf_open_files() - Open files as requested by configuration
+ * @c:		Execution context
+ */
+static void conf_open_files(struct ctx *c)
+{
+	if (c->mode == MODE_PASST && c->fd_tap == -1)
+		c->fd_tap_listen = tap_sock_unix_open(c->sock_path);
+
+	c->pidfile_fd = pidfile_open(c->pid_file);
 }
 
 /**
@@ -1711,6 +1724,8 @@ void conf(struct ctx *c, int argc, char **argv)
 		conf_pasta_ns(&netns_only, userns, netns, optind, argc, argv);
 	else if (optind != argc)
 		die("Extra non-option argument: %s", argv[optind]);
+
+	conf_open_files(c);	/* Before any possible setuid() / setgid() */
 
 	isolate_user(uid, gid, !netns_only, userns, c->mode);
 

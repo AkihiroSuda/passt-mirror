@@ -185,6 +185,7 @@ struct ip6_ctx {
  * @sock_path:		Path for UNIX domain socket
  * @pcap:		Path for packet capture file
  * @pid_file:		Path to PID file, empty string if not configured
+ * @pidfile_fd:		File descriptor for PID file, -1 if none
  * @pasta_netns_fd:	File descriptor for network namespace in pasta mode
  * @no_netns_quit:	In pasta mode, don't exit if fs-bound namespace is gone
  * @netns_base:		Base name for fs-bound namespace, if any, in pasta mode
@@ -234,7 +235,10 @@ struct ctx {
 	int nofile;
 	char sock_path[UNIX_PATH_MAX];
 	char pcap[PATH_MAX];
+
 	char pid_file[PATH_MAX];
+	int pidfile_fd;
+
 	int one_off;
 
 	int pasta_netns_fd;

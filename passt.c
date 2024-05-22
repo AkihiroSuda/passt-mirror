@@ -199,9 +199,9 @@ void exit_handler(int signal)
  */
 int main(int argc, char **argv)
 {
-	int nfds, i, devnull_fd = -1, pidfile_fd;
 	struct epoll_event events[EPOLL_EVENTS];
 	char *log_name, argv0[PATH_MAX], *name;
+	int nfds, i, devnull_fd = -1;
 	struct ctx c = { 0 };
 	struct rlimit limit;
 	struct timespec now;
@@ -211,7 +211,7 @@ int main(int argc, char **argv)
 
 	isolate_initial();
 
-	c.pasta_netns_fd = c.fd_tap = -1;
+	c.pasta_netns_fd = c.fd_tap = c.pidfile_fd = -1;
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
@@ -299,8 +299,6 @@ int main(int argc, char **argv)
 		}
 	}
 
-	pidfile_fd = pidfile_open(c.pid_file);
-
 	if (isolate_prefork(&c))
 		die("Failed to sandbox process, exiting");
 
@@ -308,9 +306,9 @@ int main(int argc, char **argv)
 		__openlog(log_name, 0, LOG_DAEMON);
 
 	if (!c.foreground)
-		__daemon(pidfile_fd, devnull_fd);
+		__daemon(c.pidfile_fd, devnull_fd);
 	else
-		pidfile_write(pidfile_fd, getpid());
+		pidfile_write(c.pidfile_fd, getpid());
 
 	if (pasta_child_pid)
 		kill(pasta_child_pid, SIGUSR1);

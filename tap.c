@@ -1100,7 +1100,7 @@ restart:
  *
  * Return: socket descriptor on success, won't return on failure
  */
-static int tap_sock_unix_open(char *sock_path)
+int tap_sock_unix_open(char *sock_path)
 {
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
 	struct sockaddr_un addr = {
@@ -1144,7 +1144,7 @@ static int tap_sock_unix_open(char *sock_path)
 	if (i == UNIX_SOCK_MAX)
 		die("UNIX socket bind: %s", strerror(errno));
 
-	info("UNIX domain socket bound at %s\n", addr.sun_path);
+	info("UNIX domain socket bound at %s", addr.sun_path);
 	if (!*sock_path)
 		memcpy(sock_path, addr.sun_path, UNIX_PATH_MAX);
 
@@ -1167,7 +1167,7 @@ static void tap_sock_unix_init(struct ctx *c)
 	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap_listen, &ev);
 
-	info("You can now start qemu (>= 7.2, with commit 13c6be96618c):");
+	info("\nYou can now start qemu (>= 7.2, with commit 13c6be96618c):");
 	info("    kvm ... -device virtio-net-pci,netdev=s -netdev stream,id=s,server=off,addr.type=unix,addr.path=%s",
 	     c->sock_path);
 	info("or qrap, for earlier qemu versions:");
@@ -1318,7 +1318,6 @@ void tap_sock_init(struct ctx *c)
 	}
 
 	if (c->mode == MODE_PASST) {
-		c->fd_tap_listen = tap_sock_unix_open(c->sock_path);
 		tap_sock_unix_init(c);
 
 		/* In passt mode, we don't know the guest's MAC address until it
