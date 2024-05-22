@@ -317,7 +317,7 @@ int main(int argc, char **argv)
 	if (!c.foreground)
 		__daemon(pidfile_fd, devnull_fd);
 	else
-		write_pidfile(pidfile_fd, getpid());
+		pidfile_write(pidfile_fd, getpid());
 
 	if (pasta_child_pid)
 		kill(pasta_child_pid, SIGUSR1);

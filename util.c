@@ -380,11 +380,11 @@ int open_in_ns(const struct ctx *c, const char *path, int flags)
 }
 
 /**
- * pid_file() - Write PID to file, if requested to do so, and close it
+ * pidfile_write() - Write PID to file, if requested to do so, and close it
  * @fd:		Open PID file descriptor, closed on exit, -1 to skip writing it
  * @pid:	PID value to write
  */
-void write_pidfile(int fd, pid_t pid)
+void pidfile_write(int fd, pid_t pid)
 {
 	char pid_buf[12];
 	int n;
@@ -419,7 +419,7 @@ int __daemon(int pidfile_fd, int devnull_fd)
 	}
 
 	if (pid) {
-		write_pidfile(pidfile_fd, pid);
+		pidfile_write(pidfile_fd, pid);
 		exit(EXIT_SUCCESS);
 	}
 
