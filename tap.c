@@ -1304,8 +1304,7 @@ void tap_sock_init(struct ctx *c)
 	}
 
 	if (c->mode == MODE_PASST) {
-		if (c->fd_tap_listen == -1)
-			tap_sock_unix_init(c);
+		tap_sock_unix_init(c);
 
 		/* In passt mode, we don't know the guest's MAC address until it
 		 * sends us packets.  Use the broadcast address so that our

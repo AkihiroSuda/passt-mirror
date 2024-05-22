@@ -211,7 +211,7 @@ int main(int argc, char **argv)
 
 	isolate_initial();
 
-	c.pasta_netns_fd = c.fd_tap = c.fd_tap_listen = -1;
+	c.pasta_netns_fd = c.fd_tap = -1;
 
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = 0;
