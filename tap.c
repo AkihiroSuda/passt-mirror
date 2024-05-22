@@ -1111,12 +1111,6 @@ static void tap_sock_unix_init(struct ctx *c)
 	if (fd < 0)
 		die("UNIX socket: %s", strerror(errno));
 
-	/* In passt mode, we don't know the guest's MAC until it sends
-	 * us packets.  Use the broadcast address so our first packets
-	 * will reach it.
-	 */
-	memset(&c->mac_guest, 0xff, sizeof(c->mac_guest));
-
 	for (i = 1; i < UNIX_SOCK_MAX; i++) {
 		char *path = addr.sun_path;
 		int ex, ret;
@@ -1312,6 +1306,12 @@ void tap_sock_init(struct ctx *c)
 	if (c->mode == MODE_PASST) {
 		if (c->fd_tap_listen == -1)
 			tap_sock_unix_init(c);
+
+		/* In passt mode, we don't know the guest's MAC address until it
+		 * sends us packets.  Use the broadcast address so that our
+		 * first packets will reach it.
+		 */
+		memset(&c->mac_guest, 0xff, sizeof(c->mac_guest));
 	} else {
 		tap_sock_tun_init(c);
 	}
