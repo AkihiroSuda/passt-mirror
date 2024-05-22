@@ -1123,7 +1123,7 @@ static void conf_open_files(struct ctx *c)
 	if (c->mode == MODE_PASST && c->fd_tap == -1)
 		c->fd_tap_listen = tap_sock_unix_open(c->sock_path);
 
-	c->pidfile_fd = pidfile_open(c->pid_file);
+	c->pidfile_fd = pidfile_open(c->pidfile);
 }
 
 /**
@@ -1456,12 +1456,12 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			break;
 		case 'P':
-			if (*c->pid_file)
+			if (*c->pidfile)
 				die("Multiple --pid options given");
 
-			ret = snprintf(c->pid_file, sizeof(c->pid_file), "%s",
+			ret = snprintf(c->pidfile, sizeof(c->pidfile), "%s",
 				       optarg);
-			if (ret <= 0 || ret >= (int)sizeof(c->pid_file))
+			if (ret <= 0 || ret >= (int)sizeof(c->pidfile))
 				die("Invalid PID file: %s", optarg);
 
 			break;
