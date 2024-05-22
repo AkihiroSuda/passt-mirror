@@ -1095,14 +1095,14 @@ restart:
 }
 
 /**
- * tap_sock_unix_init() - Create and bind AF_UNIX socket, listen for connection
- * @c:		Execution context
+ * tap_sock_unix_open() - Create and bind AF_UNIX socket
+ * @sock_path:	Socket path. If empty, set on return (UNIX_SOCK_PATH as prefix)
+ *
+ * Return: socket descriptor on success, won't return on failure
  */
-static void tap_sock_unix_init(struct ctx *c)
+static int tap_sock_unix_open(char *sock_path)
 {
 	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_LISTEN };
-	struct epoll_event ev = { 0 };
 	struct sockaddr_un addr = {
 		.sun_family = AF_UNIX,
 	};
@@ -1115,8 +1115,8 @@ static void tap_sock_unix_init(struct ctx *c)
 		char *path = addr.sun_path;
 		int ex, ret;
 
-		if (*c->sock_path)
-			memcpy(path, c->sock_path, UNIX_PATH_MAX);
+		if (*sock_path)
+			memcpy(path, sock_path, UNIX_PATH_MAX);
 		else
 			snprintf(path, UNIX_PATH_MAX - 1, UNIX_SOCK_PATH, i);
 
@@ -1127,7 +1127,7 @@ static void tap_sock_unix_init(struct ctx *c)
 		ret = connect(ex, (const struct sockaddr *)&addr, sizeof(addr));
 		if (!ret || (errno != ENOENT && errno != ECONNREFUSED &&
 			     errno != EACCES)) {
-			if (*c->sock_path)
+			if (*sock_path)
 				die("Socket path %s already in use", path);
 
 			close(ex);
@@ -1137,7 +1137,7 @@ static void tap_sock_unix_init(struct ctx *c)
 
 		unlink(path);
 		if (!bind(fd, (const struct sockaddr *)&addr, sizeof(addr)) ||
-		    *c->sock_path)
+		    *sock_path)
 			break;
 	}
 
@@ -1145,17 +1145,31 @@ static void tap_sock_unix_init(struct ctx *c)
 		die("UNIX socket bind: %s", strerror(errno));
 
 	info("UNIX domain socket bound at %s\n", addr.sun_path);
+	if (!*sock_path)
+		memcpy(sock_path, addr.sun_path, UNIX_PATH_MAX);
 
-	listen(fd, 0);
+	return fd;
+}
 
-	ref.fd = c->fd_tap_listen = fd;
+/**
+ * tap_sock_unix_init() - Start listening for connections on AF_UNIX socket
+ * @c:		Execution context
+ */
+static void tap_sock_unix_init(struct ctx *c)
+{
+	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_LISTEN };
+	struct epoll_event ev = { 0 };
+
+	listen(c->fd_tap_listen, 0);
+
+	ref.fd = c->fd_tap_listen;
 	ev.events = EPOLLIN | EPOLLET;
 	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap_listen, &ev);
 
 	info("You can now start qemu (>= 7.2, with commit 13c6be96618c):");
 	info("    kvm ... -device virtio-net-pci,netdev=s -netdev stream,id=s,server=off,addr.type=unix,addr.path=%s",
-	     addr.sun_path);
+	     c->sock_path);
 	info("or qrap, for earlier qemu versions:");
 	info("    ./qrap 5 kvm ... -net socket,fd=5 -net nic,model=virtio");
 }
@@ -1304,6 +1318,7 @@ void tap_sock_init(struct ctx *c)
 	}
 
 	if (c->mode == MODE_PASST) {
+		c->fd_tap_listen = tap_sock_unix_open(c->sock_path);
 		tap_sock_unix_init(c);
 
 		/* In passt mode, we don't know the guest's MAC address until it
