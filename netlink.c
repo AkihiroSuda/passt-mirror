@@ -696,7 +696,7 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 		struct rtattr *rta;
 		size_t na;
 
-		if (ifa->ifa_index != ifi)
+		if (ifa->ifa_index != ifi || ifa->ifa_flags & IFA_F_DEPRECATED)
 			continue;
 
 		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
@@ -833,7 +833,8 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 		ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
 
 		if (rc < 0 || ifa->ifa_scope == RT_SCOPE_LINK ||
-		    ifa->ifa_index != ifi_src)
+		    ifa->ifa_index != ifi_src ||
+		    ifa->ifa_flags & IFA_F_DEPRECATED)
 			continue;
 
 		ifa->ifa_index = ifi_dst;
