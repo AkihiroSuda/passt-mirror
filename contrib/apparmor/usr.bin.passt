@@ -19,9 +19,12 @@ profile passt /usr/bin/passt{,.avx2} {
   include <abstractions/passt>
 
   # Alternatively: include <abstractions/user-tmp>
-  owner /tmp/**				w,	# tap_sock_unix_init(), pcap(),
-						# write_pidfile(),
+  owner /tmp/**				w,	# tap_sock_unix_open(),
+						# tap_sock_unix_init(), pcap(),
+						# pidfile_open(),
+						# pidfile_write(),
 						# logfile_init()
 
-  owner @{HOME}/**			w,	# pcap(), write_pidfile()
+  owner @{HOME}/**			w,	# pcap(), pidfile_open(),
+						# pidfile_write()
 }

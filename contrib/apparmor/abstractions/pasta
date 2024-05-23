@@ -27,7 +27,7 @@
   @{PROC}/@{pid}/net/udp		r,
   @{PROC}/@{pid}/net/udp6		r,
 
-  @{run}/user/@{uid}/**			rw,	# pasta_open_ns(), main()
+  @{run}/user/@{uid}/**			rw,	# pasta_open_ns()
 
   @{PROC}/[0-9]*/ns/			r,	# pasta_netns_quit_init(),
   @{PROC}/[0-9]*/ns/net			r,	# pasta_wait_for_ns(),
