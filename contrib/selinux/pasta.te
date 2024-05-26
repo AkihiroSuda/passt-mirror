@@ -211,3 +211,4 @@ allow pasta_t ifconfig_t:process { noatsecure rlimitinh siginh };
 allow pasta_t netutils_t:process { noatsecure rlimitinh siginh };
 allow pasta_t ping_t:process { noatsecure rlimitinh siginh };
 allow pasta_t user_tty_device_t:chr_file { append read write };
+allow pasta_t user_devpts_t:chr_file { append read write };
