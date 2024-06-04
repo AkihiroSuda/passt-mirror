@@ -408,16 +408,6 @@ static int tcp_sock_ns		[NUM_PORTS][IP_VERSIONS];
  */
 static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
 
-/**
- * tcp_buf_seq_update - Sequences to update with length of frames once sent
- * @seq:	Pointer to sequence number sent to tap-side, to be updated
- * @len:	TCP payload length
- */
-struct tcp_buf_seq_update {
-	uint32_t *seq;
-	uint16_t len;
-};
-
 /* Static buffers */
 /**
  * struct tcp_payload_t - TCP header and data to send segments with payload
@@ -459,7 +449,8 @@ static struct tcp_payload_t	tcp4_payload[TCP_FRAMES_MEM];
 
 static_assert(MSS4 <= sizeof(tcp4_payload[0].data), "MSS4 is greater than 65516");
 
-static struct tcp_buf_seq_update tcp4_seq_update[TCP_FRAMES_MEM];
+/* References tracking the owner connection of frames in the tap outqueue */
+static struct tcp_tap_conn *tcp4_frame_conns[TCP_FRAMES_MEM];
 static unsigned int tcp4_payload_used;
 
 static struct tap_hdr		tcp4_flags_tap_hdr[TCP_FRAMES_MEM];
@@ -481,7 +472,8 @@ static struct tcp_payload_t	tcp6_payload[TCP_FRAMES_MEM];
 
 static_assert(MSS6 <= sizeof(tcp6_payload[0].data), "MSS6 is greater than 65516");
 
-static struct tcp_buf_seq_update tcp6_seq_update[TCP_FRAMES_MEM];
+/* References tracking the owner connection of frames in the tap outqueue */
+static struct tcp_tap_conn *tcp6_frame_conns[TCP_FRAMES_MEM];
 static unsigned int tcp6_payload_used;
 
 static struct tap_hdr		tcp6_flags_tap_hdr[TCP_FRAMES_MEM];
@@ -1258,24 +1250,50 @@ static void tcp_flags_flush(const struct ctx *c)
 }
 
 /**
+ * tcp_revert_seq() - Revert affected conn->seq_to_tap after failed transmission
+ * @conns:       Array of connection pointers corresponding to queued frames
+ * @frames:      Two-dimensional array containing queued frames with sub-iovs
+ * @num_frames:  Number of entries in the two arrays to be compared
+ */
+static void tcp_revert_seq(struct tcp_tap_conn **conns, struct iovec (*frames)[TCP_NUM_IOVS],
+			   int num_frames)
+{
+	int i;
+
+	for (i = 0; i < num_frames; i++) {
+		struct tcp_tap_conn *conn = conns[i];
+		struct tcphdr *th = frames[i][TCP_IOV_PAYLOAD].iov_base;
+		uint32_t seq = ntohl(th->seq);
+
+		if (SEQ_LE(conn->seq_to_tap, seq))
+			continue;
+
+		conn->seq_to_tap = seq;
+	}
+}
+
+/**
  * tcp_payload_flush() - Send out buffers for segments with data
  * @c:		Execution context
  */
 static void tcp_payload_flush(const struct ctx *c)
 {
-	unsigned i;
 	size_t m;
 
 	m = tap_send_frames(c, &tcp6_l2_iov[0][0], TCP_NUM_IOVS,
 			    tcp6_payload_used);
-	for (i = 0; i < m; i++)
-		*tcp6_seq_update[i].seq += tcp6_seq_update[i].len;
+	if (m != tcp6_payload_used) {
+		tcp_revert_seq(&tcp6_frame_conns[m], &tcp6_l2_iov[m],
+			       tcp6_payload_used - m);
+	}
 	tcp6_payload_used = 0;
 
 	m = tap_send_frames(c, &tcp4_l2_iov[0][0], TCP_NUM_IOVS,
 			    tcp4_payload_used);
-	for (i = 0; i < m; i++)
-		*tcp4_seq_update[i].seq += tcp4_seq_update[i].len;
+	if (m != tcp4_payload_used) {
+		tcp_revert_seq(&tcp4_frame_conns[m], &tcp4_l2_iov[m],
+			       tcp4_payload_used - m);
+	}
 	tcp4_payload_used = 0;
 }
 
@@ -2129,9 +2147,10 @@ static int tcp_sock_consume(const struct tcp_tap_conn *conn, uint32_t ack_seq)
 static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			    ssize_t dlen, int no_csum, uint32_t seq)
 {
-	uint32_t *seq_update = &conn->seq_to_tap;
 	struct iovec *iov;
 	size_t l4len;
+
+	conn->seq_to_tap = seq + dlen;
 
 	if (CONN_V4(conn)) {
 		struct iovec *iov_prev = tcp4_l2_iov[tcp4_payload_used - 1];
@@ -2142,8 +2161,7 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			check = &iph->check;
 		}
 
-		tcp4_seq_update[tcp4_payload_used].seq = seq_update;
-		tcp4_seq_update[tcp4_payload_used].len = dlen;
+		tcp4_frame_conns[tcp4_payload_used] = conn;
 
 		iov = tcp4_l2_iov[tcp4_payload_used++];
 		l4len = tcp_l2_buf_fill_headers(c, conn, iov, dlen, check, seq);
@@ -2151,8 +2169,7 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		if (tcp4_payload_used > TCP_FRAMES_MEM - 1)
 			tcp_payload_flush(c);
 	} else if (CONN_V6(conn)) {
-		tcp6_seq_update[tcp6_payload_used].seq = seq_update;
-		tcp6_seq_update[tcp6_payload_used].len = dlen;
+		tcp6_frame_conns[tcp6_payload_used] = conn;
 
 		iov = tcp6_l2_iov[tcp6_payload_used++];
 		l4len = tcp_l2_buf_fill_headers(c, conn, iov, dlen, NULL, seq);
