@@ -704,11 +704,11 @@ static unsigned int conf_ip6(unsigned int ifi,
 }
 
 /**
- * print_usage() - Print usage, exit with given status code
+ * usage() - Print usage, exit with given status code
  * @name:	Executable name
  * @status:	Status code for exit()
  */
-static void print_usage(const char *name, int status)
+static void usage(const char *name, int status)
 {
 	if (strstr(name, "pasta")) {
 		info("Usage: %s [OPTION]... [COMMAND] [ARGS]...", name);
@@ -895,15 +895,6 @@ pasta_opts:
 	info(   "  --ns-mac-addr ADDR	Set MAC address on tap interface");
 
 	exit(status);
-}
-
-/**
- * usage() - Print usage and exit with failure
- * @name:	Executable name
- */
-static void usage(const char *name)
-{
-	print_usage(name, EXIT_FAILURE);
 }
 
 /**
@@ -1647,11 +1638,11 @@ void conf(struct ctx *c, int argc, char **argv)
 			break;
 		case 'h':
 			log_to_stdout = 1;
-			print_usage(argv[0], EXIT_SUCCESS);
+			usage(argv[0], EXIT_SUCCESS);
 			break;
 		case '?':
 		default:
-			usage(argv[0]);
+			usage(argv[0], EXIT_FAILURE);
 			break;
 		}
 	} while (name != -1);
