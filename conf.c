@@ -706,193 +706,200 @@ static unsigned int conf_ip6(unsigned int ifi,
 /**
  * usage() - Print usage, exit with given status code
  * @name:	Executable name
+ * @f:		Stream to print usage info to
  * @status:	Status code for exit()
  */
-static void usage(const char *name, int status)
+static void usage(const char *name, FILE *f, int status)
 {
 	if (strstr(name, "pasta")) {
-		info("Usage: %s [OPTION]... [COMMAND] [ARGS]...", name);
-		info("       %s [OPTION]... PID", name);
-		info("       %s [OPTION]... --netns [PATH|NAME]", name);
-		info("");
-		info("Without PID or --netns, run the given command or a");
-		info("default shell in a new network and user namespace, and");
-		info("connect it via pasta.");
+		fprintf(f, "Usage: %s [OPTION]... [COMMAND] [ARGS]...\n", name);
+		fprintf(f, "       %s [OPTION]... PID\n", name);
+		fprintf(f, "       %s [OPTION]... --netns [PATH|NAME]\n", name);
+		fprintf(f,
+			"\n"
+			"Without PID or --netns, run the given command or a\n"
+			"default shell in a new network and user namespace, and\n"
+			"connect it via pasta.\n");
 	} else {
-		info("Usage: %s [OPTION]...", name);
+		fprintf(f, "Usage: %s [OPTION]...\n", name);
 	}
-	info("");
 
-
-	info(   "  -d, --debug		Be verbose");
-	info(   "      --trace		Be extra verbose, implies --debug");
-	info(   "  -q, --quiet		Don't print informational messages");
-	info(   "  -f, --foreground	Don't run in background");
-	info(   "    default: run in background if started from a TTY");
-	info(   "  -e, --stderr		Log to stderr too");
-	info(   "    default: log to system logger only if started from a TTY");
-	info(   "  -l, --log-file PATH	Log (only) to given file");
-	info(   "  --log-size BYTES	Maximum size of log file");
-	info(   "    default: 1 MiB");
-	info(   "  --runas UID|UID:GID 	Run as given UID, GID, which can be");
-	info(   "    numeric, or login and group names");
-	info(   "    default: drop to user \"nobody\"");
-	info(   "  -h, --help		Display this help message and exit");
-	info(   "  --version		Show version and exit");
+	fprintf(f,
+		"\n"
+		"  -d, --debug		Be verbose\n"
+		"      --trace		Be extra verbose, implies --debug\n"
+		"  -q, --quiet		Don't print informational messages\n"
+		"  -f, --foreground	Don't run in background\n"
+		"    default: run in background if started from a TTY\n"
+		"  -e, --stderr		Log to stderr too\n"
+		"    default: log to system logger only if started from a TTY\n"
+		"  -l, --log-file PATH	Log (only) to given file\n"
+		"  --log-size BYTES	Maximum size of log file\n"
+		"    default: 1 MiB\n"
+		"  --runas UID|UID:GID 	Run as given UID, GID, which can be\n"
+		"    numeric, or login and group names\n"
+		"    default: drop to user \"nobody\"\n"
+		"  -h, --help		Display this help message and exit\n"
+		"  --version		Show version and exit\n");
 
 	if (strstr(name, "pasta")) {
-		info(   "  -I, --ns-ifname NAME	namespace interface name");
-		info(   "    default: same interface name as external one");
+		fprintf(f,
+			"  -I, --ns-ifname NAME	namespace interface name\n"
+			"    default: same interface name as external one\n");
 	} else {
-		info(   "  -s, --socket PATH	UNIX domain socket path");
-		info(   "    default: probe free path starting from "
-		     UNIX_SOCK_PATH, 1);
+		fprintf(f,
+			"  -s, --socket PATH	UNIX domain socket path\n"
+			"    default: probe free path starting from "
+			UNIX_SOCK_PATH "\n", 1);
 	}
 
-	info(   "  -F, --fd FD		Use FD as pre-opened connected socket");
-	info(   "  -p, --pcap FILE	Log tap-facing traffic to pcap file");
-	info(   "  -P, --pid FILE	Write own PID to the given file");
-	info(   "  -m, --mtu MTU	Assign MTU via DHCP/NDP");
-	info(   "    a zero value disables assignment");
-	info(   "    default: 65520: maximum 802.3 MTU minus 802.3 header");
-	info(   "                    length, rounded to 32 bits (IPv4 words)");
-	info(   "  -a, --address ADDR	Assign IPv4 or IPv6 address ADDR");
-	info(   "    can be specified zero to two times (for IPv4 and IPv6)");
-	info(   "    default: use addresses from interface with default route");
-	info(   "  -n, --netmask MASK	Assign IPv4 MASK, dot-decimal or bits");
-	info(   "    default: netmask from matching address on the host");
-	info(   "  -M, --mac-addr ADDR	Use source MAC address ADDR");
-	info(   "    default: MAC address from interface with default route");
-	info(   "  -g, --gateway ADDR	Pass IPv4 or IPv6 address as gateway");
-	info(   "    default: gateway from interface with default route");
-	info(   "  -i, --interface NAME	Interface for addresses and routes");
-	info(   "    default: from --outbound-if4 and --outbound-if6, if any");
-	info(   "             otherwise interface with first default route");
-	info(   "  -o, --outbound ADDR	Bind to address as outbound source");
-	info(   "    can be specified zero to two times (for IPv4 and IPv6)");
-	info(   "    default: use source address from routing tables");
-	info(   "  --outbound-if4 NAME	Bind to outbound interface for IPv4");
-	info(   "    default: use interface from default route");
-	info(   "  --outbound-if6 NAME	Bind to outbound interface for IPv6");
-	info(   "    default: use interface from default route");
-	info(   "  -D, --dns ADDR	Use IPv4 or IPv6 address as DNS");
-	info(   "    can be specified multiple times");
-	info(   "    a single, empty option disables DNS information");
+	fprintf(f,
+		"  -F, --fd FD		Use FD as pre-opened connected socket\n"
+		"  -p, --pcap FILE	Log tap-facing traffic to pcap file\n"
+		"  -P, --pid FILE	Write own PID to the given file\n"
+		"  -m, --mtu MTU	Assign MTU via DHCP/NDP\n"
+		"    a zero value disables assignment\n"
+		"    default: 65520: maximum 802.3 MTU minus 802.3 header\n"
+		"                    length, rounded to 32 bits (IPv4 words)\n"
+		"  -a, --address ADDR	Assign IPv4 or IPv6 address ADDR\n"
+		"    can be specified zero to two times (for IPv4 and IPv6)\n"
+		"    default: use addresses from interface with default route\n"
+		"  -n, --netmask MASK	Assign IPv4 MASK, dot-decimal or bits\n"
+		"    default: netmask from matching address on the host\n"
+		"  -M, --mac-addr ADDR	Use source MAC address ADDR\n"
+		"    default: MAC address from interface with default route\n"
+		"  -g, --gateway ADDR	Pass IPv4 or IPv6 address as gateway\n"
+		"    default: gateway from interface with default route\n"
+		"  -i, --interface NAME	Interface for addresses and routes\n"
+		"    default: from --outbound-if4 and --outbound-if6, if any\n"
+		"             otherwise interface with first default route\n"
+		"  -o, --outbound ADDR	Bind to address as outbound source\n"
+		"    can be specified zero to two times (for IPv4 and IPv6)\n"
+		"    default: use source address from routing tables\n"
+		"  --outbound-if4 NAME	Bind to outbound interface for IPv4\n"
+		"    default: use interface from default route\n"
+		"  --outbound-if6 NAME	Bind to outbound interface for IPv6\n"
+		"    default: use interface from default route\n"
+		"  -D, --dns ADDR	Use IPv4 or IPv6 address as DNS\n"
+		"    can be specified multiple times\n"
+		"    a single, empty option disables DNS information\n");
 	if (strstr(name, "pasta"))
-		info(   "    default: don't use any addresses");
+		fprintf(f, "    default: don't use any addresses\n");
 	else
-		info(   "    default: use addresses from /etc/resolv.conf");
-
-	info(   "  -S, --search LIST	Space-separated list, search domains");
-	info(   "    a single, empty option disables the DNS search list");
+		fprintf(f, "    default: use addresses from /etc/resolv.conf\n");
+	fprintf(f,
+		"  -S, --search LIST	Space-separated list, search domains\n"
+		"    a single, empty option disables the DNS search list\n");
 	if (strstr(name, "pasta"))
-		info(   "    default: don't use any search list");
+		fprintf(f, "    default: don't use any search list\n");
 	else
-		info(   "    default: use search list from /etc/resolv.conf");
-
-	if (strstr(name, "pasta"))
-		info("  --dhcp-dns	\tPass DNS list via DHCP/DHCPv6/NDP");
-	else
-		info("  --no-dhcp-dns	No DNS list in DHCP/DHCPv6/NDP");
+		fprintf(f, "    default: use search list from /etc/resolv.conf\n");
 
 	if (strstr(name, "pasta"))
-		info("  --dhcp-search	Pass list via DHCP/DHCPv6/NDP");
+		fprintf(f, "  --dhcp-dns	\tPass DNS list via DHCP/DHCPv6/NDP\n");
 	else
-		info("  --no-dhcp-search	No list in DHCP/DHCPv6/NDP");
+		fprintf(f, "  --no-dhcp-dns	No DNS list in DHCP/DHCPv6/NDP\n");
 
-	info(   "  --dns-forward ADDR	Forward DNS queries sent to ADDR");
-	info(   "    can be specified zero to two times (for IPv4 and IPv6)");
-	info(   "    default: don't forward DNS queries");
+	if (strstr(name, "pasta"))
+		fprintf(f, "  --dhcp-search	Pass list via DHCP/DHCPv6/NDP\n");
+	else
+		fprintf(f, "  --no-dhcp-search	No list in DHCP/DHCPv6/NDP\n");
 
-	info(   "  --no-tcp		Disable TCP protocol handler");
-	info(   "  --no-udp		Disable UDP protocol handler");
-	info(   "  --no-icmp		Disable ICMP/ICMPv6 protocol handler");
-	info(   "  --no-dhcp		Disable DHCP server");
-	info(   "  --no-ndp		Disable NDP responses");
-	info(   "  --no-dhcpv6		Disable DHCPv6 server");
-	info(   "  --no-ra		Disable router advertisements");
-	info(   "  --no-map-gw		Don't map gateway address to host");
-	info(   "  -4, --ipv4-only	Enable IPv4 operation only");
-	info(   "  -6, --ipv6-only	Enable IPv6 operation only");
+	fprintf(f,
+		"  --dns-forward ADDR	Forward DNS queries sent to ADDR\n"
+		"    can be specified zero to two times (for IPv4 and IPv6)\n"
+		"    default: don't forward DNS queries\n"
+		"  --no-tcp		Disable TCP protocol handler\n"
+		"  --no-udp		Disable UDP protocol handler\n"
+		"  --no-icmp		Disable ICMP/ICMPv6 protocol handler\n"
+		"  --no-dhcp		Disable DHCP server\n"
+		"  --no-ndp		Disable NDP responses\n"
+		"  --no-dhcpv6		Disable DHCPv6 server\n"
+		"  --no-ra		Disable router advertisements\n"
+		"  --no-map-gw		Don't map gateway address to host\n"
+		"  -4, --ipv4-only	Enable IPv4 operation only\n"
+		"  -6, --ipv6-only	Enable IPv6 operation only\n");
 
 	if (strstr(name, "pasta"))
 		goto pasta_opts;
 
-	info(   "  -1, --one-off	Quit after handling one single client");
-	info(   "  -t, --tcp-ports SPEC	TCP port forwarding to guest");
-	info(   "    can be specified multiple times");
-	info(   "    SPEC can be:");
-	info(   "      'none': don't forward any ports");
-	info(   "      'all': forward all unbound, non-ephemeral ports");
-	info(   "      a comma-separated list, optionally ranged with '-'");
-	info(   "        and optional target ports after ':', with optional");
-	info(   "        address specification suffixed by '/' and optional");
-	info(   "        interface prefixed by '%%'. Ranges can be reduced by");
-	info(   "        excluding ports or ranges prefixed by '~'");
-	info(   "        Examples:");
-	info(   "        -t 22		Forward local port 22 to 22 on guest");
-	info(   "        -t 22:23	Forward local port 22 to 23 on guest");
-	info(   "        -t 22,25	Forward ports 22, 25 to ports 22, 25");
-	info(   "        -t 22-80  	Forward ports 22 to 80");
-	info(   "        -t 22-80:32-90	Forward ports 22 to 80 to");
-	info(   "			corresponding port numbers plus 10");
-	info(   "        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to guest");
-	info(   "        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25");
-	info(   "        -t ~25		Forward all ports except for 25");
-	info(   "    default: none");
-	info(   "  -u, --udp-ports SPEC	UDP port forwarding to guest");
-	info(   "    SPEC is as described for TCP above");
-	info(   "    default: none");
+	fprintf(f,
+		"  -1, --one-off	Quit after handling one single client\n"
+		"  -t, --tcp-ports SPEC	TCP port forwarding to guest\n"
+		"    can be specified multiple times\n"
+		"    SPEC can be:\n"
+		"      'none': don't forward any ports\n"
+		"      'all': forward all unbound, non-ephemeral ports\n"
+		"      a comma-separated list, optionally ranged with '-'\n"
+		"        and optional target ports after ':', with optional\n"
+		"        address specification suffixed by '/' and optional\n"
+		"        interface prefixed by '%%'. Ranges can be reduced by\n"
+		"        excluding ports or ranges prefixed by '~'\n"
+		"        Examples:\n"
+		"        -t 22		Forward local port 22 to 22 on guest\n"
+		"        -t 22:23	Forward local port 22 to 23 on guest\n"
+		"        -t 22,25	Forward ports 22, 25 to ports 22, 25\n"
+		"        -t 22-80  	Forward ports 22 to 80\n"
+		"        -t 22-80:32-90	Forward ports 22 to 80 to\n"
+		"			corresponding port numbers plus 10\n"
+		"        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to guest\n"
+		"        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25\n"
+		"        -t ~25		Forward all ports except for 25\n"
+		"    default: none\n"
+		"  -u, --udp-ports SPEC	UDP port forwarding to guest\n"
+		"    SPEC is as described for TCP above\n"
+		"    default: none\n");
 
 	exit(status);
 
 pasta_opts:
 
-	info(   "  -t, --tcp-ports SPEC	TCP port forwarding to namespace");
-	info(   "    can be specified multiple times"); 
-	info(   "    SPEC can be:");
-	info(   "      'none': don't forward any ports");
-	info(   "      'auto': forward all ports currently bound in namespace");
-	info(   "      a comma-separated list, optionally ranged with '-'");
-	info(   "        and optional target ports after ':', with optional");
-	info(   "        address specification suffixed by '/' and optional");
-	info(   "        interface prefixed by '%%'. Examples:");
-	info(   "        -t 22	Forward local port 22 to port 22 in netns");
-	info(   "        -t 22:23	Forward local port 22 to port 23");
-	info(   "        -t 22,25	Forward ports 22, 25 to ports 22, 25");
-	info(   "        -t 22-80	Forward ports 22 to 80");
-	info(   "        -t 22-80:32-90	Forward ports 22 to 80 to");
-	info(   "			corresponding port numbers plus 10");
-	info(   "        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to namespace");
-	info(   "        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25");
-	info(   "        -t ~25		Forward all bound ports except for 25");
-	info(   "    default: auto");
-	info(   "    IPv6 bound ports are also forwarded for IPv4");
-	info(   "  -u, --udp-ports SPEC	UDP port forwarding to namespace");
-	info(   "    SPEC is as described for TCP above");
-	info(   "    default: auto");
-	info(   "    IPv6 bound ports are also forwarded for IPv4");
-	info(   "    unless specified, with '-t auto', UDP ports with numbers");
-	info(   "    corresponding to forwarded TCP port numbers are");
-	info(   "    forwarded too");
-	info(   "  -T, --tcp-ns SPEC	TCP port forwarding to init namespace");
-	info(   "    SPEC is as described above");
-	info(   "    default: auto");
-	info(   "  -U, --udp-ns SPEC	UDP port forwarding to init namespace");
-	info(   "    SPEC is as described above");
-	info(   "    default: auto");
-	info(   "  --userns NSPATH 	Target user namespace to join");
-	info(   "  --netns PATH|NAME	Target network namespace to join");
-	info(   "  --netns-only		Don't join existing user namespace");
-	info(   "    implied if PATH or NAME are given without --userns");
-	info(   "  --no-netns-quit	Don't quit if filesystem-bound target");
-	info(   "  			network namespace is deleted");
-	info(   "  --config-net		Configure tap interface in namespace");
-	info(   "  --no-copy-routes	DEPRECATED:");
-	info(   "			Don't copy all routes to namespace");
-	info(   "  --no-copy-addrs	DEPRECATED:");
-	info(   "			Don't copy all addresses to namespace");
-	info(   "  --ns-mac-addr ADDR	Set MAC address on tap interface");
+	fprintf(f,
+		"  -t, --tcp-ports SPEC	TCP port forwarding to namespace\n"
+		"    can be specified multiple times\n"
+		"    SPEC can be:\n"
+		"      'none': don't forward any ports\n"
+		"      'auto': forward all ports currently bound in namespace\n"
+		"      a comma-separated list, optionally ranged with '-'\n"
+		"        and optional target ports after ':', with optional\n"
+		"        address specification suffixed by '/' and optional\n"
+		"        interface prefixed by '%%'. Examples:\n"
+		"        -t 22	Forward local port 22 to port 22 in netns\n"
+		"        -t 22:23	Forward local port 22 to port 23\n"
+		"        -t 22,25	Forward ports 22, 25 to ports 22, 25\n"
+		"        -t 22-80	Forward ports 22 to 80\n"
+		"        -t 22-80:32-90	Forward ports 22 to 80 to\n"
+		"			corresponding port numbers plus 10\n"
+		"        -t 192.0.2.1/5	Bind port 5 of 192.0.2.1 to namespace\n"
+		"        -t 5-25,~10-20	Forward ports 5 to 9, and 21 to 25\n"
+		"        -t ~25		Forward all bound ports except for 25\n"
+		"    default: auto\n"
+		"    IPv6 bound ports are also forwarded for IPv4\n"
+		"  -u, --udp-ports SPEC	UDP port forwarding to namespace\n"
+		"    SPEC is as described for TCP above\n"
+		"    default: auto\n"
+		"    IPv6 bound ports are also forwarded for IPv4\n"
+		"    unless specified, with '-t auto', UDP ports with numbers\n"
+		"    corresponding to forwarded TCP port numbers are\n"
+		"    forwarded too\n"
+		"  -T, --tcp-ns SPEC	TCP port forwarding to init namespace\n"
+		"    SPEC is as described above\n"
+		"    default: auto\n"
+		"  -U, --udp-ns SPEC	UDP port forwarding to init namespace\n"
+		"    SPEC is as described above\n"
+		"    default: auto\n"
+		"  --userns NSPATH 	Target user namespace to join\n"
+		"  --netns PATH|NAME	Target network namespace to join\n"
+		"  --netns-only		Don't join existing user namespace\n"
+		"    implied if PATH or NAME are given without --userns\n"
+		"  --no-netns-quit	Don't quit if filesystem-bound target\n"
+		"  			network namespace is deleted\n"
+		"  --config-net		Configure tap interface in namespace\n"
+		"  --no-copy-routes	DEPRECATED:\n"
+		"			Don't copy all routes to namespace\n"
+		"  --no-copy-addrs	DEPRECATED:\n"
+		"			Don't copy all addresses to namespace\n"
+		"  --ns-mac-addr ADDR	Set MAC address on tap interface\n");
 
 	exit(status);
 }
@@ -1637,12 +1644,11 @@ void conf(struct ctx *c, int argc, char **argv)
 			/* Handle these later, once addresses are configured */
 			break;
 		case 'h':
-			log_to_stdout = 1;
-			usage(argv[0], EXIT_SUCCESS);
+			usage(argv[0], stdout, EXIT_SUCCESS);
 			break;
 		case '?':
 		default:
-			usage(argv[0], EXIT_FAILURE);
+			usage(argv[0], stderr, EXIT_FAILURE);
 			break;
 		}
 	} while (name != -1);
