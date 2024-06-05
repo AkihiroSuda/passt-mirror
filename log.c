@@ -46,18 +46,16 @@ static char	log_header[BUFSIZ];	/* File header, written back on cuts */
 
 static time_t	log_start;		/* Start timestamp */
 int		log_trace;		/* --trace mode enabled */
-int		log_to_stdout;		/* Print to stdout instead of stderr */
 
 void vlogmsg(int pri, const char *format, va_list ap)
 {
 	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
 	bool early_print = LOG_PRI(log_mask) == LOG_EARLY;
-	FILE *out = log_to_stdout ? stdout : stderr;
 	struct timespec tp;
 
 	if (debug_print) {
 		clock_gettime(CLOCK_REALTIME, &tp);
-		fprintf(out, "%lli.%04lli: ",
+		fprintf(stderr, "%lli.%04lli: ",
 			(long long int)tp.tv_sec - log_start,
 			(long long int)tp.tv_nsec / (100L * 1000));
 	}
@@ -75,9 +73,9 @@ void vlogmsg(int pri, const char *format, va_list ap)
 	}
 
 	if (debug_print || (early_print && !(log_opt & LOG_PERROR))) {
-		(void)vfprintf(out, format, ap);
+		(void)vfprintf(stderr, format, ap);
 		if (format[strlen(format)] != '\n')
-			fprintf(out, "\n");
+			fprintf(stderr, "\n");
 	}
 }
 

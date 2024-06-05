@@ -28,7 +28,6 @@ void logmsg(int pri, const char *format, ...)
 	} while (0)
 
 extern int log_trace;
-extern int log_to_stdout;
 void trace_init(int enable);
 #define trace(...)							\
 	do {								\
