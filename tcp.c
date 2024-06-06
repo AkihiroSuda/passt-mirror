@@ -1261,8 +1261,8 @@ static void tcp_revert_seq(struct tcp_tap_conn **conns, struct iovec (*frames)[T
 	int i;
 
 	for (i = 0; i < num_frames; i++) {
+		const struct tcphdr *th = frames[i][TCP_IOV_PAYLOAD].iov_base;
 		struct tcp_tap_conn *conn = conns[i];
-		struct tcphdr *th = frames[i][TCP_IOV_PAYLOAD].iov_base;
 		uint32_t seq = ntohl(th->seq);
 
 		if (SEQ_LE(conn->seq_to_tap, seq))
