@@ -232,7 +232,7 @@ int timespec_diff_ms(const struct timespec *a, const struct timespec *b)
  * @map:	Pointer to bitmap
  * @bit:	Bit number to set
  */
-void bitmap_set(uint8_t *map, int bit)
+void bitmap_set(uint8_t *map, unsigned bit)
 {
 	unsigned long *word = (unsigned long *)map + BITMAP_WORD(bit);
 
@@ -244,7 +244,7 @@ void bitmap_set(uint8_t *map, int bit)
  * @map:	Pointer to bitmap
  * @bit:	Bit number to clear
  */
-void bitmap_clear(uint8_t *map, int bit)
+void bitmap_clear(uint8_t *map, unsigned bit)
 {
 	unsigned long *word = (unsigned long *)map + BITMAP_WORD(bit);
 
@@ -256,9 +256,9 @@ void bitmap_clear(uint8_t *map, int bit)
  * @map:	Pointer to bitmap
  * @bit:	Bit number to check
  *
- * Return: one if given bit is set, zero if it's not
+ * Return: true if given bit is set, false if it's not
  */
-int bitmap_isset(const uint8_t *map, int bit)
+bool bitmap_isset(const uint8_t *map, unsigned bit)
 {
 	const unsigned long *word
 		= (const unsigned long *)map + BITMAP_WORD(bit);
