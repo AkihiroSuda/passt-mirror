@@ -674,18 +674,18 @@ resume:
 			continue;
 		}
 
-#define L4_MATCH(iph, uh, seq)						\
-	(seq->protocol == iph->protocol &&				\
-	 seq->source   == uh->source    && seq->dest  == uh->dest &&	\
-	 seq->saddr.s_addr == iph->saddr && seq->daddr.s_addr == iph->daddr)
+#define L4_MATCH(iph, uh, seq)							\
+	((seq)->protocol == (iph)->protocol &&					\
+	 (seq)->source   == (uh)->source    && (seq)->dest  == (uh)->dest &&	\
+	 (seq)->saddr.s_addr == (iph)->saddr && (seq)->daddr.s_addr == (iph)->daddr)
 
 #define L4_SET(iph, uh, seq)						\
 	do {								\
-		seq->protocol		= iph->protocol;		\
-		seq->source		= uh->source;			\
-		seq->dest		= uh->dest;			\
-		seq->saddr.s_addr	= iph->saddr;			\
-		seq->daddr.s_addr	= iph->daddr;			\
+		(seq)->protocol		= (iph)->protocol;		\
+		(seq)->source		= (uh)->source;			\
+		(seq)->dest		= (uh)->dest;			\
+		(seq)->saddr.s_addr	= (iph)->saddr;			\
+		(seq)->daddr.s_addr	= (iph)->daddr;			\
 	} while (0)
 
 		if (seq && L4_MATCH(iph, uh, seq) && seq->p.count < UIO_MAXIOV)
@@ -848,18 +848,19 @@ resume:
 		}
 
 #define L4_MATCH(ip6h, proto, uh, seq)					\
-	(seq->protocol == proto         &&				\
-	 seq->source   == uh->source    && seq->dest  == uh->dest &&	\
-	 IN6_ARE_ADDR_EQUAL(&seq->saddr, saddr)			  &&	\
-	 IN6_ARE_ADDR_EQUAL(&seq->daddr, daddr))
+		((seq)->protocol == (proto)                &&		\
+		 (seq)->source   == (uh)->source           &&		\
+		 (seq)->dest == (uh)->dest                 &&		\
+		 IN6_ARE_ADDR_EQUAL(&(seq)->saddr, saddr)  &&		\
+		 IN6_ARE_ADDR_EQUAL(&(seq)->daddr, daddr))
 
 #define L4_SET(ip6h, proto, uh, seq)					\
 	do {								\
-		seq->protocol	= proto;				\
-		seq->source	= uh->source;				\
-		seq->dest	= uh->dest;				\
-		seq->saddr	= *saddr;				\
-		seq->daddr	= *daddr;				\
+		(seq)->protocol	= (proto);				\
+		(seq)->source	= (uh)->source;				\
+		(seq)->dest	= (uh)->dest;				\
+		(seq)->saddr	= *saddr;				\
+		(seq)->daddr	= *daddr;				\
 	} while (0)
 
 		if (seq && L4_MATCH(ip6h, proto, uh, seq) &&

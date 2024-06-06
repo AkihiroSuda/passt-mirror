@@ -73,9 +73,9 @@ static int ns_sock_pool6	[TCP_SOCK_POOL_SIZE];
 /* Pool of pre-opened pipes */
 static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2];
 
-#define CONN_V6(x)			(x->flags & SPLICE_V6)
+#define CONN_V6(x)			((x)->flags & SPLICE_V6)
 #define CONN_V4(x)			(!CONN_V6(x))
-#define CONN_HAS(conn, set)		((conn->events & (set)) == (set))
+#define CONN_HAS(conn, set)		(((conn)->events & (set)) == (set))
 #define CONN(idx)			(&FLOW(idx)->tcp_splice)
 
 /* Display strings for connection events */

@@ -192,7 +192,6 @@ docs: README.md
 # - llvmlibc-restrict-system-libc-headers
 #	TODO: this is Linux-only for the moment, nice to fix eventually
 #
-# - bugprone-macro-parentheses
 # - google-readability-braces-around-statements
 # - hicpp-braces-around-statements
 # - readability-braces-around-statements
@@ -269,7 +268,6 @@ clang-tidy: $(SRCS) $(HEADERS)
 	-clang-analyzer-valist.Uninitialized,\
 	-cppcoreguidelines-init-variables,\
 	-bugprone-assignment-in-if-condition,\
-	-bugprone-macro-parentheses,\
 	-google-readability-braces-around-statements,\
 	-hicpp-braces-around-statements,\
 	-readability-braces-around-statements,\

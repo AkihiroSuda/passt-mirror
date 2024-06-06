@@ -326,7 +326,7 @@
 
 #define WINDOW_DEFAULT			14600		/* RFC 6928 */
 #ifdef HAS_SND_WND
-# define KERNEL_REPORTS_SND_WND(c)	(c->tcp.kernel_snd_wnd)
+# define KERNEL_REPORTS_SND_WND(c)	((c)->tcp.kernel_snd_wnd)
 #else
 # define KERNEL_REPORTS_SND_WND(c)	(0 && (c))
 #endif
@@ -373,9 +373,9 @@
 #define CONN_V4(conn)		(!!inany_v4(&(conn)->faddr))
 #define CONN_V6(conn)		(!CONN_V4(conn))
 #define CONN_IS_CLOSING(conn)						\
-	((conn->events & ESTABLISHED) &&				\
-	 (conn->events & (SOCK_FIN_RCVD | TAP_FIN_RCVD)))
-#define CONN_HAS(conn, set)	((conn->events & (set)) == (set))
+	(((conn)->events & ESTABLISHED) &&				\
+	 ((conn)->events & (SOCK_FIN_RCVD | TAP_FIN_RCVD)))
+#define CONN_HAS(conn, set)	(((conn)->events & (set)) == (set))
 
 static const char *tcp_event_str[] __attribute((__unused__)) = {
 	"SOCK_ACCEPTED", "TAP_SYN_RCVD", "ESTABLISHED", "TAP_SYN_ACK_SENT",
