@@ -147,7 +147,7 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data);
 void sock_probe_mem(struct ctx *c);
-int timespec_diff_ms(const struct timespec *a, const struct timespec *b);
+long timespec_diff_ms(const struct timespec *a, const struct timespec *b);
 void bitmap_set(uint8_t *map, unsigned bit);
 void bitmap_clear(uint8_t *map, unsigned bit);
 bool bitmap_isset(const uint8_t *map, unsigned bit);

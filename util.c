@@ -216,7 +216,7 @@ void sock_probe_mem(struct ctx *c)
  *
  * Return: difference in milliseconds
  */
-int timespec_diff_ms(const struct timespec *a, const struct timespec *b)
+long timespec_diff_ms(const struct timespec *a, const struct timespec *b)
 {
 	if (a->tv_nsec < b->tv_nsec) {
 		return (b->tv_nsec - a->tv_nsec) / 1000000 +
