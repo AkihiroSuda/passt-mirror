@@ -39,13 +39,11 @@ void lineread_init(struct lineread *lr, int fd)
  *
  * Return: length of line in bytes, -1 if no line was found
  */
-static int peek_line(struct lineread *lr, bool eof)
+static ssize_t peek_line(struct lineread *lr, bool eof)
 {
 	char *nl;
 
 	/* Sanity checks (which also document invariants) */
-	ASSERT(lr->count >= 0);
-	ASSERT(lr->next_line >= 0);
 	ASSERT(lr->next_line + lr->count >= lr->next_line);
 	ASSERT(lr->next_line + lr->count <= LINEREAD_BUFFER_SIZE);
 
@@ -74,13 +72,13 @@ static int peek_line(struct lineread *lr, bool eof)
  *
  * Return:	Length of line read on success, 0 on EOF, negative on error
  */
-int lineread_get(struct lineread *lr, char **line)
+ssize_t lineread_get(struct lineread *lr, char **line)
 {
 	bool eof = false;
-	int line_len;
+	ssize_t line_len;
 
 	while ((line_len = peek_line(lr, eof)) < 0) {
-		int rc;
+		ssize_t rc;
 
 		if ((lr->next_line + lr->count) == LINEREAD_BUFFER_SIZE) {
 			/* No space at end */

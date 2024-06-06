@@ -18,14 +18,15 @@
  * @buf:	Buffer storing data read from file.
  */
 struct lineread {
-	int fd; int next_line;
-	int count;
+	int fd;
+	ssize_t next_line;
+	ssize_t count;
 
 	/* One extra byte for possible trailing \0 */
 	char buf[LINEREAD_BUFFER_SIZE+1];
 };
 
 void lineread_init(struct lineread *lr, int fd);
-int lineread_get(struct lineread *lr, char **line);
+ssize_t lineread_get(struct lineread *lr, char **line);
 
 #endif /* _LINEREAD_H */

@@ -401,9 +401,9 @@ static void get_dns(struct ctx *c)
 	struct fqdn *s = c->dns_search;
 	struct lineread resolvconf;
 	unsigned int added = 0;
+	ssize_t line_len;
 	char *line, *end;
 	const char *p;
-	int line_len;
 
 	dns4_set = !c->ifi4 || !IN4_IS_ADDR_UNSPECIFIED(dns4);
 	dns6_set = !c->ifi6 || !IN6_IS_ADDR_UNSPECIFIED(dns6);
