@@ -84,7 +84,7 @@ static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
  */
 static void post_handler(struct ctx *c, const struct timespec *now)
 {
-#define CALL_PROTO_HANDLER(c, now, lc, uc)				\
+#define CALL_PROTO_HANDLER(lc, uc)					\
 	do {								\
 		extern void						\
 		lc ## _defer_handler (struct ctx *c)			\
@@ -103,9 +103,9 @@ static void post_handler(struct ctx *c, const struct timespec *now)
 	} while (0)
 
 	/* NOLINTNEXTLINE(bugprone-branch-clone): intervals can be the same */
-	CALL_PROTO_HANDLER(c, now, tcp, TCP);
+	CALL_PROTO_HANDLER(tcp, TCP);
 	/* NOLINTNEXTLINE(bugprone-branch-clone): intervals can be the same */
-	CALL_PROTO_HANDLER(c, now, udp, UDP);
+	CALL_PROTO_HANDLER(udp, UDP);
 
 	flow_defer_handler(c, now);
 #undef CALL_PROTO_HANDLER
