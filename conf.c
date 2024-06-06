@@ -1125,6 +1125,39 @@ static void conf_open_files(struct ctx *c)
 }
 
 /**
+ * parse_mac - Parse a MAC address from a string
+ * @mac:	Binary MAC address, initialised on success
+ * @str:	String to parse
+ *
+ * Parses @str as an Ethernet MAC address stored in @mac on success.  Exits on
+ * failure.
+ */
+static void parse_mac(unsigned char mac[ETH_ALEN], const char *str)
+{
+	size_t i;
+
+	if (strlen(str) != (ETH_ALEN * 3 - 1))
+		goto fail;
+
+	for (i = 0; i < ETH_ALEN; i++) {
+		const char *octet = str + 3 * i;
+		unsigned long b;
+		char *end;
+
+		errno = 0;
+		b = strtoul(octet, &end, 16);
+		if (b > UCHAR_MAX || errno || end != octet + 2 ||
+		    *end != ((i == ETH_ALEN - 1) ? '\0' : ':'))
+			goto fail;
+		mac[i] = b;
+	}
+	return;
+
+fail:
+	die("Invalid MAC address: %s", str);
+}
+
+/**
  * conf() - Process command-line arguments and set configuration
  * @c:		Execution context
  * @argc:	Argument count
@@ -1200,9 +1233,9 @@ void conf(struct ctx *c, int argc, char **argv)
 	unsigned int ifi4 = 0, ifi6 = 0;
 	const char *logfile = NULL;
 	const char *optstring;
-	int name, ret, b, i;
 	size_t logsize = 0;
 	char *runas = NULL;
+	int name, ret;
 	uid_t uid;
 	gid_t gid;
 
@@ -1243,14 +1276,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (c->mode != MODE_PASTA)
 				die("--ns-mac-addr is for pasta mode only");
 
-			for (i = 0; i < ETH_ALEN; i++) {
-				errno = 0;
-				b = strtol(optarg + (intptr_t)i * 3, NULL, 16);
-				if (b < 0 || b > UCHAR_MAX || errno)
-					die("Invalid MAC address: %s", optarg);
-
-				c->mac_guest[i] = b;
-			}
+			parse_mac(c->mac_guest, optarg);
 			break;
 		case 5:
 			if (c->mode != MODE_PASTA)
@@ -1510,14 +1536,7 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			break;
 		case 'M':
-			for (i = 0; i < ETH_ALEN; i++) {
-				errno = 0;
-				b = strtol(optarg + (intptr_t)i * 3, NULL, 16);
-				if (b < 0 || b > UCHAR_MAX || errno)
-					die("Invalid MAC address: %s", optarg);
-
-				c->mac[i] = b;
-			}
+			parse_mac(c->mac, optarg);
 			break;
 		case 'g':
 			if (c->mode == MODE_PASTA)
