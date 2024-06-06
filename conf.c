@@ -1631,6 +1631,9 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	conf_ugid(runas, &uid, &gid);
 
+	if (!c->foreground && c->force_stderr)
+		die("Can't log to standard error if not running in foreground");
+
 	if (logfile) {
 		logfile_init(c->mode == MODE_PASTA ? "pasta" : "passt",
 			     logfile, logsize);
