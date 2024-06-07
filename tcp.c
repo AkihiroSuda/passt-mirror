@@ -2067,7 +2067,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 
 	if (!bind(s, sa, sl)) {
 		tcp_rst(c, conn);	/* Nobody is listening then */
-		return;
+		goto cancel;
 	}
 	if (errno != EADDRNOTAVAIL && errno != EACCES)
 		conn_flag(c, conn, LOCAL);
@@ -2080,7 +2080,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	if (connect(s, sa, sl)) {
 		if (errno != EINPROGRESS) {
 			tcp_rst(c, conn);
-			return;
+			goto cancel;
 		}
 
 		tcp_get_sndbuf(conn);
@@ -2088,7 +2088,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 		tcp_get_sndbuf(conn);
 
 		if (tcp_send_flag(c, conn, SYN | ACK))
-			return;
+			goto cancel;
 
 		conn_event(c, conn, TAP_SYN_ACK_SENT);
 	}
