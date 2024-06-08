@@ -736,6 +736,7 @@ static void tcp_splice_pipe_refill(const struct ctx *c)
  *
  * Return: 0
  */
+/* cppcheck-suppress [constParameterCallback, unmatchedSuppression] */
 static int tcp_sock_refill_ns(void *arg)
 {
 	const struct ctx *c = (const struct ctx *)arg;

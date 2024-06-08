@@ -3079,6 +3079,7 @@ void tcp_ns_sock_init(const struct ctx *c, in_port_t port)
  *
  * Return: 0
  */
+/* cppcheck-suppress [constParameterCallback, unmatchedSuppression] */
 static int tcp_ns_socks_init(void *arg)
 {
 	const struct ctx *c = (const struct ctx *)arg;

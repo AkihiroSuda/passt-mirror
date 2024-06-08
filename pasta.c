@@ -176,6 +176,7 @@ struct pasta_spawn_cmd_arg {
  *
  * Return: this function never returns
  */
+/* cppcheck-suppress [constParameterCallback, unmatchedSuppression] */
 static int pasta_spawn_cmd(void *arg)
 {
 	const struct pasta_spawn_cmd_arg *a;
