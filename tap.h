@@ -70,5 +70,8 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 		       const struct timespec *now);
 int tap_sock_unix_open(char *sock_path);
 void tap_sock_init(struct ctx *c);
+void tap_flush_pools(void);
+void tap_handler(struct ctx *c, const struct timespec *now);
+void tap_add_packet(struct ctx *c, ssize_t l2len, char *p);
 
 #endif /* TAP_H */
