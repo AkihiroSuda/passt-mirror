@@ -1567,24 +1567,25 @@ static void tcp_update_seqack_from_tap(const struct ctx *c,
 }
 
 /**
- * tcp_send_flag() - Send segment with flags to tap (no payload)
+ * tcp_prepare_flags() - Prepare header for flags-only segment (no payload)
  * @c:		Execution context
  * @conn:	Connection pointer
  * @flags:	TCP flags: if not set, send segment only if ACK is due
+ * @th:		TCP header to update
+ * @data:	buffer to store TCP option
+ * @optlen:	size of the TCP option buffer (output parameter)
  *
- * Return: negative error code on connection reset, 0 otherwise
+ * Return: < 0 error code on connection reset,
+ *	     0 if there is no flag to send
+ *	     1 otherwise
  */
-static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
+static int tcp_prepare_flags(struct ctx *c, struct tcp_tap_conn *conn,
+			     int flags, struct tcphdr *th, char *data,
+			     size_t *optlen)
 {
-	struct tcp_flags_t *payload;
 	struct tcp_info tinfo = { 0 };
 	socklen_t sl = sizeof(tinfo);
 	int s = conn->sock;
-	size_t optlen = 0;
-	struct tcphdr *th;
-	struct iovec *iov;
-	size_t l4len;
-	char *data;
 
 	if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap) &&
 	    !flags && conn->wnd_to_tap)
@@ -1606,20 +1607,12 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	if (!tcp_update_seqack_wnd(c, conn, flags, &tinfo) && !flags)
 		return 0;
 
-	if (CONN_V4(conn))
-		iov = tcp4_l2_flags_iov[tcp4_flags_used++];
-	else
-		iov = tcp6_l2_flags_iov[tcp6_flags_used++];
-
-	payload = iov[TCP_IOV_PAYLOAD].iov_base;
-	th = &payload->th;
-	data = payload->opts;
-
+	*optlen = 0;
 	if (flags & SYN) {
 		int mss;
 
 		/* Options: MSS, NOP and window scale (8 bytes) */
-		optlen = OPT_MSS_LEN + 1 + OPT_WS_LEN;
+		*optlen = OPT_MSS_LEN + 1 + OPT_WS_LEN;
 
 		*data++ = OPT_MSS;
 		*data++ = OPT_MSS_LEN;
@@ -1653,16 +1646,12 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		flags |= ACK;
 	}
 
-	th->doff = (sizeof(*th) + optlen) / 4;
+	th->doff = (sizeof(*th) + *optlen) / 4;
 
 	th->ack = !!(flags & ACK);
 	th->rst = !!(flags & RST);
 	th->syn = !!(flags & SYN);
 	th->fin = !!(flags & FIN);
-
-	l4len = tcp_l2_buf_fill_headers(c, conn, iov, optlen, NULL,
-					conn->seq_to_tap);
-	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 
 	if (th->ack) {
 		if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap))
@@ -1677,6 +1666,47 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	/* RFC 793, 3.1: "[...] and the first data octet is ISN+1." */
 	if (th->fin || th->syn)
 		conn->seq_to_tap++;
+
+	return 1;
+}
+
+/**
+ * tcp_send_flag() - Send segment with flags to tap (no payload)
+ * @c:         Execution context
+ * @conn:      Connection pointer
+ * @flags:     TCP flags: if not set, send segment only if ACK is due
+ *
+ * Return: negative error code on connection reset, 0 otherwise
+ */
+static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
+{
+	struct tcp_flags_t *payload;
+	struct iovec *iov;
+	size_t optlen;
+	size_t l4len;
+	uint32_t seq;
+	int ret;
+
+	if (CONN_V4(conn))
+		iov = tcp4_l2_flags_iov[tcp4_flags_used++];
+	else
+		iov = tcp6_l2_flags_iov[tcp6_flags_used++];
+
+	payload = iov[TCP_IOV_PAYLOAD].iov_base;
+
+	seq = conn->seq_to_tap;
+	ret = tcp_prepare_flags(c, conn, flags, &payload->th,
+				payload->opts, &optlen);
+	if (ret <= 0) {
+		if (CONN_V4(conn))
+			tcp4_flags_used--;
+		else
+			tcp6_flags_used--;
+		return ret;
+	}
+
+	l4len = tcp_l2_buf_fill_headers(c, conn, iov, optlen, NULL, seq);
+	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 
 	if (flags & DUP_ACK) {
 		struct iovec *dup_iov;
