@@ -312,7 +312,7 @@ int isolate_prefork(const struct ctx *c)
 	 * PID namespace. For passt, use CLONE_NEWPID anyway, in case somebody
 	 * ever gets around seccomp profiles -- there's no harm in passing it.
 	 */
-	if (!c->foreground || c->mode == MODE_PASST)
+	if (!c->foreground || c->mode != MODE_PASTA)
 		flags |= CLONE_NEWPID;
 
 	if (unshare(flags)) {
@@ -379,12 +379,12 @@ void isolate_postfork(const struct ctx *c)
 
 	prctl(PR_SET_DUMPABLE, 0);
 
-	if (c->mode == MODE_PASST) {
-		prog.len = (unsigned short)ARRAY_SIZE(filter_passt);
-		prog.filter = filter_passt;
-	} else {
+	if (c->mode == MODE_PASTA) {
 		prog.len = (unsigned short)ARRAY_SIZE(filter_pasta);
 		prog.filter = filter_pasta;
+	} else {
+		prog.len = (unsigned short)ARRAY_SIZE(filter_passt);
+		prog.filter = filter_passt;
 	}
 
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) ||

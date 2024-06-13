@@ -333,7 +333,7 @@ loop:
 		uint32_t eventmask = events[i].events;
 
 		trace("%s: epoll event on %s %i (events: 0x%08x)",
-		      c.mode == MODE_PASST ? "passt" : "pasta",
+		      c.mode == MODE_PASTA ? "pasta" : "passt",
 		      EPOLL_TYPE_STR(ref.type), ref.fd, eventmask);
 
 		switch (ref.type) {

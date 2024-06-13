@@ -416,10 +416,10 @@ size_t tap_send_frames(const struct ctx *c, const struct iovec *iov,
 	if (!nframes)
 		return 0;
 
-	if (c->mode == MODE_PASST)
-		m = tap_send_frames_passt(c, iov, bufs_per_frame, nframes);
-	else
+	if (c->mode == MODE_PASTA)
 		m = tap_send_frames_pasta(c, iov, bufs_per_frame, nframes);
+	else
+		m = tap_send_frames_passt(c, iov, bufs_per_frame, nframes);
 
 	if (m < nframes)
 		debug("tap: failed to send %zu frames of %zu",
@@ -1330,7 +1330,9 @@ void tap_sock_init(struct ctx *c)
 		return;
 	}
 
-	if (c->mode == MODE_PASST) {
+	if (c->mode == MODE_PASTA) {
+		tap_sock_tun_init(c);
+	} else {
 		tap_sock_unix_init(c);
 
 		/* In passt mode, we don't know the guest's MAC address until it
@@ -1338,7 +1340,5 @@ void tap_sock_init(struct ctx *c)
 		 * first packets will reach it.
 		 */
 		memset(&c->mac_guest, 0xff, sizeof(c->mac_guest));
-	} else {
-		tap_sock_tun_init(c);
 	}
 }

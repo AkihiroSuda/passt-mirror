@@ -747,7 +747,7 @@ void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t eve
 	 * whether we'll use tap or splice, always go one at a time
 	 * for pasta mode.
 	 */
-	ssize_t n = (c->mode == MODE_PASST ? UDP_MAX_FRAMES : 1);
+	ssize_t n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
 	in_port_t dstport = ref.udp.port;
 	bool v6 = ref.udp.v6;
 	struct mmsghdr *mmh_recv;
