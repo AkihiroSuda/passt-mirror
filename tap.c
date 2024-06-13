@@ -602,7 +602,7 @@ resume:
 		if (!eh)
 			continue;
 		if (ntohs(eh->h_proto) == ETH_P_ARP) {
-			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
+			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
 			packet_add(pkt, l2len, (char *)eh);
 			arp(c, pkt);
@@ -642,7 +642,7 @@ resume:
 			continue;
 
 		if (iph->protocol == IPPROTO_ICMP) {
-			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
+			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
 			if (c->no_icmp)
 				continue;
@@ -661,7 +661,7 @@ resume:
 			continue;
 
 		if (iph->protocol == IPPROTO_UDP) {
-			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
+			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
 			packet_add(pkt, l2len, (char *)eh);
 			if (dhcp(c, pkt))
@@ -810,7 +810,7 @@ resume:
 		}
 
 		if (proto == IPPROTO_ICMPV6) {
-			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
+			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
 			if (c->no_icmp)
 				continue;
@@ -834,7 +834,7 @@ resume:
 		uh = (struct udphdr *)l4h;
 
 		if (proto == IPPROTO_UDP) {
-			PACKET_POOL_P(pkt, 1, in->buf, sizeof(pkt_buf));
+			PACKET_POOL_P(pkt, 1, in->buf, in->buf_size);
 
 			packet_add(pkt, l4len, l4h);
 
