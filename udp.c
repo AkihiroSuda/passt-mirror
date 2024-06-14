@@ -522,9 +522,11 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 	if (uref.v6) {
 		mmh_recv = udp6_l2_mh_sock;
 		mmh_send = udp6_mh_splice;
+		udp6_localname.sin6_port = htons(dst);
 	} else {
 		mmh_recv = udp4_l2_mh_sock;
 		mmh_send = udp4_mh_splice;
+		udp4_localname.sin_port = htons(dst);
 	}
 
 	do {
@@ -796,13 +798,10 @@ void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t eve
 	else if (ref.udp.pif == PIF_HOST)
 		dstport += c->udp.fwd_in.f.delta[dstport];
 
-	if (v6) {
+	if (v6)
 		mmh_recv = udp6_l2_mh_sock;
-		udp6_localname.sin6_port = htons(dstport);
-	} else {
+	else
 		mmh_recv = udp4_l2_mh_sock;
-		udp4_localname.sin_port = htons(dstport);
-	}
 
 	n = recvmmsg(ref.fd, mmh_recv, n, 0, NULL);
 	if (n <= 0)
