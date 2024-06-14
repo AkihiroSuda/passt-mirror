@@ -30,12 +30,9 @@
 #include "util.h"
 #include "passt.h"
 
-/* LOG_EARLY means we don't know yet: log everything. LOG_EMERG is unused */
-#define LOG_EARLY		LOG_MASK(LOG_EMERG)
-
 static int	log_sock = -1;		/* Optional socket to system logger */
 static char	log_ident[BUFSIZ];	/* Identifier string for openlog() */
-static int	log_mask = LOG_EARLY;	/* Current log priority mask */
+static int	log_mask;		/* Current log priority mask */
 static int	log_opt;		/* Options for openlog() */
 
 static int	log_file = -1;		/* Optional log file descriptor */
@@ -45,12 +42,13 @@ static size_t	log_cut_size;		/* Bytes to cut at start on rotation */
 static char	log_header[BUFSIZ];	/* File header, written back on cuts */
 
 static time_t	log_start;		/* Start timestamp */
+
 int		log_trace;		/* --trace mode enabled */
+bool		log_conf_parsed;	/* Logging options already parsed */
 
 void vlogmsg(int pri, const char *format, va_list ap)
 {
 	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
-	bool early_print = LOG_PRI(log_mask) == LOG_EARLY;
 	struct timespec tp;
 
 	if (debug_print) {
@@ -60,7 +58,7 @@ void vlogmsg(int pri, const char *format, va_list ap)
 			(long long int)tp.tv_nsec / (100L * 1000));
 	}
 
-	if ((log_mask & LOG_MASK(LOG_PRI(pri))) || early_print) {
+	if ((log_mask & LOG_MASK(LOG_PRI(pri))) || !log_conf_parsed) {
 		va_list ap2;
 
 		va_copy(ap2, ap); /* Don't clobber ap, we need it again */
@@ -72,7 +70,7 @@ void vlogmsg(int pri, const char *format, va_list ap)
 		va_end(ap2);
 	}
 
-	if (debug_print || (early_print && !(log_opt & LOG_PERROR))) {
+	if (debug_print || (!log_conf_parsed && !(log_opt & LOG_PERROR))) {
 		(void)vfprintf(stderr, format, ap);
 		if (format[strlen(format)] != '\n')
 			fprintf(stderr, "\n");

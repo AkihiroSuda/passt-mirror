@@ -6,6 +6,7 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <stdbool.h>
 #include <syslog.h>
 
 #define LOGFILE_SIZE_DEFAULT		(1024 * 1024UL)
@@ -28,6 +29,8 @@ void logmsg(int pri, const char *format, ...)
 	} while (0)
 
 extern int log_trace;
+extern bool log_conf_parsed;
+
 void trace_init(int enable);
 #define trace(...)							\
 	do {								\
