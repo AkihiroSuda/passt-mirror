@@ -206,10 +206,8 @@ void logfile_init(const char *name, const char *path, size_t size)
 	char nl = '\n', exe[PATH_MAX] = { 0 };
 	int n;
 
-	if (readlink("/proc/self/exe", exe, PATH_MAX - 1) < 0) {
-		perror("readlink /proc/self/exe");
-		exit(EXIT_FAILURE);
-	}
+	if (readlink("/proc/self/exe", exe, PATH_MAX - 1) < 0)
+		die_perror("Failed to read own /proc/self/exe link");
 
 	log_file = open(path, O_CREAT | O_TRUNC | O_APPEND | O_RDWR | O_CLOEXEC,
 			S_IRUSR | S_IWUSR);
@@ -222,10 +220,8 @@ void logfile_init(const char *name, const char *path, size_t size)
 		     name, exe, getpid());
 
 	if (write(log_file, log_header, n) <= 0 ||
-	    write(log_file, &nl, 1) <= 0) {
-		perror("Couldn't write to log file\n");
-		exit(EXIT_FAILURE);
-	}
+	    write(log_file, &nl, 1) <= 0)
+		die_perror("Couldn't write to log file");
 
 	/* For FALLOC_FL_COLLAPSE_RANGE: VFS block size can be up to one page */
 	log_cut_size = ROUND_UP(log_size * LOGFILE_CUT_RATIO / 100, PAGE_SIZE);

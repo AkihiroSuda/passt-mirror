@@ -316,34 +316,34 @@ int isolate_prefork(const struct ctx *c)
 		flags |= CLONE_NEWPID;
 
 	if (unshare(flags)) {
-		perror("unshare");
+		err_perror("Failed to detach isolating namespaces");
 		return -errno;
 	}
 
 	if (mount("", "/", "", MS_UNBINDABLE | MS_REC, NULL)) {
-		perror("mount /");
+		err_perror("Failed to remount /");
 		return -errno;
 	}
 
 	if (mount("", TMPDIR, "tmpfs",
 		  MS_NODEV | MS_NOEXEC | MS_NOSUID | MS_RDONLY,
 		  "nr_inodes=2,nr_blocks=0")) {
-		perror("mount tmpfs");
+		err_perror("Failed to mount empty tmpfs for pivot_root()");
 		return -errno;
 	}
 
 	if (chdir(TMPDIR)) {
-		perror("chdir");
+		err_perror("Failed to change directory into empty tmpfs");
 		return -errno;
 	}
 
 	if (syscall(SYS_pivot_root, ".", ".")) {
-		perror("pivot_root");
+		err_perror("Failed to pivot_root() into empty tmpfs");
 		return -errno;
 	}
 
 	if (umount2(".", MNT_DETACH | UMOUNT_NOFOLLOW)) {
-		perror("umount2");
+		err_perror("Failed to unmount original root filesystem");
 		return -errno;
 	}
 
@@ -388,8 +388,6 @@ void isolate_postfork(const struct ctx *c)
 	}
 
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) ||
-	    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) {
-		perror("prctl");
-		exit(EXIT_FAILURE);
-	}
+	    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog))
+		die_perror("Failed to apply seccomp filter");
 }

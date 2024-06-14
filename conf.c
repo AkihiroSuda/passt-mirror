@@ -1093,10 +1093,8 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 		const struct passwd *pw;
 		/* cppcheck-suppress getpwnamCalled */
 		pw = getpwnam("nobody");
-		if (!pw) {
-			perror("getpwnam");
-			exit(EXIT_FAILURE);
-		}
+		if (!pw)
+			die_perror("Can't get password file entry for nobody");
 
 		*uid = pw->pw_uid;
 		*gid = pw->pw_gid;

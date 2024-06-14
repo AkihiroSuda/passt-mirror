@@ -136,14 +136,13 @@ static void secret_init(struct ctx *c)
 	}
 	if (dev_random >= 0)
 		close(dev_random);
-	if (random_read < sizeof(c->hash_secret)) {
+
+	if (random_read < sizeof(c->hash_secret))
 #else
 	if (getrandom(&c->hash_secret, sizeof(c->hash_secret),
-		      GRND_RANDOM) < 0) {
+		      GRND_RANDOM) < 0)
 #endif /* !HAS_GETRANDOM */
-		perror("TCP initial sequence getrandom");
-		exit(EXIT_FAILURE);
-	}
+		die_perror("Failed to get random bytes for hash table and TCP");
 }
 
 /**
@@ -250,20 +249,16 @@ int main(int argc, char **argv)
 	madvise(pkt_buf, TAP_BUF_BYTES, MADV_HUGEPAGE);
 
 	c.epollfd = epoll_create1(EPOLL_CLOEXEC);
-	if (c.epollfd == -1) {
-		perror("epoll_create1");
-		exit(EXIT_FAILURE);
-	}
+	if (c.epollfd == -1)
+		die_perror("Failed to create epoll file descriptor");
 
-	if (getrlimit(RLIMIT_NOFILE, &limit)) {
-		perror("getrlimit");
-		exit(EXIT_FAILURE);
-	}
+	if (getrlimit(RLIMIT_NOFILE, &limit))
+		die_perror("Failed to get maximum value of open files limit");
+
 	c.nofile = limit.rlim_cur = limit.rlim_max;
-	if (setrlimit(RLIMIT_NOFILE, &limit)) {
-		perror("setrlimit");
-		exit(EXIT_FAILURE);
-	}
+	if (setrlimit(RLIMIT_NOFILE, &limit))
+		die_perror("Failed to set current limit for open files");
+
 	sock_probe_mem(&c);
 
 	conf(&c, argc, argv);
@@ -293,10 +288,8 @@ int main(int argc, char **argv)
 	pcap_init(&c);
 
 	if (!c.foreground) {
-		if ((devnull_fd = open("/dev/null", O_RDWR | O_CLOEXEC)) < 0) {
-			perror("/dev/null open");
-			exit(EXIT_FAILURE);
-		}
+		if ((devnull_fd = open("/dev/null", O_RDWR | O_CLOEXEC)) < 0)
+			die_perror("Failed to open /dev/null");
 	}
 
 	if (isolate_prefork(&c))
@@ -320,10 +313,8 @@ loop:
 	/* NOLINTNEXTLINE(bugprone-branch-clone): intervals can be the same */
 	/* cppcheck-suppress [duplicateValueTernary, unmatchedSuppression] */
 	nfds = epoll_wait(c.epollfd, events, EPOLL_EVENTS, TIMER_INTERVAL);
-	if (nfds == -1 && errno != EINTR) {
-		perror("epoll_wait");
-		exit(EXIT_FAILURE);
-	}
+	if (nfds == -1 && errno != EINTR)
+		die_perror("epoll_wait() failed in main loop");
 
 	clock_gettime(CLOCK_MONOTONIC, &now);
 

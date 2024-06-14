@@ -197,8 +197,7 @@ static int pasta_spawn_cmd(void *arg)
 	a = (const struct pasta_spawn_cmd_arg *)arg;
 	execvp(a->exe, a->argv);
 
-	perror("execvp");
-	exit(EXIT_FAILURE);
+	die_perror("Failed to start command or shell");
 }
 
 /**
@@ -261,10 +260,8 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 				   CLONE_NEWUTS | CLONE_NEWNS  | SIGCHLD,
 				   (void *)&arg);
 
-	if (pasta_child_pid == -1) {
-		perror("clone");
-		exit(EXIT_FAILURE);
-	}
+	if (pasta_child_pid == -1)
+		die_perror("Failed to clone process with detached namespaces");
 
 	NS_CALL(pasta_wait_for_ns, c);
 	if (c->pasta_netns_fd < 0)

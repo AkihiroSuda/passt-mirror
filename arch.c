@@ -18,6 +18,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "log.h"
+
 /**
  * arch_avx2_exec() - Switch to AVX2 build if supported
  * @argv:	Arguments from command line
@@ -28,10 +30,8 @@ void arch_avx2_exec(char **argv)
 	char exe[PATH_MAX] = { 0 };
 	const char *p;
 
-	if (readlink("/proc/self/exe", exe, PATH_MAX - 1) < 0) {
-		perror("readlink /proc/self/exe");
-		exit(EXIT_FAILURE);
-	}
+	if (readlink("/proc/self/exe", exe, PATH_MAX - 1) < 0)
+		die_perror("Failed to read own /proc/self/exe link");
 
 	p = strstr(exe, ".avx2");
 	if (p && strlen(p) == strlen(".avx2"))
@@ -42,7 +42,7 @@ void arch_avx2_exec(char **argv)
 
 		snprintf(new_path, PATH_MAX + sizeof(".avx2"), "%s.avx2", exe);
 		execve(new_path, argv, environ);
-		perror("Can't run AVX2 build, using non-AVX2 version");
+		warn_perror("Can't run AVX2 build, using non-AVX2 version");
 	}
 }
 #else
