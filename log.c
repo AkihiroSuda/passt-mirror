@@ -33,7 +33,6 @@
 static int	log_sock = -1;		/* Optional socket to system logger */
 static char	log_ident[BUFSIZ];	/* Identifier string for openlog() */
 static int	log_mask;		/* Current log priority mask */
-static int	log_opt;		/* Options for openlog() */
 
 static int	log_file = -1;		/* Optional log file descriptor */
 static size_t	log_size;		/* Maximum log file size in bytes */
@@ -45,6 +44,7 @@ static time_t	log_start;		/* Start timestamp */
 
 int		log_trace;		/* --trace mode enabled */
 bool		log_conf_parsed;	/* Logging options already parsed */
+bool		log_runtime;		/* Daemonised, or ready in foreground */
 
 void vlogmsg(int pri, const char *format, va_list ap)
 {
@@ -70,7 +70,8 @@ void vlogmsg(int pri, const char *format, va_list ap)
 		va_end(ap2);
 	}
 
-	if (debug_print || (!log_conf_parsed && !(log_opt & LOG_PERROR))) {
+	if (debug_print || !log_conf_parsed ||
+	    (!log_runtime && (log_mask & LOG_MASK(LOG_PRI(pri))))) {
 		(void)vfprintf(stderr, format, ap);
 		if (format[strlen(format)] != '\n')
 			fprintf(stderr, "\n");
@@ -108,12 +109,14 @@ void trace_init(int enable)
 /**
  * __openlog() - Non-optional openlog() implementation, for custom vsyslog()
  * @ident:	openlog() identity (program name)
- * @option:	openlog() options
+ * @option:	openlog() options, unused
  * @facility:	openlog() facility (LOG_DAEMON)
  */
 void __openlog(const char *ident, int option, int facility)
 {
 	struct timespec tp;
+
+	(void)option;
 
 	clock_gettime(CLOCK_REALTIME, &tp);
 	log_start = tp.tv_sec;
@@ -135,7 +138,6 @@ void __openlog(const char *ident, int option, int facility)
 
 	log_mask |= facility;
 	strncpy(log_ident, ident, sizeof(log_ident) - 1);
-	log_opt = option;
 }
 
 /**
@@ -156,19 +158,16 @@ void __setlogmask(int mask)
  */
 void passt_vsyslog(int pri, const char *format, va_list ap)
 {
-	int prefix_len, n;
 	char buf[BUFSIZ];
+	int n;
 
 	/* Send without timestamp, the system logger should add it */
-	n = prefix_len = snprintf(buf, BUFSIZ, "<%i> %s: ", pri, log_ident);
+	n = snprintf(buf, BUFSIZ, "<%i> %s: ", pri, log_ident);
 
 	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
 
 	if (format[strlen(format)] != '\n')
 		n += snprintf(buf + n, BUFSIZ - n, "\n");
-
-	if (log_opt & LOG_PERROR)
-		fprintf(stderr, "%s", buf + prefix_len);
 
 	if (log_sock >= 0 && send(log_sock, buf, n, 0) != n)
 		fprintf(stderr, "Failed to send %i bytes to syslog\n", n);

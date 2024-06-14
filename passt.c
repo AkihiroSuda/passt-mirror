@@ -200,8 +200,8 @@ void exit_handler(int signal)
 int main(int argc, char **argv)
 {
 	struct epoll_event events[EPOLL_EVENTS];
-	char *log_name, argv0[PATH_MAX], *name;
 	int nfds, i, devnull_fd = -1;
+	char argv0[PATH_MAX], *name;
 	struct ctx c = { 0 };
 	struct rlimit limit;
 	struct timespec now;
@@ -225,7 +225,7 @@ int main(int argc, char **argv)
 	strncpy(argv0, argv[0], PATH_MAX - 1);
 	name = basename(argv0);
 	if (strstr(name, "pasta")) {
-		__openlog(log_name = "pasta", LOG_PERROR, LOG_DAEMON);
+		__openlog("pasta", 0, LOG_DAEMON);
 
 		sa.sa_handler = pasta_child_handler;
 		if (sigaction(SIGCHLD, &sa, NULL)) {
@@ -240,7 +240,7 @@ int main(int argc, char **argv)
 
 		c.mode = MODE_PASTA;
 	} else if (strstr(name, "passt")) {
-		__openlog(log_name = "passt", LOG_PERROR, LOG_DAEMON);
+		__openlog("passt", 0, LOG_DAEMON);
 
 		c.mode = MODE_PASST;
 	} else {
@@ -303,12 +303,11 @@ int main(int argc, char **argv)
 		die("Failed to sandbox process, exiting");
 
 	if (!c.foreground)
-		__openlog(log_name, 0, LOG_DAEMON);
-
-	if (!c.foreground)
 		__daemon(c.pidfile_fd, devnull_fd);
 	else
 		pidfile_write(c.pidfile_fd, getpid());
+
+	log_runtime = true;
 
 	if (pasta_child_pid)
 		kill(pasta_child_pid, SIGUSR1);

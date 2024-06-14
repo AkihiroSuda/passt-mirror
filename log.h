@@ -30,6 +30,7 @@ void logmsg(int pri, const char *format, ...)
 
 extern int log_trace;
 extern bool log_conf_parsed;
+extern bool log_runtime;
 
 void trace_init(int enable);
 #define trace(...)							\
