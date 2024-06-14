@@ -198,6 +198,7 @@ static struct ethhdr udp6_eth_hdr;
  * @ip4h:	Pre-filled IPv4 header (except for tot_len and saddr)
  * @taph:	Tap backend specific header
  * @s_in:	Source socket address, filled in by recvmmsg()
+ * @splicesrc:	Source port for splicing, or -1 if not spliceable
  */
 static struct udp_meta_t {
 	struct ipv6hdr ip6h;
@@ -205,6 +206,7 @@ static struct udp_meta_t {
 	struct tap_hdr taph;
 
 	union sockaddr_inany s_in;
+	int splicesrc;
 }
 #ifdef __AVX2__
 __attribute__ ((aligned(32)))
@@ -491,28 +493,33 @@ static int udp_mmh_splice_port(union udp_epoll_ref uref,
 }
 
 /**
- * udp_splice_sendfrom() - Send datagrams from given port to given port
+ * udp_splice_send() - Send datagrams from socket to socket
  * @c:		Execution context
  * @start:	Index of first datagram in udp[46]_l2_buf
- * @n:		Number of datagrams to send
- * @src:	Datagrams will be sent from this port (on origin side)
- * @dst:	Datagrams will be send to this port (on destination side)
- * @from_pif:	pif from which the packet originated
- * @v6:		Send as IPv6?
- * @allow_new:	If true create sending socket if needed, if false discard
- *              if no sending socket is available
+ * @n:		Total number of datagrams in udp[46]_l2_buf pool
+ * @dst:	Datagrams will be sent to this port (on destination side)
+ * @uref:	UDP epoll reference for origin socket
  * @now:	Timestamp
+ *
+ * This consumes as many datagrams as are sendable via a single socket.  It
+ * requires that udp_meta[@start].splicesrc is initialised, and will initialise
+ * udp_meta[].splicesrc for each datagram it consumes *and one more* (if
+ * present).
+ *
+ * Return: Number of datagrams forwarded
  */
-static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
-				in_port_t src, in_port_t dst, uint8_t from_pif,
-				bool v6, bool allow_new,
+static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
+				in_port_t dst, union udp_epoll_ref uref,
 				const struct timespec *now)
 {
+	in_port_t src = udp_meta[start].splicesrc;
 	struct mmsghdr *mmh_recv, *mmh_send;
-	unsigned int i;
+	unsigned int i = start;
 	int s;
 
-	if (v6) {
+	ASSERT(udp_meta[start].splicesrc >= 0);
+
+	if (uref.v6) {
 		mmh_recv = udp6_l2_mh_sock;
 		mmh_send = udp6_mh_splice;
 	} else {
@@ -520,40 +527,48 @@ static void udp_splice_sendfrom(const struct ctx *c, unsigned start, unsigned n,
 		mmh_send = udp4_mh_splice;
 	}
 
-	if (from_pif == PIF_SPLICE) {
+	do {
+		mmh_send[i].msg_hdr.msg_iov->iov_len = mmh_recv[i].msg_len;
+
+		if (++i >= n)
+			break;
+
+		udp_meta[i].splicesrc = udp_mmh_splice_port(uref, &mmh_recv[i]);
+	} while (udp_meta[i].splicesrc == src);
+
+	if (uref.pif == PIF_SPLICE) {
 		src += c->udp.fwd_in.rdelta[src];
-		s = udp_splice_init[v6][src].sock;
-		if (s < 0 && allow_new)
-			s = udp_splice_new(c, v6, src, false);
+		s = udp_splice_init[uref.v6][src].sock;
+		if (s < 0 && uref.orig)
+			s = udp_splice_new(c, uref.v6, src, false);
 
 		if (s < 0)
-			return;
+			goto out;
 
-		udp_splice_ns[v6][dst].ts = now->tv_sec;
-		udp_splice_init[v6][src].ts = now->tv_sec;
+		udp_splice_ns[uref.v6][dst].ts = now->tv_sec;
+		udp_splice_init[uref.v6][src].ts = now->tv_sec;
 	} else {
-		ASSERT(from_pif == PIF_HOST);
+		ASSERT(uref.pif == PIF_HOST);
 		src += c->udp.fwd_out.rdelta[src];
-		s = udp_splice_ns[v6][src].sock;
-		if (s < 0 && allow_new) {
+		s = udp_splice_ns[uref.v6][src].sock;
+		if (s < 0 && uref.orig) {
 			struct udp_splice_new_ns_arg arg = {
-				c, v6, src, -1,
+				c, uref.v6, src, -1,
 			};
 
 			NS_CALL(udp_splice_new_ns, &arg);
 			s = arg.s;
 		}
 		if (s < 0)
-			return;
+			goto out;
 
-		udp_splice_init[v6][dst].ts = now->tv_sec;
-		udp_splice_ns[v6][src].ts = now->tv_sec;
+		udp_splice_init[uref.v6][dst].ts = now->tv_sec;
+		udp_splice_ns[uref.v6][src].ts = now->tv_sec;
 	}
 
-	for (i = start; i < start + n; i++)
-		mmh_send[i].msg_hdr.msg_iov->iov_len = mmh_recv[i].msg_len;
-
-	sendmmsg(s, mmh_send + start, n, MSG_NOSIGNAL);
+	sendmmsg(s, mmh_send + start, i - start, MSG_NOSIGNAL);
+out:
+	return i - start;
 }
 
 /**
@@ -688,31 +703,41 @@ static size_t udp_update_hdr6(const struct ctx *c,
  * udp_tap_send() - Prepare UDP datagrams and send to tap interface
  * @c:		Execution context
  * @start:	Index of first datagram in udp[46]_l2_buf pool
- * @n:		Number of datagrams to send
- * @dstport:	Destination port number
- * @v6:		True if using IPv6
+ * @n:		Total number of datagrams in udp[46]_l2_buf pool
+ * @dstport:	Destination port number on destination side
+ * @uref:	UDP epoll reference for origin socket
  * @now:	Current timestamp
  *
- * Return: size of tap frame with headers
+ * This consumes as many frames as are sendable via tap.  It requires that
+ * udp_meta[@start].splicesrc is initialised, and will initialise
+ * udp_meta[].splicesrc for each frame it consumes *and one more* (if present).
+ *
+ * Return: Number of frames sent via tap
  */
-static void udp_tap_send(const struct ctx *c,
-			 unsigned int start, unsigned int n,
-			 in_port_t dstport, bool v6, const struct timespec *now)
+static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
+			     in_port_t dstport, union udp_epoll_ref uref,
+			     const struct timespec *now)
 {
 	struct iovec (*tap_iov)[UDP_NUM_IOVS];
-	size_t i;
+	struct mmsghdr *mmh_recv;
+	size_t i = start;
 
-	if (v6)
+	ASSERT(udp_meta[start].splicesrc == -1);
+
+	if (uref.v6) {
 		tap_iov = udp6_l2_iov_tap;
-	else
+		mmh_recv = udp6_l2_mh_sock;
+	} else {
+		mmh_recv = udp4_l2_mh_sock;
 		tap_iov = udp4_l2_iov_tap;
+	}
 
-	for (i = start; i < start + n; i++) {
+	do {
 		struct udp_payload_t *bp = &udp_payload[i];
 		struct udp_meta_t *bm = &udp_meta[i];
 		size_t l4len;
 
-		if (v6) {
+		if (uref.v6) {
 			l4len = udp_update_hdr6(c, &bm->ip6h,
 						&bm->s_in.sa6, bp, dstport,
 						udp6_l2_mh_sock[i].msg_len, now);
@@ -726,9 +751,15 @@ static void udp_tap_send(const struct ctx *c,
 						  sizeof(udp4_eth_hdr));
 		}
 		tap_iov[i][UDP_IOV_PAYLOAD].iov_len = l4len;
-	}
 
-	tap_send_frames(c, &tap_iov[start][0], UDP_NUM_IOVS, n);
+		if (++i >= n)
+			break;
+
+		udp_meta[i].splicesrc = udp_mmh_splice_port(uref, &mmh_recv[i]);
+	} while (udp_meta[i].splicesrc == -1);
+
+	tap_send_frames(c, &tap_iov[start][0], UDP_NUM_IOVS, i - start);
+	return i - start;
 }
 
 /**
@@ -777,24 +808,19 @@ void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t eve
 	if (n <= 0)
 		return;
 
+	/* We divide things into batches based on how we need to send them,
+	 * determined by udp_meta[i].splicesrc.  To avoid either two passes
+	 * through the array, or recalculating splicesrc for a single entry, we
+	 * have to populate it one entry *ahead* of the loop counter (if
+	 * present).  So we fill in entry 0 before the loop, then udp_*_send()
+	 * populate one entry past where they consume.
+	 */
+	udp_meta[0].splicesrc = udp_mmh_splice_port(ref.udp, mmh_recv);
 	for (i = 0; i < n; i += m) {
-		int splicefrom = -1;
-
-		splicefrom = udp_mmh_splice_port(ref.udp, mmh_recv + i);
-
-		for (m = 1; i + m < n; m++) {
-			int p;
-
-			p = udp_mmh_splice_port(ref.udp, mmh_recv + i + m);
-			if (p != splicefrom)
-				break;
-		}
-
-		if (splicefrom >= 0)
-			udp_splice_sendfrom(c, i, m, splicefrom, dstport,
-					    ref.udp.pif, v6, ref.udp.orig, now);
+		if (udp_meta[i].splicesrc >= 0)
+			m = udp_splice_send(c, i, n, dstport, ref.udp, now);
 		else
-			udp_tap_send(c, i, m, dstport, v6, now);
+			m = udp_tap_send(c, i, n, dstport, ref.udp, now);
 	}
 }
 
