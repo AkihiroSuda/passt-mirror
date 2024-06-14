@@ -33,36 +33,25 @@
 #include "log.h"
 
 /**
- * sock_l4() - Create and bind socket for given L4, add to epoll list
+ * sock_l4_sa() - Create and bind socket to socket address, add to epoll list
  * @c:		Execution context
- * @af:		Address family, AF_INET or AF_INET6
  * @proto:	Protocol number
- * @bind_addr:	Address for binding, NULL for any
+ * @sa:		Socket address to bind to
+ * @sl:		Length of @sa
  * @ifname:	Interface for binding, NULL for any
- * @port:	Port, host order
+ * @v6only:	Set IPV6_V6ONLY socket option
  * @data:	epoll reference portion for protocol handlers
  *
  * Return: newly created socket, negative error code on failure
  */
-int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
-	    const void *bind_addr, const char *ifname, uint16_t port,
-	    uint32_t data)
+static int sock_l4_sa(const struct ctx *c, uint8_t proto,
+		      const void *sa, socklen_t sl,
+		      const char *ifname, bool v6only, uint32_t data)
 {
+	sa_family_t af = ((const struct sockaddr *)sa)->sa_family;
 	union epoll_ref ref = { .data = data };
-	struct sockaddr_in addr4 = {
-		.sin_family = AF_INET,
-		.sin_port = htons(port),
-		{ 0 }, { 0 },
-	};
-	struct sockaddr_in6 addr6 = {
-		.sin6_family = AF_INET6,
-		.sin6_port = htons(port),
-		0, IN6ADDR_ANY_INIT, 0,
-	};
-	const struct sockaddr *sa;
-	bool dual_stack = false;
-	int fd, sl, y = 1, ret;
 	struct epoll_event ev;
+	int fd, y = 1, ret;
 
 	switch (proto) {
 	case IPPROTO_TCP:
@@ -77,13 +66,6 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 		break;
 	default:
 		return -EPFNOSUPPORT;	/* Not implemented. */
-	}
-
-	if (af == AF_UNSPEC) {
-		if (!DUAL_STACK_SOCKETS || bind_addr)
-			return -EINVAL;
-		dual_stack = true;
-		af = AF_INET6;
 	}
 
 	if (proto == IPPROTO_TCP)
@@ -104,30 +86,9 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 
 	ref.fd = fd;
 
-	if (af == AF_INET) {
-		if (bind_addr)
-			addr4.sin_addr = *(struct in_addr *)bind_addr;
-
-		sa = (const struct sockaddr *)&addr4;
-		sl = sizeof(addr4);
-	} else {
-		if (bind_addr) {
-			addr6.sin6_addr = *(struct in6_addr *)bind_addr;
-
-			if (!memcmp(bind_addr, &c->ip6.addr_ll,
-			    sizeof(c->ip6.addr_ll)))
-				addr6.sin6_scope_id = c->ifi6;
-		}
-
-		sa = (const struct sockaddr *)&addr6;
-		sl = sizeof(addr6);
-
-		if (!dual_stack)
-			if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY,
-				       &y, sizeof(y)))
-				debug("Failed to set IPV6_V6ONLY on socket %i",
-				      fd);
-	}
+	if (v6only)
+		if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &y, sizeof(y)))
+			debug("Failed to set IPV6_V6ONLY on socket %i", fd);
 
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(y)))
 		debug("Failed to set SO_REUSEADDR on socket %i", fd);
@@ -140,9 +101,12 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 		 */
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 			       ifname, strlen(ifname))) {
+			char str[SOCKADDR_STRLEN];
+
 			ret = -errno;
-			warn("Can't bind %s socket for port %u to %s, closing",
-			     EPOLL_TYPE_STR(proto), port, ifname);
+			warn("Can't bind %s socket for %s to %s, closing",
+			     EPOLL_TYPE_STR(proto),
+			     sockaddr_ntop(sa, str, sizeof(str)), ifname);
 			close(fd);
 			return ret;
 		}
@@ -177,6 +141,59 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 	}
 
 	return fd;
+}
+/**
+ * sock_l4() - Create and bind socket for given L4, add to epoll list
+ * @c:		Execution context
+ * @af:		Address family, AF_INET or AF_INET6
+ * @proto:	Protocol number
+ * @bind_addr:	Address for binding, NULL for any
+ * @ifname:	Interface for binding, NULL for any
+ * @port:	Port, host order
+ * @data:	epoll reference portion for protocol handlers
+ *
+ * Return: newly created socket, negative error code on failure
+ */
+int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
+	    const void *bind_addr, const char *ifname, uint16_t port,
+	    uint32_t data)
+{
+	switch (af) {
+	case AF_INET: {
+		struct sockaddr_in addr4 = {
+			.sin_family = AF_INET,
+			.sin_port = htons(port),
+			{ 0 }, { 0 },
+		};
+		if (bind_addr)
+			addr4.sin_addr = *(struct in_addr *)bind_addr;
+		return sock_l4_sa(c, proto, &addr4, sizeof(addr4), ifname,
+				  false, data);
+	}
+
+	case AF_UNSPEC:
+		if (!DUAL_STACK_SOCKETS || bind_addr)
+			 return -EINVAL;
+		/* fallthrough */
+	case AF_INET6: {
+		struct sockaddr_in6 addr6 = {
+			.sin6_family = AF_INET6,
+			.sin6_port = htons(port),
+			0, IN6ADDR_ANY_INIT, 0,
+		};
+		if (bind_addr) {
+			addr6.sin6_addr = *(struct in6_addr *)bind_addr;
+
+			if (!memcmp(bind_addr, &c->ip6.addr_ll,
+			    sizeof(c->ip6.addr_ll)))
+				addr6.sin6_scope_id = c->ifi6;
+		}
+		return sock_l4_sa(c, proto, &addr6, sizeof(addr6), ifname,
+				  af == AF_INET6, data);
+	}
+	default:
+		return -EINVAL;
+	}
 }
 
 /**
