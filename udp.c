@@ -466,21 +466,25 @@ static int udp_splice_new_ns(void *arg)
 
 /**
  * udp_mmh_splice_port() - Is source address of message suitable for splicing?
- * @v6:		Is @sa a sockaddr_in6 (otherwise sockaddr_in)?
+ * @uref:	UDP epoll reference for incoming message's origin socket
  * @mmh:	mmsghdr of incoming message
  *
- * Return: if @sa refers to localhost (127.0.0.1 or ::1) the port from
- *         @sa in host order, otherwise -1.
+ * Return: if source address of message in @mmh refers to localhost (127.0.0.1
+ *         or ::1) its source port (host order), otherwise -1.
  */
-static int udp_mmh_splice_port(bool v6, const struct mmsghdr *mmh)
+static int udp_mmh_splice_port(union udp_epoll_ref uref,
+			       const struct mmsghdr *mmh)
 {
 	const struct sockaddr_in6 *sa6 = mmh->msg_hdr.msg_name;
 	const struct sockaddr_in *sa4 = mmh->msg_hdr.msg_name;
 
-	if (v6 && IN6_IS_ADDR_LOOPBACK(&sa6->sin6_addr))
+	if (!uref.splice)
+		return -1;
+
+	if (uref.v6 && IN6_IS_ADDR_LOOPBACK(&sa6->sin6_addr))
 		return ntohs(sa6->sin6_port);
 
-	if (!v6 && IN4_IS_ADDR_LOOPBACK(&sa4->sin_addr))
+	if (!uref.v6 && IN4_IS_ADDR_LOOPBACK(&sa4->sin_addr))
 		return ntohs(sa4->sin_port);
 
 	return -1;
@@ -775,18 +779,15 @@ void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t eve
 
 	for (i = 0; i < n; i += m) {
 		int splicefrom = -1;
-		m = n;
 
-		if (ref.udp.splice) {
-			splicefrom = udp_mmh_splice_port(v6, mmh_recv + i);
+		splicefrom = udp_mmh_splice_port(ref.udp, mmh_recv + i);
 
-			for (m = 1; i + m < n; m++) {
-				int p;
+		for (m = 1; i + m < n; m++) {
+			int p;
 
-				p = udp_mmh_splice_port(v6, mmh_recv + i + m);
-				if (p != splicefrom)
-					break;
-			}
+			p = udp_mmh_splice_port(ref.udp, mmh_recv + i + m);
+			if (p != splicefrom)
+				break;
 		}
 
 		if (splicefrom >= 0)
