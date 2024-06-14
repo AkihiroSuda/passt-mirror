@@ -78,6 +78,11 @@ void vlogmsg(int pri, const char *format, va_list ap)
 	}
 }
 
+/**
+ * logmsg() - vlogmsg() wrapper for variable argument lists
+ * @pri:	Facility and level map, same as priority for vsyslog()
+ * @format:	Message
+ */
 void logmsg(int pri, const char *format, ...)
 {
 	va_list ap;
@@ -85,6 +90,23 @@ void logmsg(int pri, const char *format, ...)
 	va_start(ap, format);
 	vlogmsg(pri, format, ap);
 	va_end(ap);
+}
+
+/**
+ * logmsg_perror() - vlogmsg() wrapper with perror()-like functionality
+ * @pri:	Facility and level map, same as priority for vsyslog()
+ * @format:	Message
+ */
+void logmsg_perror(int pri, const char *format, ...)
+{
+	int errno_copy = errno;
+	va_list ap;
+
+	va_start(ap, format);
+	vlogmsg(pri, format, ap);
+	va_end(ap);
+
+	logmsg(pri, ": %s", strerror(errno_copy));
 }
 
 /* Prefixes for log file messages, indexed by priority */

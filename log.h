@@ -16,15 +16,28 @@
 void vlogmsg(int pri, const char *format, va_list ap);
 void logmsg(int pri, const char *format, ...)
 	__attribute__((format(printf, 2, 3)));
+void logmsg_perror(int pri, const char *format, ...)
+	__attribute__((format(printf, 2, 3)));
 
-#define err(...)	logmsg(LOG_ERR, __VA_ARGS__)
-#define warn(...)	logmsg(LOG_WARNING, __VA_ARGS__)
-#define info(...)	logmsg(LOG_INFO, __VA_ARGS__)
-#define debug(...)	logmsg(LOG_DEBUG, __VA_ARGS__)
+#define err(...)		logmsg(		LOG_ERR,	__VA_ARGS__)
+#define warn(...)		logmsg(		LOG_WARNING,	__VA_ARGS__)
+#define info(...)		logmsg(		LOG_INFO,	__VA_ARGS__)
+#define debug(...)		logmsg(		LOG_DEBUG,	__VA_ARGS__)
+
+#define err_perror(...)		logmsg_perror(	LOG_ERR,	__VA_ARGS__)
+#define warn_perror(...)	logmsg_perror(	LOG_WARNING,	__VA_ARGS__)
+#define info_perror(...)	logmsg_perror(	LOG_INFO,	__VA_ARGS__)
+#define debug_perror(...)	logmsg_perror(	LOG_DEBUG,	__VA_ARGS__)
 
 #define die(...)							\
 	do {								\
 		err(__VA_ARGS__);					\
+		exit(EXIT_FAILURE);					\
+	} while (0)
+
+#define die_perror(...)							\
+	do {								\
+		err_perror(__VA_ARGS__);				\
 		exit(EXIT_FAILURE);					\
 	} while (0)
 
