@@ -227,15 +227,11 @@ int main(int argc, char **argv)
 		__openlog("pasta", 0, LOG_DAEMON);
 
 		sa.sa_handler = pasta_child_handler;
-		if (sigaction(SIGCHLD, &sa, NULL)) {
-			die("Couldn't install signal handlers: %s",
-			    strerror(errno));
-		}
+		if (sigaction(SIGCHLD, &sa, NULL))
+			die_perror("Couldn't install signal handlers");
 
-		if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
-			die("Couldn't set disposition for SIGPIPE: %s",
-			    strerror(errno));
-		}
+		if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+			die_perror("Couldn't set disposition for SIGPIPE");
 
 		c.mode = MODE_PASTA;
 	} else if (strstr(name, "passt")) {

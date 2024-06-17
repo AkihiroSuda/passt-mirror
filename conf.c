@@ -461,7 +461,7 @@ static void get_dns(struct ctx *c)
 	}
 
 	if (line_len < 0)
-		warn("Error reading /etc/resolv.conf: %s", strerror(errno));
+		warn_perror("Error reading /etc/resolv.conf");
 	close(fd);
 
 out:
@@ -623,6 +623,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 		int rc = nl_link_get_mac(nl_sock, ifi, mac);
 		if (rc < 0) {
 			char ifname[IFNAMSIZ];
+
 			err("Couldn't discover MAC address for %s: %s",
 			    if_indextoname(ifi, ifname), strerror(-rc));
 			return 0;
@@ -1496,8 +1497,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			break;
 		case 'i':
 			if (!(ifi4 = ifi6 = if_nametoindex(optarg)))
-				die("Invalid interface name %s: %s", optarg,
-				    strerror(errno));
+				die_perror("Invalid interface name %s", optarg);
 			break;
 		case 'o':
 			if (inet_pton(AF_INET6, optarg, &c->ip6.addr_out) &&

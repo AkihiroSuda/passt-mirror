@@ -133,7 +133,7 @@ static uint32_t nl_send(int s, void *req, uint16_t type,
 
 	n = send(s, req, len, 0);
 	if (n < 0)
-		die("netlink: Failed to send(): %s", strerror(errno));
+		die_perror("netlink: Failed to send()");
 	else if (n < len)
 		die("netlink: Short send (%zd of %zd bytes)", n, len);
 
@@ -189,7 +189,7 @@ static struct nlmsghdr *nl_next(int s, char *buf, struct nlmsghdr *nh, ssize_t *
 
 	*n = recv(s, buf, NLBUFSIZ, 0);
 	if (*n < 0)
-		die("netlink: Failed to recv(): %s", strerror(errno));
+		die_perror("netlink: Failed to recv()");
 
 	nh = (struct nlmsghdr *)buf;
 	if (!NLMSG_OK(nh, *n))

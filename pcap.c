@@ -89,10 +89,8 @@ static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 	struct iovec hiov = { &h, sizeof(h) };
 
 	if (write_remainder(pcap_fd, &hiov, 1, 0) < 0 ||
-	    write_remainder(pcap_fd, iov, iovcnt, offset) < 0) {
-		debug("Cannot log packet, length %zu: %s",
-		      l2len, strerror(errno));
-	}
+	    write_remainder(pcap_fd, iov, iovcnt, offset) < 0)
+		debug_perror("Cannot log packet, length %zu", l2len);
 }
 
 /**
@@ -178,5 +176,5 @@ void pcap_init(struct ctx *c)
 	info("Saving packet capture to %s", c->pcap);
 
 	if (write(pcap_fd, &pcap_hdr, sizeof(pcap_hdr)) < 0)
-		warn("Cannot write PCAP header: %s", strerror(errno));
+		warn_perror("Cannot write PCAP header");
 }

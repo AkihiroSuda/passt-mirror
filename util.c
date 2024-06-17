@@ -315,7 +315,7 @@ void bitmap_or(uint8_t *dst, size_t size, const uint8_t *a, const uint8_t *b)
 void ns_enter(const struct ctx *c)
 {
 	if (setns(c->pasta_netns_fd, CLONE_NEWNET))
-		die("setns() failed entering netns: %s", strerror(errno));
+		die_perror("setns() failed entering netns");
 }
 
 /**
@@ -330,10 +330,8 @@ bool ns_is_init(void)
 	bool ret = true;
 	int fd;
 
-	if ((fd = open("/proc/self/uid_map", O_RDONLY | O_CLOEXEC)) < 0) {
-		die("Can't determine if we're in init namespace: %s",
-		    strerror(errno));
-	}
+	if ((fd = open("/proc/self/uid_map", O_RDONLY | O_CLOEXEC)) < 0)
+		die_perror("Can't determine if we're in init namespace");
 
 	if (read(fd, buf, sizeof(root_uid_map)) != sizeof(root_uid_map) - 1 ||
 	    strncmp(buf, root_uid_map, sizeof(root_uid_map)))
@@ -509,7 +507,7 @@ int write_file(const char *path, const char *buf)
 	size_t len = strlen(buf);
 
 	if (fd < 0) {
-		warn("Could not open %s: %s", path, strerror(errno));
+		warn_perror("Could not open %s", path);
 		return -1;
 	}
 
@@ -517,7 +515,7 @@ int write_file(const char *path, const char *buf)
 		ssize_t rc = write(fd, buf, len);
 
 		if (rc <= 0) {
-			warn("Couldn't write to %s: %s", path, strerror(errno));
+			warn_perror("Couldn't write to %s", path);
 			break;
 		}
 

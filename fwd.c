@@ -52,7 +52,7 @@ static void procfs_scan_listen(int fd, unsigned int lstate,
 		return;
 
 	if (lseek(fd, 0, SEEK_SET)) {
-		warn("lseek() failed on /proc/net file: %s", strerror(errno));
+		warn_perror("lseek() failed on /proc/net file");
 		return;
 	}
 

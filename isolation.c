@@ -105,7 +105,7 @@ static void drop_caps_ep_except(uint64_t keep)
 	int i;
 
 	if (syscall(SYS_capget, &hdr, data))
-		die("Couldn't get current capabilities: %s", strerror(errno));
+		die_perror("Couldn't get current capabilities");
 
 	for (i = 0; i < CAP_WORDS; i++) {
 		uint32_t mask = keep >> (32 * i);
@@ -115,7 +115,7 @@ static void drop_caps_ep_except(uint64_t keep)
 	}
 
 	if (syscall(SYS_capset, &hdr, data))
-		die("Couldn't drop capabilities: %s", strerror(errno));
+		die_perror("Couldn't drop capabilities");
 }
 
 /**
@@ -152,19 +152,17 @@ static void clamp_caps(void)
 		 */
 		if (prctl(PR_CAPBSET_DROP, i, 0, 0, 0) &&
 		    errno != EINVAL && errno != EPERM)
-			die("Couldn't drop cap %i from bounding set: %s",
-			    i, strerror(errno));
+			die_perror("Couldn't drop cap %i from bounding set", i);
 	}
 
 	if (syscall(SYS_capget, &hdr, data))
-		die("Couldn't get current capabilities: %s", strerror(errno));
+		die_perror("Couldn't get current capabilities");
 
 	for (i = 0; i < CAP_WORDS; i++)
 		data[i].inheritable = 0;
 
 	if (syscall(SYS_capset, &hdr, data))
-		die("Couldn't drop inheritable capabilities: %s",
-		    strerror(errno));
+		die_perror("Couldn't drop inheritable capabilities");
 }
 
 /**
@@ -234,34 +232,30 @@ void isolate_user(uid_t uid, gid_t gid, bool use_userns, const char *userns,
 	if (setgroups(0, NULL)) {
 		/* If we don't have CAP_SETGID, this will EPERM */
 		if (errno != EPERM)
-			die("Can't drop supplementary groups: %s",
-			    strerror(errno));
+			die_perror("Can't drop supplementary groups");
 	}
 
 	if (setgid(gid) != 0)
-		die("Can't set GID to %u: %s", gid, strerror(errno));
+		die_perror("Can't set GID to %u", gid);
 
 	if (setuid(uid) != 0)
-		die("Can't set UID to %u: %s", uid, strerror(errno));
+		die_perror("Can't set UID to %u", uid);
 
 	if (*userns) { /* If given a userns, join it */
 		int ufd;
 
 		ufd = open(userns, O_RDONLY | O_CLOEXEC);
 		if (ufd < 0)
-			die("Couldn't open user namespace %s: %s",
-			    userns, strerror(errno));
+			die_perror("Couldn't open user namespace %s", userns);
 
 		if (setns(ufd, CLONE_NEWUSER) != 0)
-			die("Couldn't enter user namespace %s: %s",
-			    userns, strerror(errno));
+			die_perror("Couldn't enter user namespace %s", userns);
 
 		close(ufd);
 
 	} else if (use_userns) { /* Create and join a new userns */
 		if (unshare(CLONE_NEWUSER) != 0)
-			die("Couldn't create user namespace: %s",
-			    strerror(errno));
+			die_perror("Couldn't create user namespace");
 	}
 
 	/* Joining a new userns gives us full capabilities; drop the

@@ -325,7 +325,7 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 		size_t framelen = iov_size(iov + i, bufs_per_frame);
 
 		if (rc < 0) {
-			debug("tap write: %s", strerror(errno));
+			debug_perror("tap write");
 
 			switch (errno) {
 			case EAGAIN:
@@ -387,7 +387,7 @@ static size_t tap_send_frames_passt(const struct ctx *c,
 		size_t rembufs = bufs_per_frame - (i % bufs_per_frame);
 
 		if (write_remainder(c->fd_tap, &iov[i], rembufs, buf_offset) < 0) {
-			err("tap: partial frame send: %s", strerror(errno));
+			err_perror("tap: partial frame send");
 			return i;
 		}
 		i += rembufs;
@@ -1122,7 +1122,7 @@ int tap_sock_unix_open(char *sock_path)
 	int i;
 
 	if (fd < 0)
-		die("UNIX socket: %s", strerror(errno));
+		die_perror("Failed to open UNIX domain socket");
 
 	for (i = 1; i < UNIX_SOCK_MAX; i++) {
 		char *path = addr.sun_path;
@@ -1135,7 +1135,7 @@ int tap_sock_unix_open(char *sock_path)
 
 		ex = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
 		if (ex < 0)
-			die("UNIX domain socket check: %s", strerror(errno));
+			die_perror("Failed to check for UNIX domain conflicts");
 
 		ret = connect(ex, (const struct sockaddr *)&addr, sizeof(addr));
 		if (!ret || (errno != ENOENT && errno != ECONNREFUSED &&
@@ -1155,7 +1155,7 @@ int tap_sock_unix_open(char *sock_path)
 	}
 
 	if (i == UNIX_SOCK_MAX)
-		die("UNIX socket bind: %s", strerror(errno));
+		die_perror("Failed to bind UNIX domain socket");
 
 	info("UNIX domain socket bound at %s", addr.sun_path);
 	if (!*sock_path)
@@ -1261,11 +1261,11 @@ static int tap_ns_tun(void *arg)
 
 	fd = open("/dev/net/tun", flags);
 	if (fd < 0)
-		die("Failed to open() /dev/net/tun: %s", strerror(errno));
+		die_perror("Failed to open() /dev/net/tun");
 
 	rc = ioctl(fd, TUNSETIFF, &ifr);
 	if (rc < 0)
-		die("TUNSETIFF failed: %s", strerror(errno));
+		die_perror("TUNSETIFF ioctl on /dev/net/tun failed");
 
 	if (!(c->pasta_ifi = if_nametoindex(c->pasta_ifn)))
 		die("Tap device opened but no network interface found");

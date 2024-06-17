@@ -1553,19 +1553,15 @@ static void tcp_bind_outbound(const struct ctx *c, int s, sa_family_t af)
 				.sin_addr = c->ip4.addr_out,
 			};
 
-			if (bind(s, (struct sockaddr *)&addr4, sizeof(addr4))) {
-				debug("Can't bind IPv4 TCP socket address: %s",
-				      strerror(errno));
-			}
+			if (bind(s, (struct sockaddr *)&addr4, sizeof(addr4)))
+				debug_perror("IPv4 TCP socket address bind");
 		}
 
 		if (*c->ip4.ifname_out) {
 			if (setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE,
 				       c->ip4.ifname_out,
-				       strlen(c->ip4.ifname_out))) {
-				debug("Can't bind IPv4 TCP socket to interface:"
-				      " %s", strerror(errno));
-			}
+				       strlen(c->ip4.ifname_out)))
+				debug_perror("IPv4 TCP socket interface bind");
 		}
 	} else if (af == AF_INET6) {
 		if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out)) {
@@ -1575,19 +1571,15 @@ static void tcp_bind_outbound(const struct ctx *c, int s, sa_family_t af)
 				.sin6_addr = c->ip6.addr_out,
 			};
 
-			if (bind(s, (struct sockaddr *)&addr6, sizeof(addr6))) {
-				debug("Can't bind IPv6 TCP socket address: %s",
-				      strerror(errno));
-			}
+			if (bind(s, (struct sockaddr *)&addr6, sizeof(addr6)))
+				debug_perror("IPv6 TCP socket address bind");
 		}
 
 		if (*c->ip6.ifname_out) {
 			if (setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE,
 				       c->ip6.ifname_out,
-				       strlen(c->ip6.ifname_out))) {
-				debug("Can't bind IPv6 TCP socket to interface:"
-				      " %s", strerror(errno));
-			}
+				       strlen(c->ip6.ifname_out)))
+				debug_perror("IPv6 TCP socket interface bind");
 		}
 	}
 }

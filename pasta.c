@@ -138,17 +138,15 @@ void pasta_open_ns(struct ctx *c, const char *netns)
 	int nfd = -1;
 
 	nfd = open(netns, O_RDONLY | O_CLOEXEC);
-	if (nfd < 0) {
-		die("Couldn't open network namespace %s: %s",
-		    netns, strerror(errno));
-	}
+	if (nfd < 0)
+		die_perror("Couldn't open network namespace %s", netns);
 
 	c->pasta_netns_fd = nfd;
 
 	NS_CALL(ns_check, c);
 
 	if (c->pasta_netns_fd < 0)
-		die("Couldn't switch to pasta namespaces: %s", strerror(errno));
+		die_perror("Couldn't switch to pasta namespaces");
 
 	if (!c->no_netns_quit) {
 		char buf[PATH_MAX] = { 0 };
@@ -184,7 +182,7 @@ static int pasta_spawn_cmd(void *arg)
 
 	/* We run in a detached PID and mount namespace: mount /proc over */
 	if (mount("", "/proc", "proc", 0, NULL))
-		warn("Couldn't mount /proc: %s", strerror(errno));
+		warn_perror("Couldn't mount /proc");
 
 	if (write_file("/proc/sys/net/ipv4/ping_group_range", "0 0"))
 		warn("Cannot set ping_group_range, ICMP requests might fail");
@@ -265,7 +263,7 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 
 	NS_CALL(pasta_wait_for_ns, c);
 	if (c->pasta_netns_fd < 0)
-		die("Failed to join network namespace: %s", strerror(errno));
+		die_perror("Failed to join network namespace");
 }
 
 /**
@@ -369,12 +367,12 @@ static int pasta_netns_quit_timer(void)
 	struct itimerspec it = { { 1, 0 }, { 1, 0 } }; /* one-second interval */
 
 	if (fd == -1) {
-		err("timerfd_create(): %s", strerror(errno));
+		err_perror("Failed to create timerfd for quit timer");
 		return -errno;
 	}
 
 	if (timerfd_settime(fd, 0, &it, NULL) < 0) {
-		err("timerfd_settime(): %s", strerror(errno));
+		err_perror("Failed to set interval for quit timer");
 		close(fd);
 		return -errno;
 	}
@@ -467,7 +465,7 @@ void pasta_netns_quit_timer_handler(struct ctx *c, union epoll_ref ref)
 
 	n = read(ref.fd, &expirations, sizeof(expirations));
 	if (n < 0)
-		die("Namespace watch timer read() error: %s", strerror(errno));
+		die_perror("Namespace watch timer read() error");
 	if ((size_t)n < sizeof(expirations))
 		warn("Namespace watch timer: short read(): %zi", n);
 
