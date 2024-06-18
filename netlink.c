@@ -655,7 +655,8 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 			rc = nl_do(s_dst, nh, RTM_NEWROUTE,
 				   (flags & ~NLM_F_DUMP_FILTERED) | NLM_F_CREATE,
 				   nh->nlmsg_len);
-			if (rc < 0 && rc != -ENETUNREACH && rc != -EEXIST)
+			if (rc < 0 && rc != -EEXIST &&
+			    rc != -ENETUNREACH && rc != -EHOSTUNREACH)
 				return rc;
 		}
 	}
