@@ -73,6 +73,9 @@ for performance reasons.
 
 .SH OPTIONS
 
+Unless otherwise noted below, \fBif conflicting or multiple options are given,
+the last one takes effect.\fR
+
 .TP
 .BR \-d ", " \-\-debug
 Be verbose, don't log to the system logger.
@@ -97,9 +100,20 @@ Log to standard error too.
 Default is to log to the system logger only, if started from an interactive
 terminal, and to both system logger and standard error otherwise.
 
+This option cannot be specified together with \fB--log-file\fR, because there
+might be a reasonable expectation that messages are logged to standard error as
+well as to a file, which is however not supported.
+
 .TP
 .BR \-l ", " \-\-log-file " " \fIPATH\fR
 Log to file \fIPATH\fR, not to standard error, and not to the system logger.
+
+This option cannot be specified together with \fB--stderr\fR, because there
+might be a reasonable expectation that messages are logged to a file as well as
+to standard error, which is however not supported.
+
+Specifying this option multiple times does \fInot\fR lead to multiple log files:
+the last given option takes effect.
 
 .TP
 .BR \-\-log-size " " \fISIZE\fR
@@ -127,6 +141,9 @@ Show version and exit.
 .BR \-p ", " \-\-pcap " " \fIfile
 Capture tap-facing (that is, guest-side or namespace-side) network packets to
 \fIfile\fR in \fBpcap\fR format.
+
+Specifying this option multiple times does \fInot\fR lead to multiple capture
+files: the last given option takes effect.
 
 .TP
 .BR \-P ", " \-\-pid " " \fIfile
