@@ -269,8 +269,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	size_t na;
 
 	/* Look for an interface with a default route first, failing that, look
-	 * for any interface with a route, and pick it only if it's the only
-	 * interface with a route.
+	 * for any interface with a route, and pick the first one, if any.
 	 */
 	seq = nl_send(s, &req, RTM_GETROUTE, NLM_F_DUMP, sizeof(req));
 	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWROUTE) {
@@ -324,18 +323,19 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 		warn("netlink: RTM_GETROUTE failed: %s", strerror(-status));
 
 	if (defifi) {
-		if (ndef > 1)
+		if (ndef > 1) {
 			info("Multiple default %s routes, picked first",
 			     af_name(af));
+		}
 		return defifi;
 	}
 
 	if (anyifi) {
-		if (nany == 1)
-			return anyifi;
-
-		info("Multiple interfaces with %s routes, use -i to select one",
-		     af_name(af));
+		if (nany > 1) {
+			info("Multiple interfaces with %s routes, picked first",
+			     af_name(af));
+		}
+		return anyifi;
 	}
 
 	if (!nany)

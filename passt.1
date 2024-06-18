@@ -149,8 +149,8 @@ This option can be specified zero (for defaults) to two times (once for IPv4,
 once for IPv6).
 By default, assigned IPv4 and IPv6 addresses are taken from the host interfaces
 with the first default route, if any, for the corresponding IP version. If no
-default routes are available and there is just one interface with any route,
-that interface will be chosen instead.
+default routes are available and there is any interface with any route for a
+given IP version, the first of these interfaces will be chosen instead.
 
 .TP
 .BR \-n ", " \-\-netmask " " \fImask
