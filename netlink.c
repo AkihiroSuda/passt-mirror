@@ -600,13 +600,22 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 
 				if (discard)
 					break;
-			} else if (rta->rta_type == RTA_PREFSRC) {
-				/* Host routes might include a preferred source
-				 * address, which must be one of the host's
-				 * addresses.  However, with -a pasta will use a
-				 * different namespace address, making such a
-				 * route invalid in the namespace.  Strip off
-				 * RTA_PREFSRC attributes to avoid that. */
+			} else if (rta->rta_type == RTA_PREFSRC ||
+				   rta->rta_type == RTA_NH_ID) {
+				/* Strip RTA_PREFSRC attributes: host routes
+				 * might include a preferred source address,
+				 * which must be one of the host's addresses.
+				 * However, with -a, pasta will use a different
+				 * namespace address, making such a route
+				 * invalid in the namespace.
+				 *
+				 * Strip RTA_NH_ID attributes: host routes set
+				 * up via routing protocols (e.g. OSPF) might
+				 * contain a nexthop ID (and not nexthop
+				 * objects, which are taken care of in the
+				 * RTA_MULTIPATH case above) that's not valid
+				 * in the target namespace.
+				 */
 				rta->rta_type = RTA_UNSPEC;
 			}
 		}
