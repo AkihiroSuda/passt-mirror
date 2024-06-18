@@ -1631,6 +1631,9 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 
 	flow_initiate(flow, PIF_TAP);
 
+	flow_target(flow, PIF_HOST);
+	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
+
 	if (af == AF_INET) {
 		if (IN4_IS_ADDR_UNSPECIFIED(saddr) ||
 		    IN4_IS_ADDR_BROADCAST(saddr) ||
@@ -1647,6 +1650,9 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			      dstport);
 			goto cancel;
 		}
+
+		sa = (struct sockaddr *)&addr4;
+		sl = sizeof(addr4);
 	} else if (af == AF_INET6) {
 		if (IN6_IS_ADDR_UNSPECIFIED(saddr) ||
 		    IN6_IS_ADDR_MULTICAST(saddr) || srcport == 0 ||
@@ -1661,6 +1667,11 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			      dstport);
 			goto cancel;
 		}
+
+		sa = (struct sockaddr *)&addr6;
+		sl = sizeof(addr6);
+	} else {
+		ASSERT(0);
 	}
 
 	if ((s = tcp_conn_sock(c, af)) < 0)
@@ -1673,6 +1684,26 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			addr6.sin6_addr	= in6addr_loopback;
 	}
 
+	/* Use bind() to check if the target address is local (EADDRINUSE or
+	 * similar) and already bound, and set the LOCAL flag in that case.
+	 *
+	 * If bind() succeeds, in general, we could infer that nobody (else) is
+	 * listening on that address and port and reset the connection attempt
+	 * early, but we can't rely on that if non-local binds are enabled,
+	 * because bind() would succeed for any non-local address we can reach.
+	 *
+	 * So, if bind() succeeds, close the socket, get a new one, and proceed.
+	 */
+	if (bind(s, sa, sl)) {
+		if (errno != EADDRNOTAVAIL && errno != EACCES)
+			conn_flag(c, conn, LOCAL);
+	} else {
+		/* Not a local, bound destination, inconclusive test */
+		close(s);
+		if ((s = tcp_conn_sock(c, af)) < 0)
+			goto cancel;
+	}
+
 	if (af == AF_INET6 && IN6_IS_ADDR_LINKLOCAL(&addr6.sin6_addr)) {
 		struct sockaddr_in6 addr6_ll = {
 			.sin6_family = AF_INET6,
@@ -1683,8 +1714,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			goto cancel;
 	}
 
-	flow_target(flow, PIF_HOST);
-	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 	conn->sock = s;
 	conn->timer = -1;
 	conn_event(c, conn, TAP_SYN_RCVD);
@@ -1706,14 +1735,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 
 	inany_from_af(&conn->faddr, af, daddr);
 
-	if (af == AF_INET) {
-		sa = (struct sockaddr *)&addr4;
-		sl = sizeof(addr4);
-	} else {
-		sa = (struct sockaddr *)&addr6;
-		sl = sizeof(addr6);
-	}
-
 	conn->fport = dstport;
 	conn->eport = srcport;
 
@@ -1725,13 +1746,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	conn->seq_ack_from_tap = conn->seq_to_tap;
 
 	tcp_hash_insert(c, conn);
-
-	if (!bind(s, sa, sl)) {
-		tcp_rst(c, conn);	/* Nobody is listening then */
-		goto cancel;
-	}
-	if (errno != EADDRNOTAVAIL && errno != EACCES)
-		conn_flag(c, conn, LOCAL);
 
 	if ((af == AF_INET &&  !IN4_IS_ADDR_LOOPBACK(&addr4.sin_addr)) ||
 	    (af == AF_INET6 && !IN6_IS_ADDR_LOOPBACK(&addr6.sin6_addr) &&
