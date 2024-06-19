@@ -224,8 +224,6 @@ int main(int argc, char **argv)
 	strncpy(argv0, argv[0], PATH_MAX - 1);
 	name = basename(argv0);
 	if (strstr(name, "pasta")) {
-		__openlog("pasta", 0, LOG_DAEMON);
-
 		sa.sa_handler = pasta_child_handler;
 		if (sigaction(SIGCHLD, &sa, NULL))
 			die_perror("Couldn't install signal handlers");
@@ -235,8 +233,6 @@ int main(int argc, char **argv)
 
 		c.mode = MODE_PASTA;
 	} else if (strstr(name, "passt")) {
-		__openlog("passt", 0, LOG_DAEMON);
-
 		c.mode = MODE_PASST;
 	} else {
 		exit(EXIT_FAILURE);

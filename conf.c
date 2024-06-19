@@ -1217,6 +1217,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"netns-only",	no_argument,		NULL,		20 },
 		{ 0 },
 	};
+	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
 	struct in6_addr *dns6 = c->ip6.dns, dns6_tmp;
@@ -1619,10 +1620,10 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	conf_ugid(runas, &uid, &gid);
 
-	if (logfile) {
-		logfile_init(c->mode == MODE_PASTA ? "pasta" : "passt",
-			     logfile, logsize);
-	}
+	if (logfile)
+		logfile_init(logname, logfile, logsize);
+	else
+		__openlog(logname, 0, LOG_DAEMON);
 
 	if (c->debug)
 		__setlogmask(LOG_UPTO(LOG_DEBUG));
