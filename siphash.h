@@ -115,10 +115,4 @@ static inline uint64_t siphash_final(struct siphash_state *state,
 	return state->v[0] ^ state->v[1] ^ state->v[2] ^ state->v[3];
 }
 
-uint64_t siphash_8b(const uint8_t *in, const uint64_t *k);
-uint64_t siphash_12b(const uint8_t *in, const uint64_t *k);
-uint64_t siphash_20b(const uint8_t *in, const uint64_t *k);
-uint64_t siphash_32b(const uint8_t *in, const uint64_t *k);
-uint64_t siphash_36b(const uint8_t *in, const uint64_t *k);
-
 #endif /* SIPHASH_H */
