@@ -727,9 +727,7 @@ static void usage(const char *name, FILE *f, int status)
 		"      --trace		Be extra verbose, implies --debug\n"
 		"  -q, --quiet		Don't print informational messages\n"
 		"  -f, --foreground	Don't run in background\n"
-		"    default: run in background if started from a TTY\n"
-		"  -e, --stderr		Log to stderr too\n"
-		"    default: log to system logger only if started from a TTY\n"
+		"    default: run in background\n"
 		"  -l, --log-file PATH	Log (only) to given file\n"
 		"  --log-size BYTES	Maximum size of log file\n"
 		"    default: 1 MiB\n"
@@ -1387,18 +1385,10 @@ void conf(struct ctx *c, int argc, char **argv)
 			c->quiet = 0;
 			break;
 		case 'e':
-			if (logfile)
-				die("Can't log to both file and stderr");
-
-			c->force_stderr = 1;
-			logfile = NULL;
+			warn("--stderr will be dropped soon");
 			break;
 		case 'l':
-			if (c->force_stderr)
-				die("Can't log to both stderr and file");
-
 			logfile = optarg;
-			c->force_stderr = 0;
 			break;
 		case 'q':
 			c->quiet = 1;
@@ -1630,9 +1620,6 @@ void conf(struct ctx *c, int argc, char **argv)
 		ifi6 = if_nametoindex(c->ip6.ifname_out);
 
 	conf_ugid(runas, &uid, &gid);
-
-	if (!c->foreground && c->force_stderr)
-		die("Can't log to standard error if not running in foreground");
 
 	if (logfile) {
 		logfile_init(c->mode == MODE_PASTA ? "pasta" : "passt",

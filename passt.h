@@ -180,7 +180,6 @@ struct ip6_ctx {
  * @trace:		Enable tracing (extra debug) mode
  * @quiet:		Don't print informational messages
  * @foreground:		Run in foreground, don't log to stderr by default
- * @force_stderr:	Force logging to stderr
  * @nofile:		Maximum number of open files (ulimit -n)
  * @sock_path:		Path for UNIX domain socket
  * @pcap:		Path for packet capture file
@@ -231,7 +230,6 @@ struct ctx {
 	int trace;
 	int quiet;
 	int foreground;
-	int force_stderr;
 	int nofile;
 	char sock_path[UNIX_PATH_MAX];
 	char pcap[PATH_MAX];

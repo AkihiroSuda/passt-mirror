@@ -96,21 +96,14 @@ Default is to fork into background.
 
 .TP
 .BR \-e ", " \-\-stderr
-Log to standard error too.
-Default is to log to the system logger only, if started from an interactive
-terminal, and to both system logger and standard error otherwise.
+This option has no effect, and is maintained for compatibility purposes only.
 
-This option cannot be specified together with \fB--log-file\fR, because there
-might be a reasonable expectation that messages are logged to standard error as
-well as to a file, which is however not supported.
+Note that this configuration option is \fBdeprecated\fR and will be removed in a
+future version.
 
 .TP
 .BR \-l ", " \-\-log-file " " \fIPATH\fR
-Log to file \fIPATH\fR, not to standard error, and not to the system logger.
-
-This option cannot be specified together with \fB--stderr\fR, because there
-might be a reasonable expectation that messages are logged to a file as well as
-to standard error, which is however not supported.
+Log to file \fIPATH\fR, and not to the system logger.
 
 Specifying this option multiple times does \fInot\fR lead to multiple log files:
 the last given option takes effect.

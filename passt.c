@@ -302,7 +302,7 @@ int main(int argc, char **argv)
 	if (isolate_prefork(&c))
 		die("Failed to sandbox process, exiting");
 
-	if (!c.foreground || (!c.force_stderr && !isatty(fileno(stderr))))
+	if (!c.foreground)
 		__openlog(log_name, 0, LOG_DAEMON);
 
 	if (!c.foreground)
