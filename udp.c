@@ -279,10 +279,18 @@ static void udp_invert_portmap(struct udp_fwd_ports *fwd)
 		      "Forward and reverse delta arrays must have same size");
 	for (i = 0; i < ARRAY_SIZE(fwd->f.delta); i++) {
 		in_port_t delta = fwd->f.delta[i];
-		in_port_t rport = i + delta;
 
-		if (delta)
+		if (delta) {
+			/* Keep rport calculation separate from its usage: we
+			 * need to perform the sum in in_port_t width (that is,
+			 * modulo 65536), but C promotion rules would sum the
+			 * two terms as 'int', if we just open-coded the array
+			 * index as 'i + delta'.
+			 */
+			in_port_t rport = i + delta;
+
 			fwd->rdelta[rport] = NUM_PORTS - delta;
+		}
 	}
 }
 
