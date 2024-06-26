@@ -598,11 +598,16 @@ eintr:
 			    readlen > (long)c->tcp.pipe_size / 10) {
 				int lowat = c->tcp.pipe_size / 4;
 
-				setsockopt(conn->s[fromside], SOL_SOCKET,
-					   SO_RCVLOWAT, &lowat, sizeof(lowat));
-
-				conn_flag(c, conn, lowat_set_flag);
-				conn_flag(c, conn, lowat_act_flag);
+				if (setsockopt(conn->s[fromside], SOL_SOCKET,
+					       SO_RCVLOWAT,
+					       &lowat, sizeof(lowat))) {
+					flow_trace(conn,
+						   "Setting SO_RCVLOWAT %i: %s",
+						   lowat, strerror(errno));
+				} else {
+					conn_flag(c, conn, lowat_set_flag);
+					conn_flag(c, conn, lowat_act_flag);
+				}
 			}
 
 			break;
