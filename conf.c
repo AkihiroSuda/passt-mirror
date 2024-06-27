@@ -1398,7 +1398,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			c->foreground = 1;
 			break;
 		case 's':
-			ret = snprintf(c->sock_path, UNIX_SOCK_MAX - 1, "%s",
+			ret = snprintf(c->sock_path, sizeof(c->sock_path), "%s",
 				       optarg);
 			if (ret <= 0 || ret >= (int)sizeof(c->sock_path))
 				die("Invalid socket path: %s", optarg);
