@@ -235,18 +235,10 @@ static struct mmsghdr	udp4_mh_recv		[UDP_MAX_FRAMES];
 static struct mmsghdr	udp6_mh_recv		[UDP_MAX_FRAMES];
 
 /* IOVs and msghdr arrays for sending "spliced" datagrams to sockets */
-static struct sockaddr_in udp4_splice_to = {
-	.sin_family = AF_INET,
-	.sin_addr = IN4ADDR_LOOPBACK_INIT,
-};
-static struct sockaddr_in6 udp6_splice_to = {
-	.sin6_family = AF_INET6,
-	.sin6_addr = IN6ADDR_LOOPBACK_INIT,
-};
+static union sockaddr_inany udp_splice_to;
 
 static struct iovec	udp_iov_splice		[UDP_MAX_FRAMES];
-static struct mmsghdr	udp4_mh_splice		[UDP_MAX_FRAMES];
-static struct mmsghdr	udp6_mh_splice		[UDP_MAX_FRAMES];
+static struct mmsghdr	udp_mh_splice		[UDP_MAX_FRAMES];
 
 /* IOVs for L2 frames */
 static struct iovec	udp4_l2_iov		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
@@ -523,7 +515,7 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 				const struct timespec *now)
 {
 	in_port_t src = udp_meta[start].splicesrc;
-	struct mmsghdr *mmh_recv, *mmh_send;
+	struct mmsghdr *mmh_recv;
 	unsigned int i = start;
 	int s;
 
@@ -532,16 +524,22 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 
 	if (ref.udp.v6) {
 		mmh_recv = udp6_mh_recv;
-		mmh_send = udp6_mh_splice;
-		udp6_splice_to.sin6_port = htons(dst);
+		udp_splice_to.sa6 = (struct sockaddr_in6) {
+			.sin6_family = AF_INET6,
+			.sin6_addr = in6addr_loopback,
+			.sin6_port = htons(dst),
+		};
 	} else {
 		mmh_recv = udp4_mh_recv;
-		mmh_send = udp4_mh_splice;
-		udp4_splice_to.sin_port = htons(dst);
+		udp_splice_to.sa4 = (struct sockaddr_in) {
+			.sin_family = AF_INET,
+			.sin_addr = in4addr_loopback,
+			.sin_port = htons(dst),
+		};
 	}
 
 	do {
-		mmh_send[i].msg_hdr.msg_iov->iov_len = mmh_recv[i].msg_len;
+		udp_mh_splice[i].msg_hdr.msg_iov->iov_len = mmh_recv[i].msg_len;
 
 		if (++i >= n)
 			break;
@@ -579,7 +577,7 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 		udp_splice_ns[ref.udp.v6][src].ts = now->tv_sec;
 	}
 
-	sendmmsg(s, mmh_send + start, i - start, MSG_NOSIGNAL);
+	sendmmsg(s, udp_mh_splice + start, i - start, MSG_NOSIGNAL);
 out:
 	return i - start;
 }
@@ -1094,20 +1092,15 @@ static void udp_splice_iov_init(void)
 	int i;
 
 	for (i = 0; i < UDP_MAX_FRAMES; i++) {
-		struct msghdr *mh4 = &udp4_mh_splice[i].msg_hdr;
-		struct msghdr *mh6 = &udp6_mh_splice[i].msg_hdr;
+		struct msghdr *mh = &udp_mh_splice[i].msg_hdr;
 
-		mh4->msg_name = &udp4_splice_to;
-		mh4->msg_namelen = sizeof(udp4_splice_to);
-
-		mh6->msg_name = &udp6_splice_to;
-		mh6->msg_namelen = sizeof(udp6_splice_to);
+		mh->msg_name = &udp_splice_to;
+		mh->msg_namelen = sizeof(udp_splice_to);
 
 		udp_iov_splice[i].iov_base = udp_payload[i].data;
 
-		mh4->msg_iov = &udp_iov_splice[i];
-		mh6->msg_iov = &udp_iov_splice[i];
-		mh4->msg_iovlen = mh6->msg_iovlen = 1;
+		mh->msg_iov = &udp_iov_splice[i];
+		mh->msg_iovlen = 1;
 	}
 }
 
