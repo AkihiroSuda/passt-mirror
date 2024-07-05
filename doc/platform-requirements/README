@@ -1,0 +1,18 @@
+Platform Requirements
+=====================
+
+TODO: document the various Linux specific features we currently require
+
+
+Test Programs
+-------------
+
+In some places we rely on quite specific behaviour of sockets.
+Although Linux, at least, seems to behave as required, It's not always
+clear from the available documentation if this is required by POSIX or
+some other specification.
+
+To specifically document those expectations this directory has some
+test programs which explicitly check for the behaviour we need.
+When/if we attempt a port to a new platform, running these to check
+behaviour would be a good place to start.
