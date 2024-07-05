@@ -491,6 +491,16 @@ static int udp_mmh_splice_port(union epoll_ref ref, const struct mmsghdr *mmh)
 }
 
 /**
+ * udp_splice_prepare() - Prepare one datagram for splicing
+ * @mmh:	Receiving mmsghdr array
+ * @idx:	Index of the datagram to prepare
+ */
+static void udp_splice_prepare(struct mmsghdr *mmh, unsigned idx)
+{
+	udp_mh_splice[idx].msg_hdr.msg_iov->iov_len = mmh[idx].msg_len;
+}
+
+/**
  * udp_splice_send() - Send datagrams from socket to socket
  * @c:		Execution context
  * @start:	Index of first datagram in udp[46]_l2_buf
@@ -535,7 +545,7 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 	}
 
 	do {
-		udp_mh_splice[i].msg_hdr.msg_iov->iov_len = mmh_recv[i].msg_len;
+		udp_splice_prepare(mmh_recv, i);
 
 		if (++i >= n)
 			break;
@@ -707,6 +717,42 @@ static size_t udp_update_hdr6(const struct ctx *c,
 }
 
 /**
+ * udp_tap_prepare() - Convert one datagram into a tap frame
+ * @c:		Execution context
+ * @mmh:	Receiving mmsghdr array
+ * @idx:	Index of the datagram to prepare
+ * @dstport:	Destination port
+ * @v6:		Prepare for IPv6?
+ * @now:	Current timestamp
+ */
+static void udp_tap_prepare(const struct ctx *c, struct mmsghdr *mmh,
+			    unsigned idx, in_port_t dstport, bool v6,
+			    const struct timespec *now)
+{
+	struct iovec (*tap_iov)[UDP_NUM_IOVS] = &udp_l2_iov[idx];
+	struct udp_payload_t *bp = &udp_payload[idx];
+	struct udp_meta_t *bm = &udp_meta[idx];
+	size_t l4len;
+
+	if (v6) {
+		l4len = udp_update_hdr6(c, &bm->ip6h, &bm->s_in.sa6, bp,
+					dstport, mmh[idx].msg_len, now);
+		tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip6h) +
+			       sizeof(udp6_eth_hdr));
+		(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp6_eth_hdr);
+		(*tap_iov)[UDP_IOV_IP] = IOV_OF_LVALUE(bm->ip6h);
+	} else {
+		l4len = udp_update_hdr4(c, &bm->ip4h, &bm->s_in.sa4, bp,
+					dstport, mmh[idx].msg_len, now);
+		tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip4h) +
+			       sizeof(udp4_eth_hdr));
+		(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp4_eth_hdr);
+		(*tap_iov)[UDP_IOV_IP] = IOV_OF_LVALUE(bm->ip4h);
+	}
+	(*tap_iov)[UDP_IOV_PAYLOAD].iov_len = l4len;
+}
+
+/**
  * udp_tap_send() - Prepare UDP datagrams and send to tap interface
  * @c:		Execution context
  * @start:	Index of first datagram in udp[46]_l2_buf pool
@@ -737,29 +783,7 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 		mmh_recv = udp4_mh_recv;
 
 	do {
-		struct iovec (*tap_iov)[UDP_NUM_IOVS] = &udp_l2_iov[i];
-		struct udp_payload_t *bp = &udp_payload[i];
-		struct udp_meta_t *bm = &udp_meta[i];
-		size_t l4len;
-
-		if (ref.udp.v6) {
-			l4len = udp_update_hdr6(c, &bm->ip6h,
-						&bm->s_in.sa6, bp, dstport,
-						udp6_mh_recv[i].msg_len, now);
-			tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip6h) +
-						  sizeof(udp6_eth_hdr));
-			(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp6_eth_hdr);
-			(*tap_iov)[UDP_IOV_IP] = IOV_OF_LVALUE(bm->ip6h);
-		} else {
-			l4len = udp_update_hdr4(c, &bm->ip4h,
-						&bm->s_in.sa4, bp, dstport,
-						udp4_mh_recv[i].msg_len, now);
-			tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip4h) +
-						  sizeof(udp4_eth_hdr));
-			(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp4_eth_hdr);
-			(*tap_iov)[UDP_IOV_IP] = IOV_OF_LVALUE(bm->ip4h);
-		}
-		(*tap_iov)[UDP_IOV_PAYLOAD].iov_len = l4len;
+		udp_tap_prepare(c, mmh_recv, i, dstport, ref.udp.v6, now);
 
 		if (++i >= n)
 			break;
@@ -769,6 +793,39 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 
 	tap_send_frames(c, &udp_l2_iov[start][0], UDP_NUM_IOVS, i - start);
 	return i - start;
+}
+
+/**
+ * udp_sock_recv() - Receive datagrams from a socket
+ * @c:		Execution context
+ * @s:		Socket to receive from
+ * @events:	epoll events bitmap
+ * @mmh		mmsghdr array to receive into
+ *
+ * #syscalls recvmmsg
+ */
+int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
+		  struct mmsghdr *mmh)
+{
+	/* For not entirely clear reasons (data locality?) pasta gets better
+	 * throughput if we receive tap datagrams one at a atime.  For small
+	 * splice datagrams throughput is slightly better if we do batch, but
+	 * it's slightly worse for large splice datagrams.  Since we don't know
+	 * before we receive whether we'll use tap or splice, always go one at a
+	 * time for pasta mode.
+	 */
+	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
+
+	if (c->no_udp || !(events & EPOLLIN))
+		return 0;
+
+	n = recvmmsg(s, mmh, n, 0, NULL);
+	if (n < 0) {
+		err_perror("Error receiving datagrams");
+		return 0;
+	}
+
+	return n;
 }
 
 /**
@@ -783,36 +840,17 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
 			  const struct timespec *now)
 {
-	/* For not entirely clear reasons (data locality?) pasta gets
-	 * better throughput if we receive tap datagrams one at a
-	 * atime.  For small splice datagrams throughput is slightly
-	 * better if we do batch, but it's slightly worse for large
-	 * splice datagrams.  Since we don't know before we receive
-	 * whether we'll use tap or splice, always go one at a time
-	 * for pasta mode.
-	 */
-	ssize_t n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
+	struct mmsghdr *mmh_recv = ref.udp.v6 ? udp6_mh_recv : udp4_mh_recv;
 	in_port_t dstport = ref.udp.port;
-	bool v6 = ref.udp.v6;
-	struct mmsghdr *mmh_recv;
-	int i, m;
+	int n, m, i;
 
-	if (c->no_udp || !(events & EPOLLIN))
+	if ((n = udp_sock_recv(c, ref.fd, events, mmh_recv)) <= 0)
 		return;
 
 	if (ref.udp.pif == PIF_SPLICE)
 		dstport += c->udp.fwd_out.f.delta[dstport];
 	else if (ref.udp.pif == PIF_HOST)
 		dstport += c->udp.fwd_in.f.delta[dstport];
-
-	if (v6)
-		mmh_recv = udp6_mh_recv;
-	else
-		mmh_recv = udp4_mh_recv;
-
-	n = recvmmsg(ref.fd, mmh_recv, n, 0, NULL);
-	if (n <= 0)
-		return;
 
 	/* We divide things into batches based on how we need to send them,
 	 * determined by udp_meta[i].splicesrc.  To avoid either two passes
