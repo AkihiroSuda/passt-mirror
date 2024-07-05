@@ -477,25 +477,26 @@ static int udp_splice_new_ns(void *arg)
 
 /**
  * udp_mmh_splice_port() - Is source address of message suitable for splicing?
- * @uref:	UDP epoll reference for incoming message's origin socket
+ * @ref:	epoll reference for incoming message's origin socket
  * @mmh:	mmsghdr of incoming message
  *
  * Return: if source address of message in @mmh refers to localhost (127.0.0.1
  *         or ::1) its source port (host order), otherwise -1.
  */
-static int udp_mmh_splice_port(union udp_epoll_ref uref,
-			       const struct mmsghdr *mmh)
+static int udp_mmh_splice_port(union epoll_ref ref, const struct mmsghdr *mmh)
 {
 	const struct sockaddr_in6 *sa6 = mmh->msg_hdr.msg_name;
 	const struct sockaddr_in *sa4 = mmh->msg_hdr.msg_name;
 
-	if (!uref.splice)
+	ASSERT(ref.type == EPOLL_TYPE_UDP);
+
+	if (!ref.udp.splice)
 		return -1;
 
-	if (uref.v6 && IN6_IS_ADDR_LOOPBACK(&sa6->sin6_addr))
+	if (ref.udp.v6 && IN6_IS_ADDR_LOOPBACK(&sa6->sin6_addr))
 		return ntohs(sa6->sin6_port);
 
-	if (!uref.v6 && IN4_IS_ADDR_LOOPBACK(&sa4->sin_addr))
+	if (!ref.udp.v6 && IN4_IS_ADDR_LOOPBACK(&sa4->sin_addr))
 		return ntohs(sa4->sin_port);
 
 	return -1;
@@ -507,7 +508,7 @@ static int udp_mmh_splice_port(union udp_epoll_ref uref,
  * @start:	Index of first datagram in udp[46]_l2_buf
  * @n:		Total number of datagrams in udp[46]_l2_buf pool
  * @dst:	Datagrams will be sent to this port (on destination side)
- * @uref:	UDP epoll reference for origin socket
+ * @ref:	epoll reference for origin socket
  * @now:	Timestamp
  *
  * This consumes as many datagrams as are sendable via a single socket.  It
@@ -518,7 +519,7 @@ static int udp_mmh_splice_port(union udp_epoll_ref uref,
  * Return: Number of datagrams forwarded
  */
 static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
-				in_port_t dst, union udp_epoll_ref uref,
+				in_port_t dst, union epoll_ref ref,
 				const struct timespec *now)
 {
 	in_port_t src = udp_meta[start].splicesrc;
@@ -527,8 +528,9 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 	int s;
 
 	ASSERT(udp_meta[start].splicesrc >= 0);
+	ASSERT(ref.type == EPOLL_TYPE_UDP);
 
-	if (uref.v6) {
+	if (ref.udp.v6) {
 		mmh_recv = udp6_l2_mh_sock;
 		mmh_send = udp6_mh_splice;
 		udp6_localname.sin6_port = htons(dst);
@@ -544,27 +546,27 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 		if (++i >= n)
 			break;
 
-		udp_meta[i].splicesrc = udp_mmh_splice_port(uref, &mmh_recv[i]);
+		udp_meta[i].splicesrc = udp_mmh_splice_port(ref, &mmh_recv[i]);
 	} while (udp_meta[i].splicesrc == src);
 
-	if (uref.pif == PIF_SPLICE) {
+	if (ref.udp.pif == PIF_SPLICE) {
 		src += c->udp.fwd_in.rdelta[src];
-		s = udp_splice_init[uref.v6][src].sock;
-		if (s < 0 && uref.orig)
-			s = udp_splice_new(c, uref.v6, src, false);
+		s = udp_splice_init[ref.udp.v6][src].sock;
+		if (s < 0 && ref.udp.orig)
+			s = udp_splice_new(c, ref.udp.v6, src, false);
 
 		if (s < 0)
 			goto out;
 
-		udp_splice_ns[uref.v6][dst].ts = now->tv_sec;
-		udp_splice_init[uref.v6][src].ts = now->tv_sec;
+		udp_splice_ns[ref.udp.v6][dst].ts = now->tv_sec;
+		udp_splice_init[ref.udp.v6][src].ts = now->tv_sec;
 	} else {
-		ASSERT(uref.pif == PIF_HOST);
+		ASSERT(ref.udp.pif == PIF_HOST);
 		src += c->udp.fwd_out.rdelta[src];
-		s = udp_splice_ns[uref.v6][src].sock;
-		if (s < 0 && uref.orig) {
+		s = udp_splice_ns[ref.udp.v6][src].sock;
+		if (s < 0 && ref.udp.orig) {
 			struct udp_splice_new_ns_arg arg = {
-				c, uref.v6, src, -1,
+				c, ref.udp.v6, src, -1,
 			};
 
 			NS_CALL(udp_splice_new_ns, &arg);
@@ -573,8 +575,8 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 		if (s < 0)
 			goto out;
 
-		udp_splice_init[uref.v6][dst].ts = now->tv_sec;
-		udp_splice_ns[uref.v6][src].ts = now->tv_sec;
+		udp_splice_init[ref.udp.v6][dst].ts = now->tv_sec;
+		udp_splice_ns[ref.udp.v6][src].ts = now->tv_sec;
 	}
 
 	sendmmsg(s, mmh_send + start, i - start, MSG_NOSIGNAL);
@@ -716,7 +718,7 @@ static size_t udp_update_hdr6(const struct ctx *c,
  * @start:	Index of first datagram in udp[46]_l2_buf pool
  * @n:		Total number of datagrams in udp[46]_l2_buf pool
  * @dstport:	Destination port number on destination side
- * @uref:	UDP epoll reference for origin socket
+ * @ref:	epoll reference for origin socket
  * @now:	Current timestamp
  *
  * This consumes as many frames as are sendable via tap.  It requires that
@@ -726,7 +728,7 @@ static size_t udp_update_hdr6(const struct ctx *c,
  * Return: Number of frames sent via tap
  */
 static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
-			     in_port_t dstport, union udp_epoll_ref uref,
+			     in_port_t dstport, union epoll_ref ref,
 			     const struct timespec *now)
 {
 	struct iovec (*tap_iov)[UDP_NUM_IOVS];
@@ -734,8 +736,9 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 	size_t i = start;
 
 	ASSERT(udp_meta[start].splicesrc == -1);
+	ASSERT(ref.type == EPOLL_TYPE_UDP);
 
-	if (uref.v6) {
+	if (ref.udp.v6) {
 		tap_iov = udp6_l2_iov_tap;
 		mmh_recv = udp6_l2_mh_sock;
 	} else {
@@ -748,7 +751,7 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 		struct udp_meta_t *bm = &udp_meta[i];
 		size_t l4len;
 
-		if (uref.v6) {
+		if (ref.udp.v6) {
 			l4len = udp_update_hdr6(c, &bm->ip6h,
 						&bm->s_in.sa6, bp, dstport,
 						udp6_l2_mh_sock[i].msg_len, now);
@@ -766,7 +769,7 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 		if (++i >= n)
 			break;
 
-		udp_meta[i].splicesrc = udp_mmh_splice_port(uref, &mmh_recv[i]);
+		udp_meta[i].splicesrc = udp_mmh_splice_port(ref, &mmh_recv[i]);
 	} while (udp_meta[i].splicesrc == -1);
 
 	tap_send_frames(c, &tap_iov[start][0], UDP_NUM_IOVS, i - start);
@@ -823,12 +826,12 @@ void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t eve
 	 * present).  So we fill in entry 0 before the loop, then udp_*_send()
 	 * populate one entry past where they consume.
 	 */
-	udp_meta[0].splicesrc = udp_mmh_splice_port(ref.udp, mmh_recv);
+	udp_meta[0].splicesrc = udp_mmh_splice_port(ref, mmh_recv);
 	for (i = 0; i < n; i += m) {
 		if (udp_meta[i].splicesrc >= 0)
-			m = udp_splice_send(c, i, n, dstport, ref.udp, now);
+			m = udp_splice_send(c, i, n, dstport, ref, now);
 		else
-			m = udp_tap_send(c, i, n, dstport, ref.udp, now);
+			m = udp_tap_send(c, i, n, dstport, ref, now);
 	}
 }
 
