@@ -2467,7 +2467,7 @@ static int tcp_sock_init_af(const struct ctx *c, sa_family_t af, in_port_t port,
 	};
 	int s;
 
-	s = sock_l4(c, af, IPPROTO_TCP, addr, ifname, port, tref.u32);
+	s = sock_l4(c, af, EPOLL_TYPE_TCP_LISTEN, addr, ifname, port, tref.u32);
 
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
 		if (af == AF_INET  || af == AF_UNSPEC)
@@ -2531,8 +2531,8 @@ static void tcp_ns_sock_init4(const struct ctx *c, in_port_t port)
 
 	ASSERT(c->mode == MODE_PASTA);
 
-	s = sock_l4(c, AF_INET, IPPROTO_TCP, &in4addr_loopback, NULL, port,
-		    tref.u32);
+	s = sock_l4(c, AF_INET, EPOLL_TYPE_TCP_LISTEN, &in4addr_loopback,
+		    NULL, port, tref.u32);
 	if (s >= 0)
 		tcp_sock_set_bufsize(c, s);
 	else
@@ -2557,8 +2557,8 @@ static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
 
 	ASSERT(c->mode == MODE_PASTA);
 
-	s = sock_l4(c, AF_INET6, IPPROTO_TCP, &in6addr_loopback, NULL, port,
-		    tref.u32);
+	s = sock_l4(c, AF_INET6, EPOLL_TYPE_TCP_LISTEN, &in6addr_loopback,
+		    NULL, port, tref.u32);
 	if (s >= 0)
 		tcp_sock_set_bufsize(c, s);
 	else

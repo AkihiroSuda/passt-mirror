@@ -137,13 +137,14 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 #include <limits.h>
 #include <stdint.h>
 
+#include "epoll_type.h"
 #include "packet.h"
 
 struct ctx;
 
 /* cppcheck-suppress funcArgNamesDifferent */
 __attribute__ ((weak)) int ffsl(long int i) { return __builtin_ffsl(i); }
-int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
+int sock_l4(const struct ctx *c, sa_family_t af, enum epoll_type type,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data);
 void sock_probe_mem(struct ctx *c);

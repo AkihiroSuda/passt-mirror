@@ -24,38 +24,6 @@ union epoll_ref;
 #include "udp.h"
 
 /**
- * enum epoll_type - Different types of fds we poll over
- */
-enum epoll_type {
-	/* Special value to indicate an invalid type */
-	EPOLL_TYPE_NONE = 0,
-	/* Connected TCP sockets */
-	EPOLL_TYPE_TCP,
-	/* Connected TCP sockets (spliced) */
-	EPOLL_TYPE_TCP_SPLICE,
-	/* Listening TCP sockets */
-	EPOLL_TYPE_TCP_LISTEN,
-	/* timerfds used for TCP timers */
-	EPOLL_TYPE_TCP_TIMER,
-	/* UDP sockets */
-	EPOLL_TYPE_UDP,
-	/* ICMP/ICMPv6 ping sockets */
-	EPOLL_TYPE_PING,
-	/* inotify fd watching for end of netns (pasta) */
-	EPOLL_TYPE_NSQUIT_INOTIFY,
-	/* timer fd watching for end of netns, fallback for inotify (pasta) */
-	EPOLL_TYPE_NSQUIT_TIMER,
-	/* tuntap character device */
-	EPOLL_TYPE_TAP_PASTA,
-	/* socket connected to qemu  */
-	EPOLL_TYPE_TAP_PASST,
-	/* socket listening for qemu socket connections */
-	EPOLL_TYPE_TAP_LISTEN,
-
-	EPOLL_NUM_TYPES,
-};
-
-/**
  * union epoll_ref - Breakdown of reference for epoll fd bookkeeping
  * @type:	Type of fd (tells us what to do with events)
  * @fd:		File descriptor number (implies < 2^24 total descriptors)

@@ -917,7 +917,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 			if (!IN4_IS_ADDR_LOOPBACK(&s_in.sin_addr))
 				bind_addr = c->ip4.addr_out;
 
-			s = sock_l4(c, AF_INET, IPPROTO_UDP, &bind_addr,
+			s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP, &bind_addr,
 				    bind_if, src, uref.u32);
 			if (s < 0)
 				return p->count - idx;
@@ -972,7 +972,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 			    !IN6_IS_ADDR_LINKLOCAL(&s_in6.sin6_addr))
 				bind_addr = &c->ip6.addr_out;
 
-			s = sock_l4(c, AF_INET6, IPPROTO_UDP, bind_addr,
+			s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP, bind_addr,
 				    bind_if, src, uref.u32);
 			if (s < 0)
 				return p->count - idx;
@@ -1047,13 +1047,13 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		uref.v6 = 0;
 
 		if (!ns) {
-			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP, addr,
+			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP, addr,
 					 ifname, port, uref.u32);
 
 			udp_tap_map[V4][port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V4][port].sock = s < 0 ? -1 : s;
 		} else {
-			r4 = s = sock_l4(c, AF_INET, IPPROTO_UDP,
+			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP,
 					 &in4addr_loopback,
 					 ifname, port, uref.u32);
 			udp_splice_ns[V4][port].sock = s < 0 ? -1 : s;
@@ -1064,13 +1064,13 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		uref.v6 = 1;
 
 		if (!ns) {
-			r6 = s = sock_l4(c, AF_INET6, IPPROTO_UDP, addr,
+			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP, addr,
 					 ifname, port, uref.u32);
 
 			udp_tap_map[V6][port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V6][port].sock = s < 0 ? -1 : s;
 		} else {
-			r6 = s = sock_l4(c, AF_INET6, IPPROTO_UDP,
+			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP,
 					 &in6addr_loopback,
 					 ifname, port, uref.u32);
 			udp_splice_ns[V6][port].sock = s < 0 ? -1 : s;

@@ -179,7 +179,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	}
 
 	ref.flowside = FLOW_SIDX(flow, TGTSIDE);
-	pingf->sock = sock_l4(c, af, flow_proto[flowtype], bind_addr, bind_if,
+	pingf->sock = sock_l4(c, af, EPOLL_TYPE_PING, bind_addr, bind_if,
 			      0, ref.data);
 
 	if (pingf->sock < 0) {

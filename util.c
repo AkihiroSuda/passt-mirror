@@ -35,7 +35,7 @@
 /**
  * sock_l4_sa() - Create and bind socket to socket address, add to epoll list
  * @c:		Execution context
- * @proto:	Protocol number
+ * @type:	epoll type
  * @sa:		Socket address to bind to
  * @sl:		Length of @sa
  * @ifname:	Interface for binding, NULL for any
@@ -44,34 +44,38 @@
  *
  * Return: newly created socket, negative error code on failure
  */
-static int sock_l4_sa(const struct ctx *c, uint8_t proto,
+static int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 		      const void *sa, socklen_t sl,
 		      const char *ifname, bool v6only, uint32_t data)
 {
 	sa_family_t af = ((const struct sockaddr *)sa)->sa_family;
-	union epoll_ref ref = { .data = data };
+	union epoll_ref ref = { .type = type, .data = data };
 	struct epoll_event ev;
 	int fd, y = 1, ret;
+	uint8_t proto;
+	int socktype;
 
-	switch (proto) {
-	case IPPROTO_TCP:
-		ref.type = EPOLL_TYPE_TCP_LISTEN;
+	switch (type) {
+	case EPOLL_TYPE_TCP_LISTEN:
+		proto = IPPROTO_TCP;
+		socktype = SOCK_STREAM | SOCK_NONBLOCK;
 		break;
-	case IPPROTO_UDP:
-		ref.type = EPOLL_TYPE_UDP;
+	case EPOLL_TYPE_UDP:
+		proto = IPPROTO_UDP;
+		socktype = SOCK_DGRAM | SOCK_NONBLOCK;
 		break;
-	case IPPROTO_ICMP:
-	case IPPROTO_ICMPV6:
-		ref.type = EPOLL_TYPE_PING;
+	case EPOLL_TYPE_PING:
+		if (af == AF_INET)
+			proto = IPPROTO_ICMP;
+		else
+			proto = IPPROTO_ICMPV6;
+		socktype = SOCK_DGRAM | SOCK_NONBLOCK;
 		break;
 	default:
-		return -EPFNOSUPPORT;	/* Not implemented. */
+		ASSERT(0);
 	}
 
-	if (proto == IPPROTO_TCP)
-		fd = socket(af, SOCK_STREAM | SOCK_NONBLOCK, proto);
-	else
-		fd = socket(af, SOCK_DGRAM | SOCK_NONBLOCK, proto);
+	fd = socket(af, socktype, proto);
 
 	ret = -errno;
 	if (fd < 0) {
@@ -118,14 +122,14 @@ static int sock_l4_sa(const struct ctx *c, uint8_t proto,
 		 * this is fine. This might also fail for ICMP because of a
 		 * broken SELinux policy, see icmp_tap_handler().
 		 */
-		if (proto != IPPROTO_ICMP && proto != IPPROTO_ICMPV6) {
+		if (type != EPOLL_TYPE_PING) {
 			ret = -errno;
 			close(fd);
 			return ret;
 		}
 	}
 
-	if (proto == IPPROTO_TCP && listen(fd, 128) < 0) {
+	if (type == EPOLL_TYPE_TCP_LISTEN && listen(fd, 128) < 0) {
 		ret = -errno;
 		warn("TCP socket listen: %s", strerror(-ret));
 		close(fd);
@@ -146,7 +150,7 @@ static int sock_l4_sa(const struct ctx *c, uint8_t proto,
  * sock_l4() - Create and bind socket for given L4, add to epoll list
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
- * @proto:	Protocol number
+ * @type:	epoll type
  * @bind_addr:	Address for binding, NULL for any
  * @ifname:	Interface for binding, NULL for any
  * @port:	Port, host order
@@ -154,7 +158,7 @@ static int sock_l4_sa(const struct ctx *c, uint8_t proto,
  *
  * Return: newly created socket, negative error code on failure
  */
-int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
+int sock_l4(const struct ctx *c, sa_family_t af, enum epoll_type type,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data)
 {
@@ -167,7 +171,7 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 		};
 		if (bind_addr)
 			addr4.sin_addr = *(struct in_addr *)bind_addr;
-		return sock_l4_sa(c, proto, &addr4, sizeof(addr4), ifname,
+		return sock_l4_sa(c, type, &addr4, sizeof(addr4), ifname,
 				  false, data);
 	}
 
@@ -188,7 +192,7 @@ int sock_l4(const struct ctx *c, sa_family_t af, uint8_t proto,
 			    sizeof(c->ip6.addr_ll)))
 				addr6.sin6_scope_id = c->ifi6;
 		}
-		return sock_l4_sa(c, proto, &addr6, sizeof(addr6), ifname,
+		return sock_l4_sa(c, type, &addr6, sizeof(addr6), ifname,
 				  af == AF_INET6, data);
 	}
 	default:
