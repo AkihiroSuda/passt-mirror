@@ -3,8 +3,8 @@
 # Copyright Red Hat
 # Author: David Gibson <david@gibson.dropbear.id.au>
 
-TARGETS = reuseaddr-priority
-SRCS = reuseaddr-priority.c
+TARGETS = reuseaddr-priority recv-zero
+SRCS = reuseaddr-priority.c recv-zero.c
 CFLAGS = -Wall
 
 all: cppcheck clang-tidy $(TARGETS:%=check-%)
@@ -16,7 +16,7 @@ check-%: %
 
 cppcheck:
 	cppcheck --std=c11 --error-exitcode=1 --enable=all --force \
-		--check-level=exhaustive \
+		--check-level=exhaustive --inline-suppr \
 		--inconclusive --library=posix --quiet \
 		--suppress=missingIncludeSystem \
 		$(SRCS)
