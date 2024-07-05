@@ -241,8 +241,7 @@ static struct iovec	udp_iov_splice		[UDP_MAX_FRAMES];
 static struct mmsghdr	udp_mh_splice		[UDP_MAX_FRAMES];
 
 /* IOVs for L2 frames */
-static struct iovec	udp4_l2_iov		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
-static struct iovec	udp6_l2_iov		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
+static struct iovec	udp_l2_iov		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
 
 
 /**
@@ -305,8 +304,9 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 static void udp_iov_init_one(const struct ctx *c, size_t i)
 {
 	struct udp_payload_t *payload = &udp_payload[i];
-	struct iovec *siov = &udp_iov_recv[i];
 	struct udp_meta_t *meta = &udp_meta[i];
+	struct iovec *siov = &udp_iov_recv[i];
+	struct iovec *tiov = udp_l2_iov[i];
 
 	*meta = (struct udp_meta_t) {
 		.ip4h = L2_BUF_IP4_INIT(IPPROTO_UDP),
@@ -317,34 +317,29 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 	udp4_eth_hdr.h_proto = htons_constant(ETH_P_IP);
 	udp6_eth_hdr.h_proto = htons_constant(ETH_P_IPV6);
 
+	tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
+	tiov[UDP_IOV_PAYLOAD].iov_base = payload;
+
+	/* It's useful to have separate msghdr arrays for receiving.  Otherwise,
+	 * an IPv4 recv() will alter msg_namelen, so we'd have to reset it every
+	 * time or risk truncating the address on future IPv6 recv()s.
+	 */
 	if (c->ifi4) {
 		struct msghdr *mh = &udp4_mh_recv[i].msg_hdr;
-		struct iovec *tiov = udp4_l2_iov[i];
 
 		mh->msg_name	= &meta->s_in;
 		mh->msg_namelen	= sizeof(struct sockaddr_in);
 		mh->msg_iov	= siov;
 		mh->msg_iovlen	= 1;
-
-		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
-		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(udp4_eth_hdr);
-		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(meta->ip4h);
-		tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 	}
 
 	if (c->ifi6) {
 		struct msghdr *mh = &udp6_mh_recv[i].msg_hdr;
-		struct iovec *tiov = udp6_l2_iov[i];
 
 		mh->msg_name	= &meta->s_in;
 		mh->msg_namelen	= sizeof(struct sockaddr_in6);
 		mh->msg_iov	= siov;
 		mh->msg_iovlen	= 1;
-
-		tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
-		tiov[UDP_IOV_ETH] = IOV_OF_LVALUE(udp6_eth_hdr);
-		tiov[UDP_IOV_IP] = IOV_OF_LVALUE(meta->ip6h);
-		tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 	}
 }
 
@@ -729,22 +724,19 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 			     in_port_t dstport, union epoll_ref ref,
 			     const struct timespec *now)
 {
-	struct iovec (*tap_iov)[UDP_NUM_IOVS];
 	struct mmsghdr *mmh_recv;
 	size_t i = start;
 
 	ASSERT(udp_meta[start].splicesrc == -1);
 	ASSERT(ref.type == EPOLL_TYPE_UDP);
 
-	if (ref.udp.v6) {
-		tap_iov = udp6_l2_iov;
+	if (ref.udp.v6)
 		mmh_recv = udp6_mh_recv;
-	} else {
+	else
 		mmh_recv = udp4_mh_recv;
-		tap_iov = udp4_l2_iov;
-	}
 
 	do {
+		struct iovec (*tap_iov)[UDP_NUM_IOVS] = &udp_l2_iov[i];
 		struct udp_payload_t *bp = &udp_payload[i];
 		struct udp_meta_t *bm = &udp_meta[i];
 		size_t l4len;
@@ -755,14 +747,18 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 						udp6_mh_recv[i].msg_len, now);
 			tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip6h) +
 						  sizeof(udp6_eth_hdr));
+			(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp6_eth_hdr);
+			(*tap_iov)[UDP_IOV_IP] = IOV_OF_LVALUE(bm->ip6h);
 		} else {
 			l4len = udp_update_hdr4(c, &bm->ip4h,
 						&bm->s_in.sa4, bp, dstport,
 						udp4_mh_recv[i].msg_len, now);
 			tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip4h) +
 						  sizeof(udp4_eth_hdr));
+			(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp4_eth_hdr);
+			(*tap_iov)[UDP_IOV_IP] = IOV_OF_LVALUE(bm->ip4h);
 		}
-		tap_iov[i][UDP_IOV_PAYLOAD].iov_len = l4len;
+		(*tap_iov)[UDP_IOV_PAYLOAD].iov_len = l4len;
 
 		if (++i >= n)
 			break;
@@ -770,7 +766,7 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 		udp_meta[i].splicesrc = udp_mmh_splice_port(ref, &mmh_recv[i]);
 	} while (udp_meta[i].splicesrc == -1);
 
-	tap_send_frames(c, &tap_iov[start][0], UDP_NUM_IOVS, i - start);
+	tap_send_frames(c, &udp_l2_iov[start][0], UDP_NUM_IOVS, i - start);
 	return i - start;
 }
 
