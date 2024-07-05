@@ -177,6 +177,17 @@ static_assert(sizeof(flow_sidx_t) <= sizeof(uint32_t),
 #define FLOW_SIDX_NONE ((flow_sidx_t){ .flow = FLOW_MAX })
 
 /**
+ * flow_sidx_valid() - Test if a sidx is valid
+ * @sidx:	sidx value
+ *
+ * Return: true if @sidx refers to a valid flow & side
+ */
+static inline bool flow_sidx_valid(flow_sidx_t sidx)
+{
+	return sidx.flow < FLOW_MAX;
+}
+
+/**
  * flow_sidx_eq() - Test if two sidx values are equal
  * @a, @b:	sidx values
  *

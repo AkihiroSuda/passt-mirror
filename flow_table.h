@@ -73,7 +73,7 @@ static inline unsigned flow_idx(const struct flow_common *f)
  */
 static inline union flow *flow_at_sidx(flow_sidx_t sidx)
 {
-	if (sidx.flow >= FLOW_MAX)
+	if (!flow_sidx_valid(sidx))
 		return NULL;
 	return FLOW(sidx.flow);
 }

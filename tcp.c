@@ -880,8 +880,7 @@ static inline unsigned tcp_hash_probe(const struct ctx *c,
 	flow_sidx_t sidx = FLOW_SIDX(conn, TAPSIDE(conn));
 
 	/* Linear probing */
-	while (!flow_sidx_eq(tc_hash[b], FLOW_SIDX_NONE) &&
-	       !flow_sidx_eq(tc_hash[b], sidx))
+	while (flow_sidx_valid(tc_hash[b]) && !flow_sidx_eq(tc_hash[b], sidx))
 		b = mod_sub(b, 1, TCP_HASH_TABLE_SIZE);
 
 	return b;
@@ -909,9 +908,9 @@ static void tcp_hash_remove(const struct ctx *c,
 			    const struct tcp_tap_conn *conn)
 {
 	unsigned b = tcp_hash_probe(c, conn), s;
-	union flow *flow = flow_at_sidx(tc_hash[b]);
+	union flow *flow;
 
-	if (!flow)
+	if (!flow_sidx_valid(tc_hash[b]))
 		return; /* Redundant remove */
 
 	flow_dbg(conn, "hash table remove: sock %i, bucket: %u", conn->sock, b);
