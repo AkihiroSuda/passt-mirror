@@ -229,29 +229,29 @@ enum udp_iov_idx {
 	UDP_NUM_IOVS
 };
 
-/* recvmmsg()/sendmmsg() data for tap */
-static struct iovec	udp_l2_iov_sock		[UDP_MAX_FRAMES];
+/* IOVs and msghdr arrays for receiving datagrams from sockets */
+static struct iovec	udp_iov_recv		[UDP_MAX_FRAMES];
+static struct mmsghdr	udp4_mh_recv		[UDP_MAX_FRAMES];
+static struct mmsghdr	udp6_mh_recv		[UDP_MAX_FRAMES];
 
-static struct iovec	udp4_l2_iov_tap		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
-static struct iovec	udp6_l2_iov_tap		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
-
-static struct mmsghdr	udp4_l2_mh_sock		[UDP_MAX_FRAMES];
-static struct mmsghdr	udp6_l2_mh_sock		[UDP_MAX_FRAMES];
-
-/* recvmmsg()/sendmmsg() data for "spliced" connections */
-static struct iovec	udp_iov_splice		[UDP_MAX_FRAMES];
-
-static struct sockaddr_in udp4_localname = {
+/* IOVs and msghdr arrays for sending "spliced" datagrams to sockets */
+static struct sockaddr_in udp4_splice_to = {
 	.sin_family = AF_INET,
 	.sin_addr = IN4ADDR_LOOPBACK_INIT,
 };
-static struct sockaddr_in6 udp6_localname = {
+static struct sockaddr_in6 udp6_splice_to = {
 	.sin6_family = AF_INET6,
 	.sin6_addr = IN6ADDR_LOOPBACK_INIT,
 };
 
+static struct iovec	udp_iov_splice		[UDP_MAX_FRAMES];
 static struct mmsghdr	udp4_mh_splice		[UDP_MAX_FRAMES];
 static struct mmsghdr	udp6_mh_splice		[UDP_MAX_FRAMES];
+
+/* IOVs for L2 frames */
+static struct iovec	udp4_l2_iov		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
+static struct iovec	udp6_l2_iov		[UDP_MAX_FRAMES][UDP_NUM_IOVS];
+
 
 /**
  * udp_portmap_clear() - Clear UDP port map before configuration
@@ -313,7 +313,7 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 static void udp_iov_init_one(const struct ctx *c, size_t i)
 {
 	struct udp_payload_t *payload = &udp_payload[i];
-	struct iovec *siov = &udp_l2_iov_sock[i];
+	struct iovec *siov = &udp_iov_recv[i];
 	struct udp_meta_t *meta = &udp_meta[i];
 
 	*meta = (struct udp_meta_t) {
@@ -326,8 +326,8 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 	udp6_eth_hdr.h_proto = htons_constant(ETH_P_IPV6);
 
 	if (c->ifi4) {
-		struct msghdr *mh = &udp4_l2_mh_sock[i].msg_hdr;
-		struct iovec *tiov = udp4_l2_iov_tap[i];
+		struct msghdr *mh = &udp4_mh_recv[i].msg_hdr;
+		struct iovec *tiov = udp4_l2_iov[i];
 
 		mh->msg_name	= &meta->s_in;
 		mh->msg_namelen	= sizeof(struct sockaddr_in);
@@ -341,8 +341,8 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 	}
 
 	if (c->ifi6) {
-		struct msghdr *mh = &udp6_l2_mh_sock[i].msg_hdr;
-		struct iovec *tiov = udp6_l2_iov_tap[i];
+		struct msghdr *mh = &udp6_mh_recv[i].msg_hdr;
+		struct iovec *tiov = udp6_l2_iov[i];
 
 		mh->msg_name	= &meta->s_in;
 		mh->msg_namelen	= sizeof(struct sockaddr_in6);
@@ -531,13 +531,13 @@ static unsigned udp_splice_send(const struct ctx *c, size_t start, size_t n,
 	ASSERT(ref.type == EPOLL_TYPE_UDP);
 
 	if (ref.udp.v6) {
-		mmh_recv = udp6_l2_mh_sock;
+		mmh_recv = udp6_mh_recv;
 		mmh_send = udp6_mh_splice;
-		udp6_localname.sin6_port = htons(dst);
+		udp6_splice_to.sin6_port = htons(dst);
 	} else {
-		mmh_recv = udp4_l2_mh_sock;
+		mmh_recv = udp4_mh_recv;
 		mmh_send = udp4_mh_splice;
-		udp4_localname.sin_port = htons(dst);
+		udp4_splice_to.sin_port = htons(dst);
 	}
 
 	do {
@@ -739,11 +739,11 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 	ASSERT(ref.type == EPOLL_TYPE_UDP);
 
 	if (ref.udp.v6) {
-		tap_iov = udp6_l2_iov_tap;
-		mmh_recv = udp6_l2_mh_sock;
+		tap_iov = udp6_l2_iov;
+		mmh_recv = udp6_mh_recv;
 	} else {
-		mmh_recv = udp4_l2_mh_sock;
-		tap_iov = udp4_l2_iov_tap;
+		mmh_recv = udp4_mh_recv;
+		tap_iov = udp4_l2_iov;
 	}
 
 	do {
@@ -754,13 +754,13 @@ static unsigned udp_tap_send(const struct ctx *c, size_t start, size_t n,
 		if (ref.udp.v6) {
 			l4len = udp_update_hdr6(c, &bm->ip6h,
 						&bm->s_in.sa6, bp, dstport,
-						udp6_l2_mh_sock[i].msg_len, now);
+						udp6_mh_recv[i].msg_len, now);
 			tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip6h) +
 						  sizeof(udp6_eth_hdr));
 		} else {
 			l4len = udp_update_hdr4(c, &bm->ip4h,
 						&bm->s_in.sa4, bp, dstport,
-						udp4_l2_mh_sock[i].msg_len, now);
+						udp4_mh_recv[i].msg_len, now);
 			tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip4h) +
 						  sizeof(udp4_eth_hdr));
 		}
@@ -811,9 +811,9 @@ void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t eve
 		dstport += c->udp.fwd_in.f.delta[dstport];
 
 	if (v6)
-		mmh_recv = udp6_l2_mh_sock;
+		mmh_recv = udp6_mh_recv;
 	else
-		mmh_recv = udp4_l2_mh_sock;
+		mmh_recv = udp4_mh_recv;
 
 	n = recvmmsg(ref.fd, mmh_recv, n, 0, NULL);
 	if (n <= 0)
@@ -1097,11 +1097,11 @@ static void udp_splice_iov_init(void)
 		struct msghdr *mh4 = &udp4_mh_splice[i].msg_hdr;
 		struct msghdr *mh6 = &udp6_mh_splice[i].msg_hdr;
 
-		mh4->msg_name = &udp4_localname;
-		mh4->msg_namelen = sizeof(udp4_localname);
+		mh4->msg_name = &udp4_splice_to;
+		mh4->msg_namelen = sizeof(udp4_splice_to);
 
-		mh6->msg_name = &udp6_localname;
-		mh6->msg_namelen = sizeof(udp6_localname);
+		mh6->msg_name = &udp6_splice_to;
+		mh6->msg_namelen = sizeof(udp6_splice_to);
 
 		udp_iov_splice[i].iov_base = udp_payload[i].data;
 
