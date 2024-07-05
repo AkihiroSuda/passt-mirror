@@ -314,8 +314,6 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 	};
 
 	*siov = IOV_OF_LVALUE(payload->data);
-	udp4_eth_hdr.h_proto = htons_constant(ETH_P_IP);
-	udp6_eth_hdr.h_proto = htons_constant(ETH_P_IPV6);
 
 	tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
 	tiov[UDP_IOV_PAYLOAD].iov_base = payload;
@@ -350,6 +348,9 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 static void udp_iov_init(const struct ctx *c)
 {
 	size_t i;
+
+	udp4_eth_hdr.h_proto = htons_constant(ETH_P_IP);
+	udp6_eth_hdr.h_proto = htons_constant(ETH_P_IPV6);
 
 	for (i = 0; i < UDP_MAX_FRAMES; i++)
 		udp_iov_init_one(c, i);
