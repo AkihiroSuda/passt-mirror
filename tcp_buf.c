@@ -408,6 +408,7 @@ int tcp_buf_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 	uint32_t already_sent, seq;
 	struct iovec *iov;
 
+	/* How much have we read/sent since last received ack ? */
 	already_sent = conn->seq_to_tap - conn->seq_ack_from_tap;
 
 	if (SEQ_LT(already_sent, 0)) {
@@ -416,6 +417,10 @@ int tcp_buf_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 			   conn->seq_ack_from_tap, conn->seq_to_tap);
 		conn->seq_to_tap = conn->seq_ack_from_tap;
 		already_sent = 0;
+		if (tcp_set_peek_offset(s, 0)) {
+			tcp_rst(c, conn);
+			return -1;
+		}
 	}
 
 	if (!wnd_scaled || already_sent >= wnd_scaled) {
@@ -433,11 +438,16 @@ int tcp_buf_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 		iov_rem = (wnd_scaled - already_sent) % mss;
 	}
 
-	mh_sock.msg_iov = iov_sock;
-	mh_sock.msg_iovlen = fill_bufs + 1;
-
-	iov_sock[0].iov_base = tcp_buf_discard;
-	iov_sock[0].iov_len = already_sent;
+	/* Prepare iov according to kernel capability */
+	if (!peek_offset_cap) {
+		mh_sock.msg_iov = iov_sock;
+		iov_sock[0].iov_base = tcp_buf_discard;
+		iov_sock[0].iov_len = already_sent;
+		mh_sock.msg_iovlen = fill_bufs + 1;
+	} else {
+		mh_sock.msg_iov = &iov_sock[1];
+		mh_sock.msg_iovlen = fill_bufs;
+	}
 
 	if (( v4 && tcp4_payload_used + fill_bufs > TCP_FRAMES_MEM) ||
 	    (!v4 && tcp6_payload_used + fill_bufs > TCP_FRAMES_MEM)) {
@@ -478,7 +488,10 @@ int tcp_buf_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
 		return 0;
 	}
 
-	sendlen = len - already_sent;
+	sendlen = len;
+	if (!peek_offset_cap)
+		sendlen -= already_sent;
+
 	if (sendlen <= 0) {
 		conn_flag(c, conn, STALLED);
 		return 0;

@@ -373,6 +373,9 @@ static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
 
 char		tcp_buf_discard		[MAX_WINDOW];
 
+/* Does the kernel support TCP_PEEK_OFF? */
+bool peek_offset_cap;
+
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
 
@@ -387,6 +390,25 @@ static_assert(ARRAY_SIZE(tc_hash) >= FLOW_MAX,
 /* Pools for pre-opened sockets (in init) */
 int init_sock_pool4		[TCP_SOCK_POOL_SIZE];
 int init_sock_pool6		[TCP_SOCK_POOL_SIZE];
+
+/**
+ * tcp_set_peek_offset() - Set SO_PEEK_OFF offset on a socket if supported
+ * @s:          Socket to update
+ * @offset:     Offset in bytes
+ *
+ * Return:      -1 when it fails, 0 otherwise.
+ */
+int tcp_set_peek_offset(int s, int offset)
+{
+	if (!peek_offset_cap)
+		return 0;
+
+	if (setsockopt(s, SOL_SOCKET, SO_PEEK_OFF, &offset, sizeof(offset))) {
+		err("Failed to set SO_PEEK_OFF to %i in socket %i", offset, s);
+		return -1;
+	}
+	return 0;
+}
 
 /**
  * tcp_conn_epoll_events() - epoll events mask for given connection state
@@ -1947,6 +1969,10 @@ static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
 			   "fast re-transmit, ACK: %u, previous sequence: %u",
 			   max_ack_seq, conn->seq_to_tap);
 		conn->seq_to_tap = max_ack_seq;
+		if (tcp_set_peek_offset(conn->sock, 0)) {
+			tcp_rst(c, conn);
+			return -1;
+		}
 		tcp_data_from_sock(c, conn);
 	}
 
@@ -2039,6 +2065,10 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
 	conn->seq_ack_to_tap = conn->seq_from_tap;
 
 	conn_event(c, conn, ESTABLISHED);
+	if (tcp_set_peek_offset(conn->sock, 0)) {
+		tcp_rst(c, conn);
+		return;
+	}
 
 	/* The client might have sent data already, which we didn't
 	 * dequeue waiting for SYN,ACK from tap -- check now.
@@ -2119,6 +2149,8 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, sa_family_t af,
 			goto reset;
 
 		conn_event(c, conn, ESTABLISHED);
+		if (tcp_set_peek_offset(conn->sock, 0))
+			goto reset;
 
 		if (th->fin) {
 			conn->seq_from_tap++;
@@ -2367,8 +2399,12 @@ void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 			flow_dbg(conn, "ACK timeout, retry");
 			conn->retrans++;
 			conn->seq_to_tap = conn->seq_ack_from_tap;
-			tcp_data_from_sock(c, conn);
-			tcp_timer_ctl(c, conn);
+			if (tcp_set_peek_offset(conn->sock, 0)) {
+				tcp_rst(c, conn);
+			} else {
+				tcp_data_from_sock(c, conn);
+				tcp_timer_ctl(c, conn);
+			}
 		}
 	} else {
 		struct itimerspec new = { { 0 }, { ACT_TIMEOUT, 0 } };
@@ -2659,7 +2695,8 @@ static void tcp_sock_refill_init(const struct ctx *c)
  */
 int tcp_init(struct ctx *c)
 {
-	unsigned b;
+	unsigned int b, optv = 0;
+	int s;
 
 	for (b = 0; b < TCP_HASH_TABLE_SIZE; b++)
 		tc_hash[b] = FLOW_SIDX_NONE;
@@ -2682,6 +2719,17 @@ int tcp_init(struct ctx *c)
 
 		NS_CALL(tcp_ns_socks_init, c);
 	}
+
+	/* Probe for SO_PEEK_OFF support */
+	s = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+	if (s < 0) {
+		warn_perror("Temporary TCP socket creation failed");
+	} else {
+		if (!setsockopt(s, SOL_SOCKET, SO_PEEK_OFF, &optv, sizeof(int)))
+			peek_offset_cap = true;
+		close(s);
+	}
+	info("SO_PEEK_OFF%ssupported", peek_offset_cap ? " " : " not ");
 
 	return 0;
 }

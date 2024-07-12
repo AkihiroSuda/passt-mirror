@@ -24,6 +24,9 @@ void tcp_timer(struct ctx *c, const struct timespec *now);
 void tcp_defer_handler(struct ctx *c);
 
 void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s);
+int tcp_set_peek_offset(int s, int offset);
+
+extern bool peek_offset_cap;
 
 /**
  * union tcp_epoll_ref - epoll reference portion for TCP connections
