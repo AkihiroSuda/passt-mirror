@@ -1425,6 +1425,14 @@ static void tcp_get_tap_ws(struct tcp_tap_conn *conn,
 static void tcp_tap_window_update(struct tcp_tap_conn *conn, unsigned wnd)
 {
 	wnd = MIN(MAX_WINDOW, wnd << conn->ws_from_tap);
+
+	/* Work-around for bug introduced in peer kernel code, commit
+	 * e2142825c120 ("net: tcp: send zero-window ACK when no memory").
+	 * We don't update if window shrank to zero.
+	 */
+	if (!wnd && SEQ_LT(conn->seq_ack_from_tap, conn->seq_to_tap))
+		return;
+
 	conn->wnd_from_tap = MIN(wnd >> conn->ws_from_tap, USHRT_MAX);
 
 	/* FIXME: reflect the tap-side receiver's window back to the sock-side
