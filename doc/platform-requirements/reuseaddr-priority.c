@@ -222,7 +222,7 @@ static void check_all_orders(void)
 			for (k = 0; k < norders; k++)
 				for (l = 0; l < norders; l++)
 					check_one_order(orders[i], orders[j],
-							orders[j], orders[l]);
+							orders[k], orders[l]);
 }
 
 int main(int argc, char *argv[])
