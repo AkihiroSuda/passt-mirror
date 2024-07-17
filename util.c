@@ -25,6 +25,7 @@
 #include <time.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <linux/errqueue.h>
 
 #include "util.h"
 #include "iov.h"
@@ -96,6 +97,14 @@ static int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &y, sizeof(y)))
 		debug("Failed to set SO_REUSEADDR on socket %i", fd);
+
+	if (proto == IPPROTO_UDP) {
+		int level = af == AF_INET ? IPPROTO_IP : IPPROTO_IPV6;
+		int opt = af == AF_INET ? IP_RECVERR : IPV6_RECVERR;
+
+		if (setsockopt(fd, level, opt, &y, sizeof(y)))
+			die_perror("Failed to set RECVERR on socket %i", fd);
+	}
 
 	if (ifname && *ifname) {
 		/* Supported since kernel version 5.7, commit c427bfec18f2
@@ -653,4 +662,24 @@ const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size)
 #undef INTOP
 
 	return dst;
+}
+
+/** str_ee_origin() - Convert socket extended error origin to a string
+ * @ee:		Socket extended error structure
+ *
+ * Return: Static string describing error origin
+ */
+const char *str_ee_origin(const struct sock_extended_err *ee)
+{
+	const char *const desc[] = {
+		[SO_EE_ORIGIN_NONE]  = "<no origin>",
+		[SO_EE_ORIGIN_LOCAL] = "Local",
+		[SO_EE_ORIGIN_ICMP]  = "ICMP",
+		[SO_EE_ORIGIN_ICMP6] = "ICMPv6",
+	};
+
+	if (ee->ee_origin < ARRAY_SIZE(desc))
+		return desc[ee->ee_origin];
+
+	return "<invalid>";
 }

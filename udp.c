@@ -110,6 +110,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <time.h>
+#include <linux/errqueue.h>
 
 #include "checksum.h"
 #include "util.h"
@@ -729,6 +730,59 @@ static void udp_tap_prepare(const struct ctx *c, const struct mmsghdr *mmh,
 }
 
 /**
+ * udp_sock_recverr() - Receive and clear an error from a socket
+ * @s:		Socket to receive from
+ *
+ * Return: true if errors received and processed, false if no more errors
+ *
+ * #syscalls recvmsg
+ */
+static bool udp_sock_recverr(int s)
+{
+	const struct sock_extended_err *ee;
+	const struct cmsghdr *hdr;
+	char buf[CMSG_SPACE(sizeof(*ee))];
+	struct msghdr mh = {
+		.msg_name = NULL,
+		.msg_namelen = 0,
+		.msg_iov = NULL,
+		.msg_iovlen = 0,
+		.msg_control = buf,
+		.msg_controllen = sizeof(buf),
+	};
+	ssize_t rc;
+
+	rc = recvmsg(s, &mh, MSG_ERRQUEUE);
+	if (rc < 0) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK)
+			err_perror("Failed to read error queue");
+		return false;
+	}
+
+	if (!(mh.msg_flags & MSG_ERRQUEUE)) {
+		err("Missing MSG_ERRQUEUE flag reading error queue");
+		return false;
+	}
+
+	hdr = CMSG_FIRSTHDR(&mh);
+	if (!((hdr->cmsg_level == IPPROTO_IP &&
+	       hdr->cmsg_type == IP_RECVERR) ||
+	      (hdr->cmsg_level == IPPROTO_IPV6 &&
+	       hdr->cmsg_type == IPV6_RECVERR))) {
+		err("Unexpected cmsg reading error queue");
+		return false;
+	}
+
+	ee = (const struct sock_extended_err *)CMSG_DATA(hdr);
+
+	/* TODO: When possible propagate and otherwise handle errors */
+	debug("%s error on UDP socket %i: %s",
+	      str_ee_origin(ee), s, strerror(ee->ee_errno));
+
+	return true;
+}
+
+/**
  * udp_sock_recv() - Receive datagrams from a socket
  * @c:		Execution context
  * @s:		Socket to receive from
@@ -750,6 +804,12 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
 
 	ASSERT(!c->no_udp);
+
+	/* Clear any errors first */
+	if (events & EPOLLERR) {
+		while (udp_sock_recverr(s))
+			;
+	}
 
 	if (!(events & EPOLLIN))
 		return 0;

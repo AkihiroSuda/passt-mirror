@@ -194,7 +194,10 @@ static inline const char *af_name(sa_family_t af)
 
 #define SOCKADDR_STRLEN		MAX(SOCKADDR_INET_STRLEN, SOCKADDR_INET6_STRLEN)
 
+struct sock_extended_err;
+
 const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size);
+const char *str_ee_origin(const struct sock_extended_err *ee);
 
 /**
  * mod_sub() - Modular arithmetic subtraction
