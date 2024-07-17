@@ -749,7 +749,9 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 	 */
 	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
 
-	if (c->no_udp || !(events & EPOLLIN))
+	ASSERT(!c->no_udp);
+
+	if (!(events & EPOLLIN))
 		return 0;
 
 	n = recvmmsg(s, mmh, n, 0, NULL);
@@ -849,9 +851,10 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 	in_port_t src, dst;
 	socklen_t sl;
 
-	(void)c;
 	(void)saddr;
 	(void)pif;
+
+	ASSERT(!c->no_udp);
 
 	uh = packet_get(p, idx, 0, sizeof(*uh), NULL);
 	if (!uh)
@@ -1025,6 +1028,8 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 	union udp_epoll_ref uref = { .splice = (c->mode == MODE_PASTA),
 				     .orig = true, .port = port };
 	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
+
+	ASSERT(!c->no_udp);
 
 	if (ns)
 		uref.pif = PIF_SPLICE;
@@ -1214,6 +1219,8 @@ void udp_timer(struct ctx *c, const struct timespec *now)
 	unsigned int i;
 	long *word, tmp;
 
+	ASSERT(!c->no_udp);
+
 	if (c->mode == MODE_PASTA) {
 		if (c->udp.fwd_out.f.mode == FWD_AUTO) {
 			fwd_scan_ports_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
@@ -1257,6 +1264,8 @@ v6:
  */
 int udp_init(struct ctx *c)
 {
+	ASSERT(!c->no_udp);
+
 	udp_iov_init(c);
 
 	udp_invert_portmap(&c->udp.fwd_in);

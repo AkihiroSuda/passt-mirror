@@ -2326,7 +2326,9 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	union flow *flow;
 	int s;
 
-	if (c->no_tcp || !(flow = flow_alloc()))
+	ASSERT(!c->no_tcp);
+
+	if (!(flow = flow_alloc()))
 		return;
 
 	s = accept4(ref.fd, &sa.sa, &sl, SOCK_NONBLOCK);
@@ -2379,8 +2381,7 @@ void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 	struct itimerspec check_armed = { { 0 }, { 0 } };
 	struct tcp_tap_conn *conn = CONN(ref.flow);
 
-	if (c->no_tcp)
-		return;
+	ASSERT(!c->no_tcp);
 
 	/* We don't reset timers on ~ACK_FROM_TAP_DUE, ~ACK_TO_TAP_DUE. If the
 	 * timer is currently armed, this event came from a previous setting,
@@ -2442,6 +2443,7 @@ void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
 	struct tcp_tap_conn *conn = CONN(ref.flowside.flow);
 
+	ASSERT(!c->no_tcp);
 	ASSERT(conn->f.type == FLOW_TCP);
 	ASSERT(conn->f.pif[ref.flowside.side] != PIF_TAP);
 
@@ -2541,6 +2543,8 @@ int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
 {
 	int r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
+	ASSERT(!c->no_tcp);
+
 	if (af == AF_UNSPEC && c->ifi4 && c->ifi6)
 		/* Attempt to get a dual stack socket */
 		if (tcp_sock_init_af(c, AF_UNSPEC, port, addr, ifname) >= 0)
@@ -2618,6 +2622,8 @@ static void tcp_ns_sock_init6(const struct ctx *c, in_port_t port)
  */
 void tcp_ns_sock_init(const struct ctx *c, in_port_t port)
 {
+	ASSERT(!c->no_tcp);
+
 	if (c->ifi4)
 		tcp_ns_sock_init4(c, port);
 	if (c->ifi6)
@@ -2705,6 +2711,8 @@ int tcp_init(struct ctx *c)
 {
 	unsigned int b, optv = 0;
 	int s;
+
+	ASSERT(!c->no_tcp);
 
 	for (b = 0; b < TCP_HASH_TABLE_SIZE; b++)
 		tc_hash[b] = FLOW_SIDX_NONE;
