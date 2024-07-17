@@ -737,8 +737,8 @@ static void udp_tap_prepare(const struct ctx *c, const struct mmsghdr *mmh,
  *
  * #syscalls recvmmsg
  */
-int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
-		  struct mmsghdr *mmh)
+static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
+			 struct mmsghdr *mmh)
 {
 	/* For not entirely clear reasons (data locality?) pasta gets better
 	 * throughput if we receive tap datagrams one at a atime.  For small
