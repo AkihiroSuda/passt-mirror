@@ -258,25 +258,25 @@ static void conn_event_do(const struct ctx *c, struct tcp_splice_conn *conn,
  */
 bool tcp_splice_flow_defer(struct tcp_splice_conn *conn)
 {
-	unsigned side;
+	unsigned sidei;
 
 	if (!(conn->flags & CLOSING))
 		return false;
 
-	for (side = 0; side < SIDES; side++) {
+	for (sidei = 0; sidei < SIDES; sidei++) {
 		/* Flushing might need to block: don't recycle them. */
-		if (conn->pipe[side][0] >= 0) {
-			close(conn->pipe[side][0]);
-			close(conn->pipe[side][1]);
-			conn->pipe[side][0] = conn->pipe[side][1] = -1;
+		if (conn->pipe[sidei][0] >= 0) {
+			close(conn->pipe[sidei][0]);
+			close(conn->pipe[sidei][1]);
+			conn->pipe[sidei][0] = conn->pipe[sidei][1] = -1;
 		}
 
-		if (conn->s[side] >= 0) {
-			close(conn->s[side]);
-			conn->s[side] = -1;
+		if (conn->s[sidei] >= 0) {
+			close(conn->s[sidei]);
+			conn->s[sidei] = -1;
 		}
 
-		conn->read[side] = conn->written[side] = 0;
+		conn->read[sidei] = conn->written[sidei] = 0;
 	}
 
 	conn->events = SPLICE_CLOSED;
@@ -296,33 +296,33 @@ bool tcp_splice_flow_defer(struct tcp_splice_conn *conn)
 static int tcp_splice_connect_finish(const struct ctx *c,
 				     struct tcp_splice_conn *conn)
 {
-	unsigned side;
+	unsigned sidei;
 	int i = 0;
 
-	for (side = 0; side < SIDES; side++) {
+	for (sidei = 0; sidei < SIDES; sidei++) {
 		for (; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
 			if (splice_pipe_pool[i][0] >= 0) {
-				SWAP(conn->pipe[side][0],
+				SWAP(conn->pipe[sidei][0],
 				     splice_pipe_pool[i][0]);
-				SWAP(conn->pipe[side][1],
+				SWAP(conn->pipe[sidei][1],
 				     splice_pipe_pool[i][1]);
 				break;
 			}
 		}
 
-		if (conn->pipe[side][0] < 0) {
-			if (pipe2(conn->pipe[side], O_NONBLOCK | O_CLOEXEC)) {
+		if (conn->pipe[sidei][0] < 0) {
+			if (pipe2(conn->pipe[sidei], O_NONBLOCK | O_CLOEXEC)) {
 				flow_err(conn, "cannot create %d->%d pipe: %s",
-					 side, !side, strerror(errno));
+					 sidei, !sidei, strerror(errno));
 				conn_flag(c, conn, CLOSING);
 				return -EIO;
 			}
 
-			if (fcntl(conn->pipe[side][0], F_SETPIPE_SZ,
+			if (fcntl(conn->pipe[sidei][0], F_SETPIPE_SZ,
 				  c->tcp.pipe_size)) {
 				flow_trace(conn,
 					   "cannot set %d->%d pipe size to %zu",
-					   side, !side, c->tcp.pipe_size);
+					   sidei, !sidei, c->tcp.pipe_size);
 			}
 		}
 	}
@@ -520,7 +520,7 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 			     uint32_t events)
 {
 	struct tcp_splice_conn *conn = conn_at_sidx(ref.flowside);
-	unsigned side = ref.flowside.side, fromside;
+	unsigned evsidei = ref.flowside.sidei, fromsidei;
 	uint8_t lowat_set_flag, lowat_act_flag;
 	int eof, never_read;
 
@@ -552,30 +552,31 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 	}
 
 	if (events & EPOLLOUT) {
-		fromside = !side;
-		conn_event(c, conn, side == 0 ? ~OUT_WAIT_0 : ~OUT_WAIT_1);
+		fromsidei = !evsidei;
+		conn_event(c, conn, evsidei == 0 ? ~OUT_WAIT_0 : ~OUT_WAIT_1);
 	} else {
-		fromside = side;
+		fromsidei = evsidei;
 	}
 
 	if (events & EPOLLRDHUP)
 		/* For side 0 this is fake, but implied */
-		conn_event(c, conn, side == 0 ? FIN_RCVD_0 : FIN_RCVD_1);
+		conn_event(c, conn, evsidei == 0 ? FIN_RCVD_0 : FIN_RCVD_1);
 
 swap:
 	eof = 0;
 	never_read = 1;
 
-	lowat_set_flag = fromside == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
-	lowat_act_flag = fromside == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
+	lowat_set_flag = fromsidei == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
+	lowat_act_flag = fromsidei == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
 
 	while (1) {
 		ssize_t readlen, to_write = 0, written;
 		int more = 0;
 
 retry:
-		readlen = splice(conn->s[fromside], NULL,
-				 conn->pipe[fromside][1], NULL, c->tcp.pipe_size,
+		readlen = splice(conn->s[fromsidei], NULL,
+				 conn->pipe[fromsidei][1], NULL,
+				 c->tcp.pipe_size,
 				 SPLICE_F_MOVE | SPLICE_F_NONBLOCK);
 		flow_trace(conn, "%zi from read-side call", readlen);
 		if (readlen < 0) {
@@ -600,8 +601,8 @@ retry:
 		}
 
 eintr:
-		written = splice(conn->pipe[fromside][0], NULL,
-				 conn->s[!fromside], NULL, to_write,
+		written = splice(conn->pipe[fromsidei][0], NULL,
+				 conn->s[!fromsidei], NULL, to_write,
 				 SPLICE_F_MOVE | more | SPLICE_F_NONBLOCK);
 		flow_trace(conn, "%zi from write-side call (passed %zi)",
 			   written, to_write);
@@ -615,7 +616,7 @@ eintr:
 			    readlen > (long)c->tcp.pipe_size / 10) {
 				int lowat = c->tcp.pipe_size / 4;
 
-				if (setsockopt(conn->s[fromside], SOL_SOCKET,
+				if (setsockopt(conn->s[fromsidei], SOL_SOCKET,
 					       SO_RCVLOWAT,
 					       &lowat, sizeof(lowat))) {
 					flow_trace(conn,
@@ -630,8 +631,8 @@ eintr:
 			break;
 		}
 
-		conn->read[fromside]    += readlen > 0 ? readlen : 0;
-		conn->written[fromside] += written > 0 ? written : 0;
+		conn->read[fromsidei]    += readlen > 0 ? readlen : 0;
+		conn->written[fromsidei] += written > 0 ? written : 0;
 
 		if (written < 0) {
 			if (errno == EINTR)
@@ -640,11 +641,11 @@ eintr:
 			if (errno != EAGAIN)
 				goto close;
 
-			if (conn->read[fromside] == conn->written[fromside])
+			if (conn->read[fromsidei] == conn->written[fromsidei])
 				break;
 
 			conn_event(c, conn,
-				   fromside == 0 ? OUT_WAIT_1 : OUT_WAIT_0);
+				   fromsidei == 0 ? OUT_WAIT_1 : OUT_WAIT_0);
 			break;
 		}
 
@@ -661,14 +662,14 @@ eintr:
 	}
 
 	if ((conn->events & FIN_RCVD_0) && !(conn->events & FIN_SENT_1)) {
-		if (conn->read[fromside] == conn->written[fromside] && eof) {
+		if (conn->read[fromsidei] == conn->written[fromsidei] && eof) {
 			shutdown(conn->s[1], SHUT_WR);
 			conn_event(c, conn, FIN_SENT_1);
 		}
 	}
 
 	if ((conn->events & FIN_RCVD_1) && !(conn->events & FIN_SENT_0)) {
-		if (conn->read[fromside] == conn->written[fromside] && eof) {
+		if (conn->read[fromsidei] == conn->written[fromsidei] && eof) {
 			shutdown(conn->s[0], SHUT_WR);
 			conn_event(c, conn, FIN_SENT_0);
 		}
@@ -680,7 +681,7 @@ eintr:
 	if ((events & (EPOLLIN | EPOLLOUT)) == (EPOLLIN | EPOLLOUT)) {
 		events = EPOLLIN;
 
-		fromside = !fromside;
+		fromsidei = !fromsidei;
 		goto swap;
 	}
 
@@ -815,19 +816,19 @@ void tcp_splice_init(struct ctx *c)
  */
 void tcp_splice_timer(const struct ctx *c, struct tcp_splice_conn *conn)
 {
-	int side;
+	unsigned sidei;
 
 	ASSERT(!(conn->flags & CLOSING));
 
-	for (side = 0; side < SIDES; side++) {
-		uint8_t set = side == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
-		uint8_t act = side == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
+	for (sidei = 0; sidei < SIDES; sidei++) {
+		uint8_t set = sidei == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
+		uint8_t act = sidei == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
 
 		if ((conn->flags & set) && !(conn->flags & act)) {
-			if (setsockopt(conn->s[side], SOL_SOCKET, SO_RCVLOWAT,
+			if (setsockopt(conn->s[sidei], SOL_SOCKET, SO_RCVLOWAT,
 				       &((int){ 1 }), sizeof(int))) {
 				flow_trace(conn, "can't set SO_RCVLOWAT on %d",
-					   conn->s[side]);
+					   conn->s[sidei]);
 			}
 			conn_flag(c, conn, ~set);
 		}

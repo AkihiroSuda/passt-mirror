@@ -75,7 +75,7 @@ static inline union flow *flow_at_sidx(flow_sidx_t sidx)
 {
 	if (!flow_sidx_valid(sidx))
 		return NULL;
-	return FLOW(sidx.flow);
+	return FLOW(sidx.flowi);
 }
 
 /** pif_at_sidx() - Interface for a given flow and side
@@ -89,34 +89,34 @@ static inline uint8_t pif_at_sidx(flow_sidx_t sidx)
 
 	if (!flow)
 		return PIF_NONE;
-	return flow->f.pif[sidx.side];
+	return flow->f.pif[sidx.sidei];
 }
 
 /** flow_sidx() - Index of one side of a flow from common structure
  * @f:		Common flow fields pointer
- * @side:	Which side to refer to (0 or 1)
+ * @sidei:	Which side to refer to (0 or 1)
  *
  * Return: index of @f and @side in the flow table
  */
 static inline flow_sidx_t flow_sidx(const struct flow_common *f,
-				    int side)
+				    unsigned sidei)
 {
 	/* cppcheck-suppress [knownConditionTrueFalse, unmatchedSuppression] */
-	ASSERT(side == !!side);
+	ASSERT(sidei == !!sidei);
 
 	return (flow_sidx_t){
-		.side = side,
-		.flow = flow_idx(f),
+		.sidei = sidei,
+		.flowi = flow_idx(f),
 	};
 }
 
 /** FLOW_SIDX() - Find the index of one side of a flow
  * @f_:		Flow pointer, either union flow * or protocol specific
- * @side:	Which side to index (0 or 1)
+ * @sidei:	Which side to index (0 or 1)
  *
  * Return: index of @f and @side in the flow table
  */
-#define FLOW_SIDX(f_, side)	(flow_sidx(&(f_)->f, (side)))
+#define FLOW_SIDX(f_, sidei)	(flow_sidx(&(f_)->f, (sidei)))
 
 union flow *flow_alloc(void);
 void flow_alloc_cancel(union flow *flow);

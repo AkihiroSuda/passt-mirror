@@ -132,8 +132,8 @@ extern const uint8_t flow_proto[];
 
 #define SIDES			2
 
-#define INISIDE			0	/* Initiating side */
-#define TGTSIDE			1	/* Target side */
+#define INISIDE			0	/* Initiating side index */
+#define TGTSIDE			1	/* Target side index */
 
 /**
  * struct flow_common - Common fields for packet flows
@@ -164,17 +164,17 @@ struct flow_common {
 
 /**
  * struct flow_sidx - ID for one side of a specific flow
- * @side:	Side referenced (0 or 1)
- * @flow:	Index of flow referenced
+ * @sidei:	Index of side referenced (0 or 1)
+ * @flowi:	Index of flow referenced
  */
 typedef struct flow_sidx {
-	unsigned	side :1;
-	unsigned	flow :FLOW_INDEX_BITS;
+	unsigned	sidei :1;
+	unsigned	flowi :FLOW_INDEX_BITS;
 } flow_sidx_t;
 static_assert(sizeof(flow_sidx_t) <= sizeof(uint32_t),
 	      "flow_sidx_t must fit within 32 bits");
 
-#define FLOW_SIDX_NONE ((flow_sidx_t){ .flow = FLOW_MAX })
+#define FLOW_SIDX_NONE ((flow_sidx_t){ .flowi = FLOW_MAX })
 
 /**
  * flow_sidx_valid() - Test if a sidx is valid
@@ -184,7 +184,7 @@ static_assert(sizeof(flow_sidx_t) <= sizeof(uint32_t),
  */
 static inline bool flow_sidx_valid(flow_sidx_t sidx)
 {
-	return sidx.flow < FLOW_MAX;
+	return sidx.flowi < FLOW_MAX;
 }
 
 /**
@@ -195,7 +195,7 @@ static inline bool flow_sidx_valid(flow_sidx_t sidx)
  */
 static inline bool flow_sidx_eq(flow_sidx_t a, flow_sidx_t b)
 {
-	return (a.flow == b.flow) && (a.side == b.side);
+	return (a.flowi == b.flowi) && (a.sidei == b.sidei);
 }
 
 union flow;
