@@ -23,11 +23,27 @@
 
 #define DSTPORT	13257U
 
+enum discard_method {
+	DISCARD_NULL_BUF,
+	DISCARD_ZERO_IOV,
+	DISCARD_NULL_IOV,
+	NUM_METHODS,
+};
+
 /* 127.0.0.1:DSTPORT */
 static const struct sockaddr_in lo_dst = SOCKADDR_INIT(INADDR_LOOPBACK, DSTPORT);
 
-static void test_discard(void)
+static void test_discard(enum discard_method method)
 {
+	struct iovec zero_iov = { .iov_base = NULL, .iov_len = 0, };
+	struct msghdr mh_zero = {
+		.msg_iov = &zero_iov,
+		.msg_iovlen = 1,
+	};
+	struct msghdr mh_null = {
+		.msg_iov = NULL,
+		.msg_iovlen = 0,
+	};
 	long token1, token2;
 	int recv_s, send_s;
 	ssize_t rc;
@@ -46,11 +62,36 @@ static void test_discard(void)
 	send_token(send_s, token1);
 	send_token(send_s, token2);
 
-	/* cppcheck-suppress nullPointer */
-	rc = recv(recv_s, NULL, 0, MSG_DONTWAIT);
-	if (rc < 0)
-		die("discarding recv(): %s\n", strerror(errno));
-	
+	switch (method) {
+	case DISCARD_NULL_BUF:
+		/* cppcheck-suppress nullPointer */
+		rc = recv(recv_s, NULL, 0, MSG_DONTWAIT);
+		if (rc < 0)
+			die("discarding recv(): %s\n", strerror(errno));
+		break;
+
+	case DISCARD_ZERO_IOV:
+		rc = recvmsg(recv_s, &mh_zero, MSG_DONTWAIT);
+		if (rc < 0)
+			die("recvmsg() with zero-length buffer: %s\n",
+			    strerror(errno));
+		if (!((unsigned)mh_zero.msg_flags & MSG_TRUNC))
+			die("Missing MSG_TRUNC flag\n");
+		break;
+
+	case DISCARD_NULL_IOV:
+		rc = recvmsg(recv_s, &mh_null, MSG_DONTWAIT);
+		if (rc < 0)
+			die("recvmsg() with zero-length iov: %s\n",
+			    strerror(errno));
+		if (!((unsigned)mh_null.msg_flags & MSG_TRUNC))
+			die("Missing MSG_TRUNC flag\n");
+		break;
+
+	default:
+		die("Bad method\n");
+	}
+
 	recv_token(recv_s, token2);
 
 	/* cppcheck-suppress nullPointer */
@@ -63,12 +104,15 @@ static void test_discard(void)
 
 int main(int argc, char *argv[])
 {
+	enum discard_method method;
+
 	(void)argc;
 	(void)argv;
 
-	test_discard();
+	for (method = 0; method < NUM_METHODS; method++)
+		test_discard(method);
 
-	printf("Discarding datagrams with a 0-length recv() seems to work\n");
+	printf("Discarding datagrams with 0-length receives seems to work\n");
 
 	exit(0);
 }
