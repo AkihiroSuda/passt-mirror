@@ -132,6 +132,11 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		return;
 	}
 
+	if ((optname == 't' || optname == 'T') && c->no_tcp)
+		die("TCP port forwarding requested but TCP is disabled");
+	if ((optname == 'u' || optname == 'U') && c->no_udp)
+		die("UDP port forwarding requested but UDP is disabled");
+
 	if (!strcmp(optarg, "auto")) {
 		if (fwd->mode)
 			goto mode_conflict;
