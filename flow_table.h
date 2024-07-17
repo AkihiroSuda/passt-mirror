@@ -41,6 +41,12 @@ union flow {
 extern unsigned flow_first_free;
 extern union flow flowtab[];
 
+/**
+ * flow_foreach_sidei() - 'for' type macro to step through each side of flow
+ * @sidei_:	Takes value INISIDE, then TGTSIDE
+ */
+#define flow_foreach_sidei(sidei_) \
+	for ((sidei_) = INISIDE; (sidei_) < SIDES; (sidei_)++)
 
 /** flow_idx() - Index of flow from common structure
  * @f:	Common flow fields pointer

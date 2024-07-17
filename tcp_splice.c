@@ -263,7 +263,7 @@ bool tcp_splice_flow_defer(struct tcp_splice_conn *conn)
 	if (!(conn->flags & CLOSING))
 		return false;
 
-	for (sidei = 0; sidei < SIDES; sidei++) {
+	flow_foreach_sidei(sidei) {
 		/* Flushing might need to block: don't recycle them. */
 		if (conn->pipe[sidei][0] >= 0) {
 			close(conn->pipe[sidei][0]);
@@ -299,7 +299,7 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 	unsigned sidei;
 	int i = 0;
 
-	for (sidei = 0; sidei < SIDES; sidei++) {
+	flow_foreach_sidei(sidei) {
 		for (; i < TCP_SPLICE_PIPE_POOL_SIZE; i++) {
 			if (splice_pipe_pool[i][0] >= 0) {
 				SWAP(conn->pipe[sidei][0],
@@ -820,7 +820,7 @@ void tcp_splice_timer(const struct ctx *c, struct tcp_splice_conn *conn)
 
 	ASSERT(!(conn->flags & CLOSING));
 
-	for (sidei = 0; sidei < SIDES; sidei++) {
+	flow_foreach_sidei(sidei) {
 		uint8_t set = sidei == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
 		uint8_t act = sidei == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
 
