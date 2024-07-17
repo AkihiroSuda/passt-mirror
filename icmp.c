@@ -45,10 +45,26 @@
 #define ICMP_ECHO_TIMEOUT	60 /* s, timeout for ICMP socket activity */
 #define ICMP_NUM_IDS		(1U << 16)
 
-#define PINGF(idx)		(&(FLOW(idx)->ping))
-
 /* Indexed by ICMP echo identifier */
 static struct icmp_ping_flow *icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
+
+/**
+ * ping_at_sidx() - Get ping specific flow at given sidx
+ * @sidx:	Flow and side to retrieve
+ *
+ * Return: ping specific flow at @sidx, or NULL of @sidx is invalid.  Asserts if
+ *         the flow at @sidx is not FLOW_PING4 or FLOW_PING6
+ */
+static struct icmp_ping_flow *ping_at_sidx(flow_sidx_t sidx)
+{
+	union flow *flow = flow_at_sidx(sidx);
+
+	if (!flow)
+		return NULL;
+
+	ASSERT(flow->f.type == FLOW_PING4 || flow->f.type == FLOW_PING6);
+	return &flow->ping;
+}
 
 /**
  * icmp_sock_handler() - Handle new data from ICMP or ICMPv6 socket
@@ -57,7 +73,7 @@ static struct icmp_ping_flow *icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
  */
 void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 {
-	struct icmp_ping_flow *pingf = PINGF(ref.flowside.flow);
+	struct icmp_ping_flow *pingf = ping_at_sidx(ref.flowside);
 	union sockaddr_inany sr;
 	socklen_t sl = sizeof(sr);
 	char buf[USHRT_MAX];

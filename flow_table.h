@@ -42,7 +42,7 @@ extern unsigned flow_first_free;
 extern union flow flowtab[];
 
 
-/** flow_idx - Index of flow from common structure
+/** flow_idx() - Index of flow from common structure
  * @f:	Common flow fields pointer
  *
  * Return: index of @f in the flow table
@@ -52,21 +52,21 @@ static inline unsigned flow_idx(const struct flow_common *f)
 	return (union flow *)f - flowtab;
 }
 
-/** FLOW_IDX - Find the index of a flow
+/** FLOW_IDX() - Find the index of a flow
  * @f_:	Flow pointer, either union flow * or protocol specific
  *
  * Return: index of @f in the flow table
  */
 #define FLOW_IDX(f_)		(flow_idx(&(f_)->f))
 
-/** FLOW - Flow entry at a given index
+/** FLOW() - Flow entry at a given index
  * @idx:	Flow index
  *
  * Return: pointer to entry @idx in the flow table
  */
 #define FLOW(idx)		(&flowtab[(idx)])
 
-/** flow_at_sidx - Flow entry for a given sidx
+/** flow_at_sidx() - Flow entry for a given sidx
  * @sidx:	Flow & side index
  *
  * Return: pointer to the corresponding flow entry, or NULL
@@ -78,7 +78,21 @@ static inline union flow *flow_at_sidx(flow_sidx_t sidx)
 	return FLOW(sidx.flow);
 }
 
-/** flow_sidx_t - Index of one side of a flow from common structure
+/** pif_at_sidx() - Interface for a given flow and side
+ * @sidx:    Flow & side index
+ *
+ * Return: pif for the flow & side given by @sidx
+ */
+static inline uint8_t pif_at_sidx(flow_sidx_t sidx)
+{
+	const union flow *flow = flow_at_sidx(sidx);
+
+	if (!flow)
+		return PIF_NONE;
+	return flow->f.pif[sidx.side];
+}
+
+/** flow_sidx() - Index of one side of a flow from common structure
  * @f:		Common flow fields pointer
  * @side:	Which side to refer to (0 or 1)
  *
@@ -96,7 +110,7 @@ static inline flow_sidx_t flow_sidx(const struct flow_common *f,
 	};
 }
 
-/** FLOW_SIDX - Find the index of one side of a flow
+/** FLOW_SIDX() - Find the index of one side of a flow
  * @f_:		Flow pointer, either union flow * or protocol specific
  * @side:	Which side to index (0 or 1)
  *

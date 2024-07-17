@@ -379,8 +379,6 @@ bool peek_offset_cap;
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
 
-#define CONN(idx)		(&(FLOW(idx)->tcp))
-
 /* Table for lookup from remote address, local port, remote port */
 static flow_sidx_t tc_hash[TCP_HASH_TABLE_SIZE];
 
@@ -390,6 +388,24 @@ static_assert(ARRAY_SIZE(tc_hash) >= FLOW_MAX,
 /* Pools for pre-opened sockets (in init) */
 int init_sock_pool4		[TCP_SOCK_POOL_SIZE];
 int init_sock_pool6		[TCP_SOCK_POOL_SIZE];
+
+/**
+ * conn_at_sidx() - Get TCP connection specific flow at given sidx
+ * @sidx:	Flow and side to retrieve
+ *
+ * Return: TCP connection at @sidx, or NULL of @sidx is invalid.  Asserts if the
+ *         flow at @sidx is not FLOW_TCP.
+ */
+static struct tcp_tap_conn *conn_at_sidx(flow_sidx_t sidx)
+{
+	union flow *flow = flow_at_sidx(sidx);
+
+	if (!flow)
+		return NULL;
+
+	ASSERT(flow->f.type == FLOW_TCP);
+	return &flow->tcp;
+}
 
 /**
  * tcp_set_peek_offset() - Set SO_PEEK_OFF offset on a socket if supported
@@ -2379,9 +2395,10 @@ cancel:
 void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 {
 	struct itimerspec check_armed = { { 0 }, { 0 } };
-	struct tcp_tap_conn *conn = CONN(ref.flow);
+	struct tcp_tap_conn *conn = &FLOW(ref.flow)->tcp;
 
 	ASSERT(!c->no_tcp);
+	ASSERT(conn->f.type == FLOW_TCP);
 
 	/* We don't reset timers on ~ACK_FROM_TAP_DUE, ~ACK_TO_TAP_DUE. If the
 	 * timer is currently armed, this event came from a previous setting,
@@ -2441,11 +2458,10 @@ void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
  */
 void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
 {
-	struct tcp_tap_conn *conn = CONN(ref.flowside.flow);
+	struct tcp_tap_conn *conn = conn_at_sidx(ref.flowside);
 
 	ASSERT(!c->no_tcp);
-	ASSERT(conn->f.type == FLOW_TCP);
-	ASSERT(conn->f.pif[ref.flowside.side] != PIF_TAP);
+	ASSERT(pif_at_sidx(ref.flowside) != PIF_TAP);
 
 	if (conn->events == CLOSED)
 		return;

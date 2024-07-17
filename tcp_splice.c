@@ -76,7 +76,6 @@ static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2];
 #define CONN_V6(x)			((x)->flags & SPLICE_V6)
 #define CONN_V4(x)			(!CONN_V6(x))
 #define CONN_HAS(conn, set)		(((conn)->events & (set)) == (set))
-#define CONN(idx)			(&FLOW(idx)->tcp_splice)
 
 /* Display strings for connection events */
 static const char *tcp_splice_event_str[] __attribute((__unused__)) = {
@@ -93,6 +92,24 @@ static const char *tcp_splice_flag_str[] __attribute((__unused__)) = {
 /* Forward declaration */
 static int tcp_sock_refill_ns(void *arg);
 static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af);
+
+/**
+ * conn_at_sidx() - Get spliced TCP connection specific flow at given sidx
+ * @sidx:	Flow and side to retrieve
+ *
+ * Return: Spliced TCP connection at @sidx, or NULL of @sidx is invalid.
+ *         Asserts if the flow at @sidx is not FLOW_TCP_SPLICE.
+ */
+static struct tcp_splice_conn *conn_at_sidx(flow_sidx_t sidx)
+{
+	union flow *flow = flow_at_sidx(sidx);
+
+	if (!flow)
+		return NULL;
+
+	ASSERT(flow->f.type == FLOW_TCP_SPLICE);
+	return &flow->tcp_splice;
+}
 
 /**
  * tcp_splice_conn_epoll_events() - epoll events masks for given state
@@ -502,7 +519,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 			     uint32_t events)
 {
-	struct tcp_splice_conn *conn = CONN(ref.flowside.flow);
+	struct tcp_splice_conn *conn = conn_at_sidx(ref.flowside);
 	unsigned side = ref.flowside.side, fromside;
 	uint8_t lowat_set_flag, lowat_act_flag;
 	int eof, never_read;
