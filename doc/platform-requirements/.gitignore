@@ -1,2 +1,3 @@
 /reuseaddr-priority
 /recv-zero
+/udp-close-dup
