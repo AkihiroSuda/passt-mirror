@@ -129,19 +129,14 @@ struct tcp_splice_conn {
 #define SPLICE_CLOSED			0
 #define SPLICE_CONNECT			BIT(0)
 #define SPLICE_ESTABLISHED		BIT(1)
-#define OUT_WAIT_0			BIT(2)
-#define OUT_WAIT_1			BIT(3)
-#define FIN_RCVD_0			BIT(4)
-#define FIN_RCVD_1			BIT(5)
-#define FIN_SENT_0			BIT(6)
-#define FIN_SENT_1			BIT(7)
+#define OUT_WAIT(sidei_)		((sidei_) ? BIT(3) : BIT(2))
+#define FIN_RCVD(sidei_)		((sidei_) ? BIT(5) : BIT(4))
+#define FIN_SENT(sidei_)		((sidei_) ? BIT(7) : BIT(6))
 
 	uint8_t flags;
 #define SPLICE_V6			BIT(0)
-#define RCVLOWAT_SET_0			BIT(1)
-#define RCVLOWAT_SET_1			BIT(2)
-#define RCVLOWAT_ACT_0			BIT(3)
-#define RCVLOWAT_ACT_1			BIT(4)
+#define RCVLOWAT_SET(sidei_)		((sidei_) ? BIT(2) : BIT(1))
+#define RCVLOWAT_ACT(sidei_)		((sidei_) ? BIT(4) : BIT(3))
 #define CLOSING				BIT(5)
 
 	uint32_t read[SIDES];

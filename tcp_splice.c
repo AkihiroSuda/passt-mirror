@@ -119,19 +119,22 @@ static struct tcp_splice_conn *conn_at_sidx(flow_sidx_t sidx)
 static void tcp_splice_conn_epoll_events(uint16_t events,
 					 struct epoll_event ev[])
 {
-	ev[0].events = ev[1].events = 0;
+	unsigned sidei;
+
+	flow_foreach_sidei(sidei)
+		ev[sidei].events = 0;
 
 	if (events & SPLICE_ESTABLISHED) {
-		if (!(events & FIN_SENT_1))
-			ev[0].events = EPOLLIN | EPOLLRDHUP;
-		if (!(events & FIN_SENT_0))
-			ev[1].events = EPOLLIN | EPOLLRDHUP;
+		flow_foreach_sidei(sidei) {
+			if (!(events & FIN_SENT(!sidei)))
+				ev[sidei].events = EPOLLIN | EPOLLRDHUP;
+		}
 	} else if (events & SPLICE_CONNECT) {
 		ev[1].events = EPOLLOUT;
 	}
 
-	ev[0].events |= (events & OUT_WAIT_0) ? EPOLLOUT : 0;
-	ev[1].events |= (events & OUT_WAIT_1) ? EPOLLOUT : 0;
+	flow_foreach_sidei(sidei)
+		ev[sidei].events |= (events & OUT_WAIT(sidei)) ? EPOLLOUT : 0;
 }
 
 /**
@@ -553,21 +556,21 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 
 	if (events & EPOLLOUT) {
 		fromsidei = !evsidei;
-		conn_event(c, conn, evsidei == 0 ? ~OUT_WAIT_0 : ~OUT_WAIT_1);
+		conn_event(c, conn, ~OUT_WAIT(evsidei));
 	} else {
 		fromsidei = evsidei;
 	}
 
 	if (events & EPOLLRDHUP)
 		/* For side 0 this is fake, but implied */
-		conn_event(c, conn, evsidei == 0 ? FIN_RCVD_0 : FIN_RCVD_1);
+		conn_event(c, conn, FIN_RCVD(evsidei));
 
 swap:
 	eof = 0;
 	never_read = 1;
 
-	lowat_set_flag = fromsidei == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
-	lowat_act_flag = fromsidei == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
+	lowat_set_flag = RCVLOWAT_SET(fromsidei);
+	lowat_act_flag = RCVLOWAT_ACT(fromsidei);
 
 	while (1) {
 		ssize_t readlen, to_write = 0, written;
@@ -644,8 +647,7 @@ eintr:
 			if (conn->read[fromsidei] == conn->written[fromsidei])
 				break;
 
-			conn_event(c, conn,
-				   fromsidei == 0 ? OUT_WAIT_1 : OUT_WAIT_0);
+			conn_event(c, conn, OUT_WAIT(fromsidei));
 			break;
 		}
 
@@ -661,21 +663,19 @@ eintr:
 			break;
 	}
 
-	if ((conn->events & FIN_RCVD_0) && !(conn->events & FIN_SENT_1)) {
-		if (conn->read[fromsidei] == conn->written[fromsidei] && eof) {
-			shutdown(conn->s[1], SHUT_WR);
-			conn_event(c, conn, FIN_SENT_1);
+	if (conn->read[fromsidei] == conn->written[fromsidei] && eof) {
+		unsigned sidei;
+
+		flow_foreach_sidei(sidei) {
+			if ((conn->events & FIN_RCVD(sidei)) &&
+			    !(conn->events & FIN_SENT(!sidei))) {
+				shutdown(conn->s[!sidei], SHUT_WR);
+				conn_event(c, conn, FIN_SENT(!sidei));
+			}
 		}
 	}
 
-	if ((conn->events & FIN_RCVD_1) && !(conn->events & FIN_SENT_0)) {
-		if (conn->read[fromsidei] == conn->written[fromsidei] && eof) {
-			shutdown(conn->s[0], SHUT_WR);
-			conn_event(c, conn, FIN_SENT_0);
-		}
-	}
-
-	if (CONN_HAS(conn, FIN_SENT_0 | FIN_SENT_1))
+	if (CONN_HAS(conn, FIN_SENT(0) | FIN_SENT(1)))
 		goto close;
 
 	if ((events & (EPOLLIN | EPOLLOUT)) == (EPOLLIN | EPOLLOUT)) {
@@ -821,19 +821,17 @@ void tcp_splice_timer(const struct ctx *c, struct tcp_splice_conn *conn)
 	ASSERT(!(conn->flags & CLOSING));
 
 	flow_foreach_sidei(sidei) {
-		uint8_t set = sidei == 0 ? RCVLOWAT_SET_0 : RCVLOWAT_SET_1;
-		uint8_t act = sidei == 0 ? RCVLOWAT_ACT_0 : RCVLOWAT_ACT_1;
-
-		if ((conn->flags & set) && !(conn->flags & act)) {
+		if ((conn->flags & RCVLOWAT_SET(sidei)) &&
+		    !(conn->flags & RCVLOWAT_ACT(sidei))) {
 			if (setsockopt(conn->s[sidei], SOL_SOCKET, SO_RCVLOWAT,
 				       &((int){ 1 }), sizeof(int))) {
 				flow_trace(conn, "can't set SO_RCVLOWAT on %d",
 					   conn->s[sidei]);
 			}
-			conn_flag(c, conn, ~set);
+			conn_flag(c, conn, ~RCVLOWAT_SET(sidei));
 		}
 	}
 
-	conn_flag(c, conn, ~RCVLOWAT_ACT_0);
-	conn_flag(c, conn, ~RCVLOWAT_ACT_1);
+	flow_foreach_sidei(sidei)
+		conn_flag(c, conn, ~RCVLOWAT_ACT(sidei));
 }
