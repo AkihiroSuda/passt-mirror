@@ -622,6 +622,10 @@ const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size)
 	} while (0)
 
 	switch (family) {
+	case AF_UNSPEC:
+		IPRINTF("<unspecified>");
+		break;
+
 	case AF_INET: {
 		const struct sockaddr_in *sa4 = sa;
 
