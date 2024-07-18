@@ -1666,7 +1666,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	if (!(flow = flow_alloc()))
 		return;
 
-	flow_initiate(flow, PIF_TAP);
+	flow_initiate_af(flow, PIF_TAP, af, saddr, srcport, daddr, dstport);
 
 	flow_target(flow, PIF_HOST);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
@@ -2351,7 +2351,9 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 	if (s < 0)
 		goto cancel;
 
-	flow_initiate(flow, ref.tcp_listen.pif);
+	/* FIXME: When listening port has a specific bound address, record that
+	 * as the forwarding address */
+	flow_initiate_sa(flow, ref.tcp_listen.pif, &sa, ref.tcp_listen.port);
 
 	if (sa.sa_family == AF_INET) {
 		const struct in_addr *addr = &sa.sa4.sin_addr;

@@ -17,6 +17,9 @@ union epoll_ref;
 
 #include "pif.h"
 #include "packet.h"
+#include "siphash.h"
+#include "ip.h"
+#include "inany.h"
 #include "flow.h"
 #include "icmp.h"
 #include "fwd.h"

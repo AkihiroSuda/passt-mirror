@@ -162,12 +162,15 @@ static void icmp_ping_close(const struct ctx *c,
  * @id_sock:	Pointer to ping flow entry slot in icmp_id_map[] to update
  * @af:		Address family, AF_INET or AF_INET6
  * @id:		ICMP id for the new socket
+ * @saddr:	Source address
+ * @daddr:	Destination address
  *
  * Return: Newly opened ping flow, or NULL on failure
  */
 static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 					    struct icmp_ping_flow **id_sock,
-					    sa_family_t af, uint16_t id)
+					    sa_family_t af, uint16_t id,
+					    const void *saddr, const void *daddr)
 {
 	uint8_t flowtype = af == AF_INET ? FLOW_PING4 : FLOW_PING6;
 	union epoll_ref ref = { .type = EPOLL_TYPE_PING };
@@ -179,7 +182,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	if (!flow)
 		return NULL;
 
-	flow_initiate(flow, PIF_TAP);
+	flow_initiate_af(flow, PIF_TAP, af, saddr, id, daddr, id);
 	flow_target(flow, PIF_HOST);
 	pingf = FLOW_SET_TYPE(flow, flowtype, ping);
 
@@ -285,7 +288,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	}
 
 	if (!(pingf = *id_sock))
-		if (!(pingf = icmp_ping_new(c, id_sock, af, id)))
+		if (!(pingf = icmp_ping_new(c, id_sock, af, id, saddr, daddr)))
 			return 1;
 
 	pingf->ts = now->tv_sec;

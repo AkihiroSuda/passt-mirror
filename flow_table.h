@@ -127,7 +127,13 @@ static inline flow_sidx_t flow_sidx(const struct flow_common *f,
 union flow *flow_alloc(void);
 void flow_alloc_cancel(union flow *flow);
 
-void flow_initiate(union flow *flow, uint8_t pif);
+const struct flowside *flow_initiate_af(union flow *flow, uint8_t pif,
+					sa_family_t af,
+					const void *saddr, in_port_t sport,
+					const void *daddr, in_port_t dport);
+const struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
+					const union sockaddr_inany *ssa,
+					in_port_t dport);
 void flow_target(union flow *flow, uint8_t pif);
 
 union flow *flow_set_type(union flow *flow, enum flow_type type);

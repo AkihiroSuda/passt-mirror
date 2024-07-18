@@ -108,6 +108,31 @@ static const union flow *flow_new_entry; /* = NULL */
 /* Last time the flow timers ran */
 static struct timespec flow_timer_run;
 
+/** flowside_from_af() - Initialise flowside from addresses
+ * @side:	flowside to initialise
+ * @af:		Address family (AF_INET or AF_INET6)
+ * @eaddr:	Endpoint address (pointer to in_addr or in6_addr)
+ * @eport:	Endpoint port
+ * @faddr:	Forwarding address (pointer to in_addr or in6_addr)
+ * @fport:	Forwarding port
+ */
+static void flowside_from_af(struct flowside *side, sa_family_t af,
+			     const void *eaddr, in_port_t eport,
+			     const void *faddr, in_port_t fport)
+{
+	if (faddr)
+		inany_from_af(&side->faddr, af, faddr);
+	else
+		side->faddr = inany_any6;
+	side->fport = fport;
+
+	if (eaddr)
+		inany_from_af(&side->eaddr, af, eaddr);
+	else
+		side->eaddr = inany_any6;
+	side->eport = eport;
+}
+
 /** flow_log_ - Log flow-related message
  * @f:		flow the message is related to
  * @pri:	Log priority
@@ -140,6 +165,8 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
  */
 static void flow_set_state(struct flow_common *f, enum flow_state state)
 {
+	char estr[INANY_ADDRSTRLEN], fstr[INANY_ADDRSTRLEN];
+	const struct flowside *ini = &f->side[INISIDE];
 	uint8_t oldstate = f->state;
 
 	ASSERT(state < FLOW_NUM_STATES);
@@ -150,18 +177,28 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 		  FLOW_STATE(f));
 
 	if (MAX(state, oldstate) >= FLOW_STATE_TGT)
-		flow_log_(f, LOG_DEBUG, "%s => %s", pif_name(f->pif[INISIDE]),
-			                            pif_name(f->pif[TGTSIDE]));
+		flow_log_(f, LOG_DEBUG, "%s [%s]:%hu -> [%s]:%hu => %s",
+			  pif_name(f->pif[INISIDE]),
+			  inany_ntop(&ini->eaddr, estr, sizeof(estr)),
+			  ini->eport,
+			  inany_ntop(&ini->faddr, fstr, sizeof(fstr)),
+			  ini->fport,
+			  pif_name(f->pif[TGTSIDE]));
 	else if (MAX(state, oldstate) >= FLOW_STATE_INI)
-		flow_log_(f, LOG_DEBUG, "%s => ?", pif_name(f->pif[INISIDE]));
+		flow_log_(f, LOG_DEBUG, "%s [%s]:%hu -> [%s]:%hu => ?",
+			  pif_name(f->pif[INISIDE]),
+			  inany_ntop(&ini->eaddr, estr, sizeof(estr)),
+			  ini->eport,
+			  inany_ntop(&ini->faddr, fstr, sizeof(fstr)),
+			  ini->fport);
 }
 
 /**
- * flow_initiate() - Move flow to INI, setting INISIDE details
+ * flow_initiate_() - Move flow to INI, setting pif[INISIDE]
  * @flow:	Flow to change state
  * @pif:	pif of the initiating side
  */
-void flow_initiate(union flow *flow, uint8_t pif)
+static void flow_initiate_(union flow *flow, uint8_t pif)
 {
 	struct flow_common *f = &flow->f;
 
@@ -172,6 +209,55 @@ void flow_initiate(union flow *flow, uint8_t pif)
 
 	f->pif[INISIDE] = pif;
 	flow_set_state(f, FLOW_STATE_INI);
+}
+
+/**
+ * flow_initiate_af() - Move flow to INI, setting INISIDE details
+ * @flow:	Flow to change state
+ * @pif:	pif of the initiating side
+ * @af:		Address family of @eaddr and @faddr
+ * @saddr:	Source address (pointer to in_addr or in6_addr)
+ * @sport:	Endpoint port
+ * @daddr:	Destination address (pointer to in_addr or in6_addr)
+ * @dport:	Destination port
+ *
+ * Return: pointer to the initiating flowside information
+ */
+const struct flowside *flow_initiate_af(union flow *flow, uint8_t pif,
+					sa_family_t af,
+					const void *saddr, in_port_t sport,
+					const void *daddr, in_port_t dport)
+{
+	struct flowside *ini = &flow->f.side[INISIDE];
+
+	flowside_from_af(ini, af, saddr, sport, daddr, dport);
+	flow_initiate_(flow, pif);
+	return ini;
+}
+
+/**
+ * flow_initiate_sa() - Move flow to INI, setting INISIDE details
+ * @flow:	Flow to change state
+ * @pif:	pif of the initiating side
+ * @ssa:	Source socket address
+ * @dport:	Destination port
+ *
+ * Return: pointer to the initiating flowside information
+ */
+const struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
+					const union sockaddr_inany *ssa,
+					in_port_t dport)
+{
+	struct flowside *ini = &flow->f.side[INISIDE];
+
+	inany_from_sockaddr(&ini->eaddr, &ini->eport, ssa);
+	if (inany_v4(&ini->eaddr))
+		ini->faddr = inany_any4;
+	else
+		ini->faddr = inany_any6;
+	ini->fport = dport;
+	flow_initiate_(flow, pif);
+	return ini;
 }
 
 /**

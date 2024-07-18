@@ -136,10 +136,25 @@ extern const uint8_t flow_proto[];
 #define TGTSIDE			1	/* Target side index */
 
 /**
+ * struct flowside - Address information for one side of a flow
+ * @eaddr:	Endpoint address (remote address from passt's PoV)
+ * @faddr:	Forwarding address (local address from passt's PoV)
+ * @eport:	Endpoint port
+ * @fport:	Forwarding port
+ */
+struct flowside {
+	union inany_addr	faddr;
+	union inany_addr	eaddr;
+	in_port_t		fport;
+	in_port_t		eport;
+};
+
+/**
  * struct flow_common - Common fields for packet flows
  * @state:	State of the flow table entry
  * @type:	Type of packet flow
  * @pif[]:	Interface for each side of the flow
+ * @side[]:	Information for each side of the flow
  */
 struct flow_common {
 #ifdef __GNUC__
@@ -154,6 +169,7 @@ struct flow_common {
 		      "Not enough bits for type field");
 #endif
 	uint8_t		pif[SIDES];
+	struct flowside	side[SIDES];
 };
 
 #define FLOW_INDEX_BITS		17	/* 128k - 1 */
