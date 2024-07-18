@@ -1059,7 +1059,6 @@ static void tcp_fill_header(struct tcphdr *th,
 
 /**
  * tcp_fill_headers4() - Fill 802.3, IPv4, TCP headers in pre-cooked buffers
- * @c:		Execution context
  * @conn:	Connection pointer
  * @taph:	tap backend specific header
  * @iph:	Pointer to IPv4 header
@@ -1070,27 +1069,26 @@ static void tcp_fill_header(struct tcphdr *th,
  *
  * Return: The IPv4 payload length, host order
  */
-static size_t tcp_fill_headers4(const struct ctx *c,
-				const struct tcp_tap_conn *conn,
+static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
 				struct tap_hdr *taph,
 				struct iphdr *iph, struct tcphdr *th,
 				size_t dlen, const uint16_t *check,
 				uint32_t seq)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
-	const struct in_addr *a4 = inany_v4(&tapside->faddr);
+	const struct in_addr *src4 = inany_v4(&tapside->faddr);
+	const struct in_addr *dst4 = inany_v4(&tapside->eaddr);
 	size_t l4len = dlen + sizeof(*th);
 	size_t l3len = l4len + sizeof(*iph);
 
-	ASSERT(a4);
+	ASSERT(src4 && dst4);
 
 	iph->tot_len = htons(l3len);
-	iph->saddr = a4->s_addr;
-	iph->daddr = c->ip4.addr_seen.s_addr;
+	iph->saddr = src4->s_addr;
+	iph->daddr = dst4->s_addr;
 
 	iph->check = check ? *check :
-			     csum_ip4_header(l3len, IPPROTO_TCP,
-					     *a4, c->ip4.addr_seen);
+			     csum_ip4_header(l3len, IPPROTO_TCP, *src4, *dst4);
 
 	tcp_fill_header(th, conn, seq);
 
@@ -1103,7 +1101,6 @@ static size_t tcp_fill_headers4(const struct ctx *c,
 
 /**
  * tcp_fill_headers6() - Fill 802.3, IPv6, TCP headers in pre-cooked buffers
- * @c:		Execution context
  * @conn:	Connection pointer
  * @taph:	tap backend specific header
  * @ip6h:	Pointer to IPv6 header
@@ -1114,8 +1111,7 @@ static size_t tcp_fill_headers4(const struct ctx *c,
  *
  * Return: The IPv6 payload length, host order
  */
-static size_t tcp_fill_headers6(const struct ctx *c,
-				const struct tcp_tap_conn *conn,
+static size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
 				struct tap_hdr *taph,
 				struct ipv6hdr *ip6h, struct tcphdr *th,
 				size_t dlen, uint32_t seq)
@@ -1125,10 +1121,7 @@ static size_t tcp_fill_headers6(const struct ctx *c,
 
 	ip6h->payload_len = htons(l4len);
 	ip6h->saddr = tapside->faddr.a6;
-	if (IN6_IS_ADDR_LINKLOCAL(&ip6h->saddr))
-		ip6h->daddr = c->ip6.addr_ll_seen;
-	else
-		ip6h->daddr = c->ip6.addr_seen;
+	ip6h->daddr = tapside->eaddr.a6;
 
 	ip6h->hop_limit = 255;
 	ip6h->version = 6;
@@ -1149,7 +1142,6 @@ static size_t tcp_fill_headers6(const struct ctx *c,
 
 /**
  * tcp_l2_buf_fill_headers() - Fill 802.3, IP, TCP headers in pre-cooked buffers
- * @c:		Execution context
  * @conn:	Connection pointer
  * @iov:	Pointer to an array of iovec of TCP pre-cooked buffers
  * @dlen:	TCP payload length
@@ -1158,8 +1150,7 @@ static size_t tcp_fill_headers6(const struct ctx *c,
  *
  * Return: IP payload length, host order
  */
-size_t tcp_l2_buf_fill_headers(const struct ctx *c,
-			       const struct tcp_tap_conn *conn,
+size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 			       struct iovec *iov, size_t dlen,
 			       const uint16_t *check, uint32_t seq)
 {
@@ -1167,13 +1158,13 @@ size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 	const struct in_addr *a4 = inany_v4(&tapside->faddr);
 
 	if (a4) {
-		return tcp_fill_headers4(c, conn, iov[TCP_IOV_TAP].iov_base,
+		return tcp_fill_headers4(conn, iov[TCP_IOV_TAP].iov_base,
 					 iov[TCP_IOV_IP].iov_base,
 					 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
 					 check, seq);
 	}
 
-	return tcp_fill_headers6(c, conn, iov[TCP_IOV_TAP].iov_base,
+	return tcp_fill_headers6(conn, iov[TCP_IOV_TAP].iov_base,
 				 iov[TCP_IOV_IP].iov_base,
 				 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
 				 seq);
@@ -1476,17 +1467,11 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 {
 	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
 	const struct flowside *tapside = TAPFLOW(conn);
-	union inany_addr aany;
 	uint64_t hash;
 	uint32_t ns;
 
-	if (CONN_V4(conn))
-		inany_from_af(&aany, AF_INET, &c->ip4.addr);
-	else
-		inany_from_af(&aany, AF_INET6, &c->ip6.addr);
-
 	inany_siphash_feed(&state, &tapside->faddr);
-	inany_siphash_feed(&state, &aany);
+	inany_siphash_feed(&state, &tapside->eaddr);
 	hash = siphash_final(&state, 36,
 			     (uint64_t)tapside->fport << 16 | tapside->eport);
 

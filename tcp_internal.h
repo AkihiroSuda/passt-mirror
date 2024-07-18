@@ -88,8 +88,7 @@ void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);
 		tcp_rst_do(c, conn);					\
 	} while (0)
 
-size_t tcp_l2_buf_fill_headers(const struct ctx *c,
-			       const struct tcp_tap_conn *conn,
+size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 			       struct iovec *iov, size_t dlen,
 			       const uint16_t *check, uint32_t seq);
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
