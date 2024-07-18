@@ -26,8 +26,6 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s);
  * union udp_epoll_ref - epoll reference portion for TCP connections
  * @port:		Source port for connected sockets, bound port otherwise
  * @pif:		pif for this socket
- * @bound:		Set if this file descriptor is a bound socket
- * @splice:		Set if descriptor packets to be "spliced"
  * @orig:		Set if a spliced socket which can originate "connections"
  * @v6:			Set for IPv6 sockets or connections
  * @u32:		Opaque u32 value of reference
@@ -36,8 +34,7 @@ union udp_epoll_ref {
 	struct {
 		in_port_t	port;
 		uint8_t		pif;
-		bool		splice:1,
-				orig:1,
+		bool		orig:1,
 				v6:1;
 	};
 	uint32_t u32;

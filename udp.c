@@ -150,27 +150,15 @@ struct udp_tap_port {
 	time_t ts;
 };
 
-/**
- * struct udp_splice_port - Bound socket for spliced communication
- * @sock:	Socket bound to index port
- * @ts:		Activity timestamp
- */
-struct udp_splice_port {
-	int sock;
-	time_t ts;
-};
-
 /* Port tracking, arrays indexed by packet source port (host order) */
 static struct udp_tap_port	udp_tap_map	[IP_VERSIONS][NUM_PORTS];
 
 /* "Spliced" sockets indexed by bound port (host order) */
-static struct udp_splice_port udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
-static struct udp_splice_port udp_splice_init[IP_VERSIONS][NUM_PORTS];
+static int udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
+static int udp_splice_init[IP_VERSIONS][NUM_PORTS];
 
 enum udp_act_type {
 	UDP_ACT_TAP,
-	UDP_ACT_SPLICE_NS,
-	UDP_ACT_SPLICE_INIT,
 	UDP_ACT_TYPE_MAX,
 };
 
@@ -260,8 +248,8 @@ void udp_portmap_clear(void)
 
 	for (i = 0; i < NUM_PORTS; i++) {
 		udp_tap_map[V4][i].sock = udp_tap_map[V6][i].sock = -1;
-		udp_splice_ns[V4][i].sock = udp_splice_ns[V6][i].sock = -1;
-		udp_splice_init[V4][i].sock = udp_splice_init[V6][i].sock = -1;
+		udp_splice_ns[V4][i] = udp_splice_ns[V6][i] = -1;
+		udp_splice_init[V4][i] = udp_splice_init[V6][i] = -1;
 	}
 }
 
@@ -1142,8 +1130,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port)
 {
-	union udp_epoll_ref uref = { .splice = (c->mode == MODE_PASTA),
-				     .orig = true, .port = port };
+	union udp_epoll_ref uref = { .orig = true, .port = port };
 	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	ASSERT(!c->no_udp);
@@ -1161,12 +1148,12 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 					 ifname, port, uref.u32);
 
 			udp_tap_map[V4][port].sock = s < 0 ? -1 : s;
-			udp_splice_init[V4][port].sock = s < 0 ? -1 : s;
+			udp_splice_init[V4][port] = s < 0 ? -1 : s;
 		} else {
 			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP,
 					 &in4addr_loopback,
 					 ifname, port, uref.u32);
-			udp_splice_ns[V4][port].sock = s < 0 ? -1 : s;
+			udp_splice_ns[V4][port] = s < 0 ? -1 : s;
 		}
 	}
 
@@ -1178,12 +1165,12 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 					 ifname, port, uref.u32);
 
 			udp_tap_map[V6][port].sock = s < 0 ? -1 : s;
-			udp_splice_init[V6][port].sock = s < 0 ? -1 : s;
+			udp_splice_init[V6][port] = s < 0 ? -1 : s;
 		} else {
 			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP,
 					 &in6addr_loopback,
 					 ifname, port, uref.u32);
-			udp_splice_ns[V6][port].sock = s < 0 ? -1 : s;
+			udp_splice_ns[V6][port] = s < 0 ? -1 : s;
 		}
 	}
 
@@ -1224,7 +1211,6 @@ static void udp_splice_iov_init(void)
 static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 			  in_port_t port, const struct timespec *now)
 {
-	struct udp_splice_port *sp;
 	struct udp_tap_port *tp;
 	int *sockp = NULL;
 
@@ -1236,20 +1222,6 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
 			sockp = &tp->sock;
 			tp->flags = 0;
 		}
-
-		break;
-	case UDP_ACT_SPLICE_INIT:
-		sp = &udp_splice_init[v6 ? V6 : V4][port];
-
-		if (now->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
-			sockp = &sp->sock;
-
-		break;
-	case UDP_ACT_SPLICE_NS:
-		sp = &udp_splice_ns[v6 ? V6 : V4][port];
-
-		if (now->tv_sec - sp->ts > UDP_CONN_TIMEOUT)
-			sockp = &sp->sock;
 
 		break;
 	default:
@@ -1274,24 +1246,23 @@ static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
  */
 static void udp_port_rebind(struct ctx *c, bool outbound)
 {
+	int (*socks)[NUM_PORTS] = outbound ? udp_splice_ns : udp_splice_init;
 	const uint8_t *fmap
 		= outbound ? c->udp.fwd_out.f.map : c->udp.fwd_in.f.map;
 	const uint8_t *rmap
 		= outbound ? c->udp.fwd_in.f.map : c->udp.fwd_out.f.map;
-	struct udp_splice_port (*socks)[NUM_PORTS]
-		= outbound ? udp_splice_ns : udp_splice_init;
 	unsigned port;
 
 	for (port = 0; port < NUM_PORTS; port++) {
 		if (!bitmap_isset(fmap, port)) {
-			if (socks[V4][port].sock >= 0) {
-				close(socks[V4][port].sock);
-				socks[V4][port].sock = -1;
+			if (socks[V4][port] >= 0) {
+				close(socks[V4][port]);
+				socks[V4][port] = -1;
 			}
 
-			if (socks[V6][port].sock >= 0) {
-				close(socks[V6][port].sock);
-				socks[V6][port].sock = -1;
+			if (socks[V6][port] >= 0) {
+				close(socks[V6][port]);
+				socks[V6][port] = -1;
 			}
 
 			continue;
@@ -1301,8 +1272,8 @@ static void udp_port_rebind(struct ctx *c, bool outbound)
 		if (bitmap_isset(rmap, port))
 			continue;
 
-		if ((c->ifi4 && socks[V4][port].sock == -1) ||
-		    (c->ifi6 && socks[V6][port].sock == -1))
+		if ((c->ifi4 && socks[V4][port] == -1) ||
+		    (c->ifi6 && socks[V6][port] == -1))
 			udp_sock_init(c, outbound, AF_UNSPEC, NULL, NULL, port);
 	}
 }
