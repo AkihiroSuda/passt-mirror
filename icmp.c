@@ -173,30 +173,27 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	union epoll_ref ref = { .type = EPOLL_TYPE_PING };
 	union flow *flow = flow_alloc();
 	struct icmp_ping_flow *pingf;
+	const struct flowside *tgt;
 	const void *bind_addr;
-	const char *bind_if;
 
 	if (!flow)
 		return NULL;
 
 	flow_initiate_af(flow, PIF_TAP, af, saddr, id, daddr, id);
-	/* FIXME: Record outbound source address when known */
-	flow_target_af(flow, PIF_HOST,	af, NULL, 0, daddr, 0);
+
+	if (af == AF_INET)
+		bind_addr = &c->ip4.addr_out;
+	else if (af == AF_INET6)
+		bind_addr = &c->ip6.addr_out;
+
+	tgt = flow_target_af(flow, PIF_HOST, af, bind_addr, 0, daddr, 0);
 	pingf = FLOW_SET_TYPE(flow, flowtype, ping);
 
 	pingf->seq = -1;
 
-	if (af == AF_INET) {
-		bind_addr = &c->ip4.addr_out;
-		bind_if = c->ip4.ifname_out;
-	} else {
-		bind_addr = &c->ip6.addr_out;
-		bind_if = c->ip6.ifname_out;
-	}
-
 	ref.flowside = FLOW_SIDX(flow, TGTSIDE);
-	pingf->sock = sock_l4(c, af, EPOLL_TYPE_PING, bind_addr, bind_if,
-			      0, ref.data);
+	pingf->sock = flowside_sock_l4(c, EPOLL_TYPE_PING, PIF_HOST,
+				       tgt, ref.data);
 
 	if (pingf->sock < 0) {
 		warn("Cannot open \"ping\" socket. You might need to:");

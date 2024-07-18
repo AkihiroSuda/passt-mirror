@@ -194,7 +194,6 @@ static int flowside_sock_splice(void *arg)
  * Return: socket fd of protocol @proto bound to the forwarding address and port
  *         from @tgt (if specified).
  */
-/* cppcheck-suppress unusedFunction */
 int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 		     const struct flowside *tgt, uint32_t data)
 {
