@@ -22,6 +22,8 @@ enum epoll_type {
 	EPOLL_TYPE_TCP_TIMER,
 	/* UDP sockets */
 	EPOLL_TYPE_UDP,
+	/* UDP socket for replies on a specific flow */
+	EPOLL_TYPE_UDP_REPLY,
 	/* ICMP/ICMPv6 ping sockets */
 	EPOLL_TYPE_PING,
 	/* inotify fd watching for end of netns (pasta) */

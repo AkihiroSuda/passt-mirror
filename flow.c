@@ -237,6 +237,26 @@ int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 	}
 }
 
+/** flowside_connect() - Connect a socket based on flowside
+ * @c:		Execution context
+ * @s:		Socket to connect
+ * @pif:	Target pif
+ * @tgt:	Target flowside
+ *
+ * Connect @s to the endpoint address and port from @tgt.
+ *
+ * Return: 0 on success, negative on error
+ */
+int flowside_connect(const struct ctx *c, int s,
+		     uint8_t pif, const struct flowside *tgt)
+{
+	union sockaddr_inany sa;
+	socklen_t sl;
+
+	pif_sockaddr(c, &sa, &sl, pif, &tgt->eaddr, tgt->eport);
+	return connect(s, &sa.sa, sl);
+}
+
 /** flow_log_ - Log flow-related message
  * @f:		flow the message is related to
  * @pri:	Log priority

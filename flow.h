@@ -168,6 +168,8 @@ static inline bool flowside_eq(const struct flowside *left,
 
 int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 		     const struct flowside *tgt, uint32_t data);
+int flowside_connect(const struct ctx *c, int s,
+		     uint8_t pif, const struct flowside *tgt);
 
 /**
  * struct flow_common - Common fields for packet flows

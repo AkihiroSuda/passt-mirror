@@ -100,6 +100,21 @@ static inline uint8_t pif_at_sidx(flow_sidx_t sidx)
 	return flow->f.pif[sidx.sidei];
 }
 
+/** flowside_at_sidx() - Retrieve a specific flowside
+ * @sidx:    Flow & side index
+ *
+ * Return: Flowside for the flow & side given by @sidx
+ */
+static inline const struct flowside *flowside_at_sidx(flow_sidx_t sidx)
+{
+	const union flow *flow = flow_at_sidx(sidx);
+
+	if (!flow)
+		return PIF_NONE;
+
+	return &flow->f.side[sidx.sidei];
+}
+
 /** flow_sidx_opposite() - Get the other side of the same flow
  * @sidx:	Flow & side index
  *

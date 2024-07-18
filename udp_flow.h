@@ -11,15 +11,17 @@
  * struct udp - Descriptor for a flow of UDP packets
  * @f:		Generic flow information
  * @ts:		Activity timestamp
+ * @s:		Socket fd (or -1) for each side of the flow
  */
 struct udp_flow {
 	/* Must be first element */
 	struct flow_common f;
 
 	time_t ts;
+	int s[SIDES];
 };
 
-bool udp_flow_timer(const struct ctx *c, const struct udp_flow *uflow,
+bool udp_flow_timer(const struct ctx *c, struct udp_flow *uflow,
 		    const struct timespec *now);
 
 #endif /* UDP_FLOW_H */
