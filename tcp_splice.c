@@ -73,8 +73,6 @@ static int ns_sock_pool6	[TCP_SOCK_POOL_SIZE];
 /* Pool of pre-opened pipes */
 static int splice_pipe_pool		[TCP_SPLICE_PIPE_POOL_SIZE][2];
 
-#define CONN_V6(x)			((x)->flags & SPLICE_V6)
-#define CONN_V4(x)			(!CONN_V6(x))
 #define CONN_HAS(conn, set)		(((conn)->events & (set)) == (set))
 
 /* Display strings for connection events */
@@ -483,7 +481,6 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 			       NULL, 0, &in6addr_loopback, dstport);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE, tcp_splice);
 
-	conn->flags = af == AF_INET ? 0 : SPLICE_V6;
 	conn->s[0] = s0;
 	conn->s[1] = -1;
 	conn->pipe[0][0] = conn->pipe[0][1] = -1;

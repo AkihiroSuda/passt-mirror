@@ -125,10 +125,9 @@ struct tcp_splice_conn {
 #define FIN_SENT(sidei_)		((sidei_) ? BIT(7) : BIT(6))
 
 	uint8_t flags;
-#define SPLICE_V6			BIT(0)
-#define RCVLOWAT_SET(sidei_)		((sidei_) ? BIT(2) : BIT(1))
-#define RCVLOWAT_ACT(sidei_)		((sidei_) ? BIT(4) : BIT(3))
-#define CLOSING				BIT(5)
+#define RCVLOWAT_SET(sidei_)		((sidei_) ? BIT(1) : BIT(0))
+#define RCVLOWAT_ACT(sidei_)		((sidei_) ? BIT(3) : BIT(2))
+#define CLOSING				BIT(4)
 
 	bool in_epoll	:1;
 };
