@@ -1581,46 +1581,48 @@ static uint16_t tcp_conn_tap_mss(const struct tcp_tap_conn *conn,
 /**
  * tcp_bind_outbound() - Bind socket to outbound address and interface if given
  * @c:		Execution context
+ * @conn:	Connection entry for socket to bind
  * @s:		Outbound TCP socket
- * @af:		Address family
  */
-static void tcp_bind_outbound(const struct ctx *c, int s, sa_family_t af)
+static void tcp_bind_outbound(const struct ctx *c,
+			      const struct tcp_tap_conn *conn, int s)
 {
-	if (af == AF_INET) {
-		if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out)) {
-			struct sockaddr_in addr4 = {
-				.sin_family = AF_INET,
-				.sin_port = 0,
-				.sin_addr = c->ip4.addr_out,
-			};
+	const struct flowside *tgt = &conn->f.side[TGTSIDE];
+	union sockaddr_inany bind_sa;
+	socklen_t sl;
 
-			if (bind(s, (struct sockaddr *)&addr4, sizeof(addr4)))
-				debug_perror("IPv4 TCP socket address bind");
+
+	pif_sockaddr(c, &bind_sa, &sl, PIF_HOST, &tgt->faddr, tgt->fport);
+	if (!inany_is_unspecified(&tgt->faddr) || tgt->fport) {
+		if (bind(s, &bind_sa.sa, sl)) {
+			char sstr[INANY_ADDRSTRLEN];
+
+			flow_dbg(conn,
+				 "Can't bind TCP outbound socket to %s:%hu: %s",
+				 inany_ntop(&tgt->faddr, sstr, sizeof(sstr)),
+				 tgt->fport, strerror(errno));
 		}
+	}
 
+	if (bind_sa.sa_family == AF_INET) {
 		if (*c->ip4.ifname_out) {
 			if (setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE,
 				       c->ip4.ifname_out,
-				       strlen(c->ip4.ifname_out)))
-				debug_perror("IPv4 TCP socket interface bind");
+				       strlen(c->ip4.ifname_out))) {
+				flow_dbg(conn, "Can't bind IPv4 TCP socket to"
+					 " interface %s: %s", c->ip4.ifname_out,
+					 strerror(errno));
+			}
 		}
-	} else if (af == AF_INET6) {
-		if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out)) {
-			struct sockaddr_in6 addr6 = {
-				.sin6_family = AF_INET6,
-				.sin6_port = 0,
-				.sin6_addr = c->ip6.addr_out,
-			};
-
-			if (bind(s, (struct sockaddr *)&addr6, sizeof(addr6)))
-				debug_perror("IPv6 TCP socket address bind");
-		}
-
+	} else if (bind_sa.sa_family == AF_INET6) {
 		if (*c->ip6.ifname_out) {
 			if (setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE,
 				       c->ip6.ifname_out,
-				       strlen(c->ip6.ifname_out)))
-				debug_perror("IPv6 TCP socket interface bind");
+				       strlen(c->ip6.ifname_out))) {
+				flow_dbg(conn, "Can't bind IPv6 TCP socket to"
+					 " interface %s: %s", c->ip6.ifname_out,
+					 strerror(errno));
+			}
 		}
 	}
 }
@@ -1643,9 +1645,9 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 {
 	in_port_t srcport = ntohs(th->source);
 	in_port_t dstport = ntohs(th->dest);
+	union inany_addr srcaddr, dstaddr; /* FIXME: Avoid bulky temporaries */
 	const struct flowside *ini, *tgt;
 	struct tcp_tap_conn *conn;
-	union inany_addr dstaddr; /* FIXME: Avoid bulky temporary */
 	union sockaddr_inany sa;
 	union flow *flow;
 	int s = -1, mss;
@@ -1666,9 +1668,24 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 
 	}
 
-	/* FIXME: Record outbound source address when known */
+	if (inany_is_linklocal6(&dstaddr)) {
+		srcaddr.a6 = c->ip6.addr_ll;
+	} else if (inany_is_loopback(&dstaddr)) {
+		srcaddr = dstaddr;
+	} else if (inany_v4(&dstaddr)) {
+		if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out))
+			srcaddr = inany_from_v4(c->ip4.addr_out);
+		else
+			srcaddr = inany_any4;
+	} else {
+		if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out))
+			srcaddr.a6 = c->ip6.addr_out;
+		else
+			srcaddr = inany_any6;
+	}
+
 	tgt = flow_target_af(flow, PIF_HOST, AF_INET6,
-			     NULL, 0, /* Kernel decides source address */
+			     &srcaddr, 0, /* Kernel decides source port */
 			     &dstaddr, dstport);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
@@ -1731,18 +1748,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			goto cancel;
 	}
 
-	if (inany_is_linklocal6(&tgt->eaddr)) {
-		struct sockaddr_in6 addr6_ll = {
-			.sin6_family = AF_INET6,
-			.sin6_addr = c->ip6.addr_ll,
-			.sin6_scope_id = c->ifi6,
-		};
-		if (bind(s, (struct sockaddr *)&addr6_ll, sizeof(addr6_ll)))
-			goto cancel;
-	} else if (!inany_is_loopback(&tgt->eaddr)) {
-		tcp_bind_outbound(c, s, af);
-	}
-
 	conn->sock = s;
 	conn->timer = -1;
 	conn_event(c, conn, TAP_SYN_RCVD);
@@ -1770,6 +1775,8 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	conn->seq_ack_from_tap = conn->seq_to_tap;
 
 	tcp_hash_insert(c, conn);
+
+	tcp_bind_outbound(c, conn, s);
 
 	if (connect(s, &sa.sa, sl)) {
 		if (errno != EINPROGRESS) {
