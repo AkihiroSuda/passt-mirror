@@ -48,7 +48,7 @@ union epoll_ref {
 			uint32_t flow;
 			flow_sidx_t flowside;
 			union tcp_listen_epoll_ref tcp_listen;
-			union udp_epoll_ref udp;
+			union udp_listen_epoll_ref udp;
 			uint32_t data;
 			int nsdir_fd;
 		};

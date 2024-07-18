@@ -61,7 +61,7 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 		proto = IPPROTO_TCP;
 		socktype = SOCK_STREAM | SOCK_NONBLOCK;
 		break;
-	case EPOLL_TYPE_UDP:
+	case EPOLL_TYPE_UDP_LISTEN:
 	case EPOLL_TYPE_UDP_REPLY:
 		proto = IPPROTO_UDP;
 		socktype = SOCK_DGRAM | SOCK_NONBLOCK;

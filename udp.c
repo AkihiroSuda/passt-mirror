@@ -448,10 +448,7 @@ static flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 	union flow *flow;
 	flow_sidx_t sidx;
 
-	ASSERT(ref.type == EPOLL_TYPE_UDP);
-
-	if (!ref.udp.orig)
-		return FLOW_SIDX_NONE;
+	ASSERT(ref.type == EPOLL_TYPE_UDP_LISTEN);
 
 	sidx = flow_lookup_sa(c, IPPROTO_UDP, ref.udp.pif, &meta->s_in, ref.udp.port);
 	if ((uflow = udp_at_sidx(sidx))) {
@@ -693,7 +690,7 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 }
 
 /**
- * udp_buf_sock_handler() - Handle new data from socket
+ * udp_listen_sock_handler() - Handle new data from socket
  * @c:		Execution context
  * @ref:	epoll reference
  * @events:	epoll events bitmap
@@ -701,8 +698,8 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
  *
  * #syscalls recvmmsg
  */
-void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref, uint32_t events,
-			  const struct timespec *now)
+void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
+			     uint32_t events, const struct timespec *now)
 {
 	struct mmsghdr *mmh_recv = ref.udp.v6 ? udp6_mh_recv : udp4_mh_recv;
 	int n, i;
@@ -974,7 +971,7 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port)
 {
-	union udp_epoll_ref uref = { .orig = true, .port = port };
+	union udp_listen_epoll_ref uref = { .port = port };
 	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	ASSERT(!c->no_udp);
@@ -988,12 +985,12 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		uref.v6 = 0;
 
 		if (!ns) {
-			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP, addr,
-					 ifname, port, uref.u32);
+			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
+					 addr, ifname, port, uref.u32);
 
 			udp_splice_init[V4][port] = s < 0 ? -1 : s;
 		} else {
-			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP,
+			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
 					 &in4addr_loopback,
 					 ifname, port, uref.u32);
 			udp_splice_ns[V4][port] = s < 0 ? -1 : s;
@@ -1004,12 +1001,12 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		uref.v6 = 1;
 
 		if (!ns) {
-			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP, addr,
-					 ifname, port, uref.u32);
+			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
+					 addr, ifname, port, uref.u32);
 
 			udp_splice_init[V6][port] = s < 0 ? -1 : s;
 		} else {
-			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP,
+			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
 					 &in6addr_loopback,
 					 ifname, port, uref.u32);
 			udp_splice_ns[V6][port] = s < 0 ? -1 : s;

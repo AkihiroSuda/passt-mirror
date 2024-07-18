@@ -20,8 +20,8 @@ enum epoll_type {
 	EPOLL_TYPE_TCP_LISTEN,
 	/* timerfds used for TCP timers */
 	EPOLL_TYPE_TCP_TIMER,
-	/* UDP sockets */
-	EPOLL_TYPE_UDP,
+	/* UDP "listening" sockets */
+	EPOLL_TYPE_UDP_LISTEN,
 	/* UDP socket for replies on a specific flow */
 	EPOLL_TYPE_UDP_REPLY,
 	/* ICMP/ICMPv6 ping sockets */

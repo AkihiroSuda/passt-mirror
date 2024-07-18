@@ -9,8 +9,8 @@
 #define UDP_TIMER_INTERVAL		1000 /* ms */
 
 void udp_portmap_clear(void);
-void udp_buf_sock_handler(const struct ctx *c, union epoll_ref ref,
-			  uint32_t events, const struct timespec *now);
+void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
+			     uint32_t events, const struct timespec *now);
 void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 			    uint32_t events, const struct timespec *now);
 int udp_tap_handler(const struct ctx *c, uint8_t pif,
@@ -23,19 +23,17 @@ void udp_timer(struct ctx *c, const struct timespec *now);
 void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s);
 
 /**
- * union udp_epoll_ref - epoll reference portion for TCP connections
+ * union udp_listen_epoll_ref - epoll reference for "listening" UDP sockets
  * @port:		Source port for connected sockets, bound port otherwise
  * @pif:		pif for this socket
- * @orig:		Set if a spliced socket which can originate "connections"
  * @v6:			Set for IPv6 sockets or connections
  * @u32:		Opaque u32 value of reference
  */
-union udp_epoll_ref {
+union udp_listen_epoll_ref {
 	struct {
 		in_port_t	port;
 		uint8_t		pif;
-		bool		orig:1,
-				v6:1;
+		bool		v6:1;
 	};
 	uint32_t u32;
 };
