@@ -114,37 +114,9 @@
 #define UDP_CONN_TIMEOUT	180 /* s, timeout for ephemeral or local bind */
 #define UDP_MAX_FRAMES		32  /* max # of frames to receive at once */
 
-/**
- * struct udp_tap_port - Port tracking based on tap-facing source port
- * @sock:	Socket bound to source port used as index
- * @flags:	Flags for recent activity type seen from/to port
- * @ts:		Activity timestamp from tap, used for socket aging
- */
-struct udp_tap_port {
-	int sock;
-	uint8_t flags;
-#define PORT_LOCAL	BIT(0)	/* Port was contacted from local address */
-#define PORT_LOOPBACK	BIT(1)	/* Port was contacted from loopback address */
-#define PORT_GUA	BIT(2)	/* Port was contacted from global unicast */
-#define PORT_DNS_FWD	BIT(3)	/* Port used as source for DNS remapped query */
-
-	time_t ts;
-};
-
-/* Port tracking, arrays indexed by packet source port (host order) */
-static struct udp_tap_port	udp_tap_map	[IP_VERSIONS][NUM_PORTS];
-
 /* "Spliced" sockets indexed by bound port (host order) */
 static int udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
 static int udp_splice_init[IP_VERSIONS][NUM_PORTS];
-
-enum udp_act_type {
-	UDP_ACT_TAP,
-	UDP_ACT_TYPE_MAX,
-};
-
-/* Activity-based aging for bindings */
-static uint8_t udp_act[IP_VERSIONS][UDP_ACT_TYPE_MAX][DIV_ROUND_UP(NUM_PORTS, 8)];
 
 /* Static buffers */
 
@@ -228,7 +200,6 @@ void udp_portmap_clear(void)
 	unsigned i;
 
 	for (i = 0; i < NUM_PORTS; i++) {
-		udp_tap_map[V4][i].sock = udp_tap_map[V6][i].sock = -1;
 		udp_splice_ns[V4][i] = udp_splice_ns[V6][i] = -1;
 		udp_splice_init[V4][i] = udp_splice_init[V6][i] = -1;
 	}
@@ -1047,7 +1018,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP, addr,
 					 ifname, port, uref.u32);
 
-			udp_tap_map[V4][port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V4][port] = s < 0 ? -1 : s;
 		} else {
 			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP,
@@ -1064,7 +1034,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP, addr,
 					 ifname, port, uref.u32);
 
-			udp_tap_map[V6][port].sock = s < 0 ? -1 : s;
 			udp_splice_init[V6][port] = s < 0 ? -1 : s;
 		} else {
 			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP,
@@ -1097,43 +1066,6 @@ static void udp_splice_iov_init(void)
 
 		mh->msg_iov = &udp_iov_splice[i];
 		mh->msg_iovlen = 1;
-	}
-}
-
-/**
- * udp_timer_one() - Handler for timed events on one port
- * @c:		Execution context
- * @v6:		Set for IPv6 connections
- * @type:	Socket type
- * @port:	Port number, host order
- * @now:	Current timestamp
- */
-static void udp_timer_one(struct ctx *c, int v6, enum udp_act_type type,
-			  in_port_t port, const struct timespec *now)
-{
-	struct udp_tap_port *tp;
-	int *sockp = NULL;
-
-	switch (type) {
-	case UDP_ACT_TAP:
-		tp = &udp_tap_map[v6 ? V6 : V4][port];
-
-		if (now->tv_sec - tp->ts > UDP_CONN_TIMEOUT) {
-			sockp = &tp->sock;
-			tp->flags = 0;
-		}
-
-		break;
-	default:
-		return;
-	}
-
-	if (sockp && *sockp >= 0) {
-		int s = *sockp;
-		*sockp = -1;
-		epoll_ctl(c->epollfd, EPOLL_CTL_DEL, s, NULL);
-		close(s);
-		bitmap_clear(udp_act[v6 ? V6 : V4][type], port);
 	}
 }
 
@@ -1221,9 +1153,7 @@ bool udp_flow_timer(const struct ctx *c, struct udp_flow *uflow,
  */
 void udp_timer(struct ctx *c, const struct timespec *now)
 {
-	int n, t, v6 = 0;
-	unsigned int i;
-	long *word, tmp;
+	(void)now;
 
 	ASSERT(!c->no_udp);
 
@@ -1239,26 +1169,6 @@ void udp_timer(struct ctx *c, const struct timespec *now)
 					   &c->tcp.fwd_in, &c->tcp.fwd_out);
 			udp_port_rebind(c, false);
 		}
-	}
-
-	if (!c->ifi4)
-		v6 = 1;
-v6:
-	for (t = 0; t < UDP_ACT_TYPE_MAX; t++) {
-		word = (long *)udp_act[v6 ? V6 : V4][t];
-		for (i = 0; i < ARRAY_SIZE(udp_act[0][0]);
-		     i += sizeof(long), word++) {
-			tmp = *word;
-			while ((n = ffsl(tmp))) {
-				tmp &= ~(1UL << (n - 1));
-				udp_timer_one(c, v6, t, i * 8 + n - 1, now);
-			}
-		}
-	}
-
-	if (!v6 && c->ifi6) {
-		v6 = 1;
-		goto v6;
 	}
 }
 
