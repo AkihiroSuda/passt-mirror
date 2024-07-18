@@ -211,7 +211,6 @@ static inline bool inany_is_multicast(const union inany_addr *a)
  *
  * Return: true if @a is specified and a unicast address
  */
-/* cppcheck-suppress unusedFunction */
 static inline bool inany_is_unicast(const union inany_addr *a)
 {
 	return !inany_is_unspecified(a) && !inany_is_multicast(a);
