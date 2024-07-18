@@ -45,9 +45,6 @@
 #define ICMP_ECHO_TIMEOUT	60 /* s, timeout for ICMP socket activity */
 #define ICMP_NUM_IDS		(1U << 16)
 
-/* Indexed by ICMP echo identifier */
-static struct icmp_ping_flow *icmp_id_map[IP_VERSIONS][ICMP_NUM_IDS];
-
 /**
  * ping_at_sidx() - Get ping specific flow at given sidx
  * @sidx:	Flow and side to retrieve
@@ -153,22 +150,14 @@ unexpected:
 static void icmp_ping_close(const struct ctx *c,
 			    const struct icmp_ping_flow *pingf)
 {
-	uint16_t id = pingf->f.side[INISIDE].eport;
-
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, pingf->sock, NULL);
 	close(pingf->sock);
 	flow_hash_remove(c, FLOW_SIDX(pingf, INISIDE));
-
-	if (pingf->f.type == FLOW_PING4)
-		icmp_id_map[V4][id] = NULL;
-	else
-		icmp_id_map[V6][id] = NULL;
 }
 
 /**
  * icmp_ping_new() - Prepare a new ping socket for a new id
  * @c:		Execution context
- * @id_sock:	Pointer to ping flow entry slot in icmp_id_map[] to update
  * @af:		Address family, AF_INET or AF_INET6
  * @id:		ICMP id for the new socket
  * @saddr:	Source address
@@ -177,7 +166,6 @@ static void icmp_ping_close(const struct ctx *c,
  * Return: Newly opened ping flow, or NULL on failure
  */
 static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
-					    struct icmp_ping_flow **id_sock,
 					    sa_family_t af, uint16_t id,
 					    const void *saddr, const void *daddr)
 {
@@ -223,7 +211,6 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	flow_dbg(pingf, "new socket %i for echo ID %"PRIu16, pingf->sock, id);
 
 	flow_hash_insert(c, FLOW_SIDX(pingf, INISIDE));
-	*id_sock = pingf;
 
 	FLOW_ACTIVATE(pingf);
 
@@ -250,7 +237,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
-	struct icmp_ping_flow *pingf, **id_sock;
+	struct icmp_ping_flow *pingf;
 	const struct flowside *tgt;
 	union sockaddr_inany sa;
 	size_t dlen, l4len;
@@ -277,7 +264,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 		proto = IPPROTO_ICMP;
 		id = ntohs(ih->un.echo.id);
-		id_sock = &icmp_id_map[V4][id];
 		seq = ntohs(ih->un.echo.sequence);
 	} else if (af == AF_INET6) {
 		const struct icmp6hdr *ih;
@@ -293,7 +279,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 		proto = IPPROTO_ICMPV6;
 		id = ntohs(ih->icmp6_identifier);
-		id_sock = &icmp_id_map[V6][id];
 		seq = ntohs(ih->icmp6_sequence);
 	} else {
 		ASSERT(0);
@@ -304,7 +289,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 
 	if (flow)
 		pingf = &flow->ping;
-	else if (!(pingf = icmp_ping_new(c, id_sock, af, id, saddr, daddr)))
+	else if (!(pingf = icmp_ping_new(c, af, id, saddr, daddr)))
 		return 1;
 
 	tgt = &pingf->f.side[TGTSIDE];
