@@ -9,6 +9,7 @@
 
 #include "tcp_conn.h"
 #include "icmp_flow.h"
+#include "udp_flow.h"
 
 /**
  * struct flow_free_cluster - Information about a cluster of free entries
@@ -35,6 +36,7 @@ union flow {
 	struct tcp_tap_conn tcp;
 	struct tcp_splice_conn tcp_splice;
 	struct icmp_ping_flow ping;
+	struct udp_flow udp;
 };
 
 /* Global Flow Table */
@@ -96,6 +98,19 @@ static inline uint8_t pif_at_sidx(flow_sidx_t sidx)
 	if (!flow)
 		return PIF_NONE;
 	return flow->f.pif[sidx.sidei];
+}
+
+/** flow_sidx_opposite() - Get the other side of the same flow
+ * @sidx:	Flow & side index
+ *
+ * Return: sidx for the other side of the same flow as @sidx
+ */
+static inline flow_sidx_t flow_sidx_opposite(flow_sidx_t sidx)
+{
+	if (!flow_sidx_valid(sidx))
+		return FLOW_SIDX_NONE;
+
+	return (flow_sidx_t){.flowi = sidx.flowi, .sidei = !sidx.sidei};
 }
 
 /** flow_sidx() - Index of one side of a flow from common structure

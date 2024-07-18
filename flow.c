@@ -37,6 +37,7 @@ const char *flow_type_str[] = {
 	[FLOW_TCP_SPLICE]	= "TCP connection (spliced)",
 	[FLOW_PING4]		= "ICMP ping sequence",
 	[FLOW_PING6]		= "ICMPv6 ping sequence",
+	[FLOW_UDP]		= "UDP flow",
 };
 static_assert(ARRAY_SIZE(flow_type_str) == FLOW_NUM_TYPES,
 	      "flow_type_str[] doesn't match enum flow_type");
@@ -46,6 +47,7 @@ const uint8_t flow_proto[] = {
 	[FLOW_TCP_SPLICE]	= IPPROTO_TCP,
 	[FLOW_PING4]		= IPPROTO_ICMP,
 	[FLOW_PING6]		= IPPROTO_ICMPV6,
+	[FLOW_UDP]		= IPPROTO_UDP,
 };
 static_assert(ARRAY_SIZE(flow_proto) == FLOW_NUM_TYPES,
 	      "flow_proto[] doesn't match enum flow_type");
@@ -702,6 +704,32 @@ flow_sidx_t flow_lookup_af(const struct ctx *c,
 }
 
 /**
+ * flow_lookup_sa() - Look up a flow given an endpoint socket address
+ * @c:		Execution context
+ * @proto:	Protocol of the flow (IP L4 protocol number)
+ * @pif:	Interface of the flow
+ * @esa:	Socket address of the endpoint
+ * @fport:	Forwarding port number
+ *
+ * Return: sidx of the matching flow & side, FLOW_SIDX_NONE if not found
+ */
+flow_sidx_t flow_lookup_sa(const struct ctx *c, uint8_t proto, uint8_t pif,
+			   const void *esa, in_port_t fport)
+{
+	struct flowside side = {
+		.fport = fport,
+	};
+
+	inany_from_sockaddr(&side.eaddr, &side.eport, esa);
+	if (inany_v4(&side.eaddr))
+		side.faddr = inany_any4;
+	else
+		side.faddr = inany_any6;
+
+	return flowside_lookup(c, proto, pif, &side);
+}
+
+/**
  * flow_defer_handler() - Handler for per-flow deferred and timed tasks
  * @c:		Execution context
  * @now:	Current timestamp
@@ -779,6 +807,10 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
 		case FLOW_PING6:
 			if (timer)
 				closed = icmp_ping_timer(c, &flow->ping, now);
+			break;
+		case FLOW_UDP:
+			if (timer)
+				closed = udp_flow_timer(c, &flow->udp, now);
 			break;
 		default:
 			/* Assume other flow types don't need any handling */

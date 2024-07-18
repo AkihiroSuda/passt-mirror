@@ -115,6 +115,8 @@ enum flow_type {
 	FLOW_PING4,
 	/* ICMPv6 echo requests from guest to host and matching replies back */
 	FLOW_PING6,
+	/* UDP pseudo-connection */
+	FLOW_UDP,
 
 	FLOW_NUM_TYPES,
 };
@@ -238,6 +240,8 @@ flow_sidx_t flow_lookup_af(const struct ctx *c,
 			   uint8_t proto, uint8_t pif, sa_family_t af,
 			   const void *eaddr, const void *faddr,
 			   in_port_t eport, in_port_t fport);
+flow_sidx_t flow_lookup_sa(const struct ctx *c, uint8_t proto, uint8_t pif,
+			   const void *esa, in_port_t fport);
 
 union flow;
 
