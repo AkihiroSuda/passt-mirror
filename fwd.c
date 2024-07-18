@@ -169,12 +169,16 @@ void fwd_scan_ports_init(struct ctx *c)
 uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 			 const struct flowside *ini, struct flowside *tgt)
 {
-	(void)proto;
-
 	tgt->eaddr = ini->faddr;
 	tgt->eport = ini->fport;
 
-	if (!c->no_map_gw) {
+	if (proto == IPPROTO_UDP && tgt->eport == 53 &&
+	    inany_equals4(&tgt->eaddr, &c->ip4.dns_match)) {
+		tgt->eaddr = inany_from_v4(c->ip4.dns_host);
+	} else if (proto == IPPROTO_UDP && tgt->eport == 53 &&
+		   inany_equals6(&tgt->eaddr, &c->ip6.dns_match)) {
+		tgt->eaddr.a6 = c->ip6.dns_host;
+	} else if (!c->no_map_gw) {
 		if (inany_equals4(&tgt->eaddr, &c->ip4.gw))
 			tgt->eaddr = inany_loopback4;
 		else if (inany_equals6(&tgt->eaddr, &c->ip6.gw))
@@ -191,6 +195,10 @@ uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 
 	/* Let the kernel pick a host side source port */
 	tgt->fport = 0;
+	if (proto == IPPROTO_UDP) {
+		/* But for UDP we preserve the source port */
+		tgt->fport = ini->eport;
+	}
 
 	return PIF_HOST;
 }
@@ -233,9 +241,14 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 	tgt->eport = ini->fport;
 	if (proto == IPPROTO_TCP)
 		tgt->eport += c->tcp.fwd_out.delta[tgt->eport];
+	else if (proto == IPPROTO_UDP)
+		tgt->eport += c->udp.fwd_out.f.delta[tgt->eport];
 
 	/* Let the kernel pick a host side source port */
 	tgt->fport = 0;
+	if (proto == IPPROTO_UDP)
+		/* But for UDP preserve the source port */
+		tgt->fport = ini->eport;
 
 	return PIF_HOST;
 }
@@ -257,9 +270,11 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 	tgt->eport = ini->fport;
 	if (proto == IPPROTO_TCP)
 		tgt->eport += c->tcp.fwd_in.delta[tgt->eport];
+	else if (proto == IPPROTO_UDP)
+		tgt->eport += c->udp.fwd_in.f.delta[tgt->eport];
 
 	if (c->mode == MODE_PASTA && inany_is_loopback(&ini->eaddr) &&
-	    proto == IPPROTO_TCP) {
+	    (proto == IPPROTO_TCP || proto == IPPROTO_UDP)) {
 		/* spliceable */
 
 		/* Preserve the specific loopback adddress used, but let the
@@ -267,11 +282,15 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		 */
 		tgt->faddr = ini->eaddr;
 		tgt->fport = 0;
+		if (proto == IPPROTO_UDP)
+			/* But for UDP preserve the source port */
+			tgt->fport = ini->eport;
 
 		if (inany_v4(&ini->eaddr))
 			tgt->eaddr = inany_loopback4;
 		else
 			tgt->eaddr = inany_loopback6;
+
 		return PIF_SPLICE;
 	}
 
