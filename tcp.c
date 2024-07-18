@@ -333,8 +333,6 @@
 
 #define ACK_IF_NEEDED	0		/* See tcp_send_flag() */
 
-#define TAPSIDE(conn_)	((conn_)->f.pif[1] == PIF_TAP)
-
 #define CONN_IS_CLOSING(conn)						\
 	(((conn)->events & ESTABLISHED) &&				\
 	 ((conn)->events & (SOCK_FIN_RCVD | TAP_FIN_RCVD)))
@@ -673,10 +671,11 @@ void conn_event_do(const struct ctx *c, struct tcp_tap_conn *conn,
  */
 static int tcp_rtt_dst_low(const struct tcp_tap_conn *conn)
 {
+	const struct flowside *tapside = TAPFLOW(conn);
 	int i;
 
 	for (i = 0; i < LOW_RTT_TABLE_SIZE; i++)
-		if (inany_equals(&conn->faddr, low_rtt_dst + i))
+		if (inany_equals(&tapside->faddr, low_rtt_dst + i))
 			return 1;
 
 	return 0;
@@ -691,6 +690,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 			      const struct tcp_info *tinfo)
 {
 #ifdef HAS_MIN_RTT
+	const struct flowside *tapside = TAPFLOW(conn);
 	int i, hole = -1;
 
 	if (!tinfo->tcpi_min_rtt ||
@@ -698,7 +698,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 		return;
 
 	for (i = 0; i < LOW_RTT_TABLE_SIZE; i++) {
-		if (inany_equals(&conn->faddr, low_rtt_dst + i))
+		if (inany_equals(&tapside->faddr, low_rtt_dst + i))
 			return;
 		if (hole == -1 && IN6_IS_ADDR_UNSPECIFIED(low_rtt_dst + i))
 			hole = i;
@@ -710,7 +710,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 	if (hole == -1)
 		return;
 
-	low_rtt_dst[hole++] = conn->faddr;
+	low_rtt_dst[hole++] = tapside->faddr;
 	if (hole == LOW_RTT_TABLE_SIZE)
 		hole = 0;
 	inany_from_af(low_rtt_dst + hole, AF_INET6, &in6addr_any);
@@ -865,8 +865,10 @@ static int tcp_hash_match(const struct tcp_tap_conn *conn,
 			  const union inany_addr *faddr,
 			  in_port_t eport, in_port_t fport)
 {
-	if (inany_equals(&conn->faddr, faddr) &&
-	    conn->eport == eport && conn->fport == fport)
+	const struct flowside *tapside = TAPFLOW(conn);
+
+	if (inany_equals(&tapside->faddr, faddr) &&
+	    tapside->eport == eport && tapside->fport == fport)
 		return 1;
 
 	return 0;
@@ -900,7 +902,10 @@ static uint64_t tcp_hash(const struct ctx *c, const union inany_addr *faddr,
 static uint64_t tcp_conn_hash(const struct ctx *c,
 			      const struct tcp_tap_conn *conn)
 {
-	return tcp_hash(c, &conn->faddr, conn->eport, conn->fport);
+	const struct flowside *tapside = TAPFLOW(conn);
+
+	return tcp_hash(c, &tapside->faddr, tapside->eport,
+			tapside->fport);
 }
 
 /**
@@ -1035,10 +1040,12 @@ void tcp_defer_handler(struct ctx *c)
  * @seq:	Sequence number
  */
 static void tcp_fill_header(struct tcphdr *th,
-			       const struct tcp_tap_conn *conn, uint32_t seq)
+			    const struct tcp_tap_conn *conn, uint32_t seq)
 {
-	th->source = htons(conn->fport);
-	th->dest = htons(conn->eport);
+	const struct flowside *tapside = TAPFLOW(conn);
+
+	th->source = htons(tapside->fport);
+	th->dest = htons(tapside->eport);
 	th->seq = htonl(seq);
 	th->ack_seq = htonl(conn->seq_ack_to_tap);
 	if (conn->events & ESTABLISHED)	{
@@ -1070,7 +1077,8 @@ static size_t tcp_fill_headers4(const struct ctx *c,
 				size_t dlen, const uint16_t *check,
 				uint32_t seq)
 {
-	const struct in_addr *a4 = inany_v4(&conn->faddr);
+	const struct flowside *tapside = TAPFLOW(conn);
+	const struct in_addr *a4 = inany_v4(&tapside->faddr);
 	size_t l4len = dlen + sizeof(*th);
 	size_t l3len = l4len + sizeof(*iph);
 
@@ -1112,10 +1120,11 @@ static size_t tcp_fill_headers6(const struct ctx *c,
 				struct ipv6hdr *ip6h, struct tcphdr *th,
 				size_t dlen, uint32_t seq)
 {
+	const struct flowside *tapside = TAPFLOW(conn);
 	size_t l4len = dlen + sizeof(*th);
 
 	ip6h->payload_len = htons(l4len);
-	ip6h->saddr = conn->faddr.a6;
+	ip6h->saddr = tapside->faddr.a6;
 	if (IN6_IS_ADDR_LINKLOCAL(&ip6h->saddr))
 		ip6h->daddr = c->ip6.addr_ll_seen;
 	else
@@ -1154,7 +1163,8 @@ size_t tcp_l2_buf_fill_headers(const struct ctx *c,
 			       struct iovec *iov, size_t dlen,
 			       const uint16_t *check, uint32_t seq)
 {
-	const struct in_addr *a4 = inany_v4(&conn->faddr);
+	const struct flowside *tapside = TAPFLOW(conn);
+	const struct in_addr *a4 = inany_v4(&tapside->faddr);
 
 	if (a4) {
 		return tcp_fill_headers4(c, conn, iov[TCP_IOV_TAP].iov_base,
@@ -1465,6 +1475,7 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 			 const struct timespec *now)
 {
 	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
+	const struct flowside *tapside = TAPFLOW(conn);
 	union inany_addr aany;
 	uint64_t hash;
 	uint32_t ns;
@@ -1474,10 +1485,10 @@ static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
 	else
 		inany_from_af(&aany, AF_INET6, &c->ip6.addr);
 
-	inany_siphash_feed(&state, &conn->faddr);
+	inany_siphash_feed(&state, &tapside->faddr);
 	inany_siphash_feed(&state, &aany);
 	hash = siphash_final(&state, 36,
-			     (uint64_t)conn->fport << 16 | conn->eport);
+			     (uint64_t)tapside->fport << 16 | tapside->eport);
 
 	/* 32ns ticks, overflows 32 bits every 137s */
 	ns = (now->tv_sec * 1000000000 + now->tv_nsec) >> 5;
@@ -1765,11 +1776,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	 */
 	if (!(conn->wnd_from_tap = (htons(th->window) >> conn->ws_from_tap)))
 		conn->wnd_from_tap = 1;
-
-	inany_from_af(&conn->faddr, af, daddr);
-
-	conn->fport = dstport;
-	conn->eport = srcport;
 
 	conn->seq_init_from_tap = ntohl(th->seq);
 	conn->seq_from_tap = conn->seq_init_from_tap + 1;
@@ -2313,10 +2319,6 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 	conn->timer = -1;
 	conn->ws_to_tap = conn->ws_from_tap = 0;
 	conn_event(c, conn, SOCK_ACCEPTED);
-
-	conn->faddr = saddr;
-	conn->fport = srcport;
-	conn->eport = dstport;
 
 	tcp_seq_init(c, conn, now);
 	tcp_hash_insert(c, conn);

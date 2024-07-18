@@ -13,19 +13,16 @@
  * struct tcp_tap_conn - Descriptor for a TCP connection (not spliced)
  * @f:			Generic flow information
  * @in_epoll:		Is the connection in the epoll set?
+ * @retrans:		Number of retransmissions occurred due to ACK_TIMEOUT
+ * @ws_from_tap:	Window scaling factor advertised from tap/guest
+ * @ws_to_tap:		Window scaling factor advertised to tap/guest
  * @tap_mss:		MSS advertised by tap/guest, rounded to 2 ^ TCP_MSS_BITS
  * @sock:		Socket descriptor number
  * @events:		Connection events, implying connection states
  * @timer:		timerfd descriptor for timeout events
  * @flags:		Connection flags representing internal attributes
- * @retrans:		Number of retransmissions occurred due to ACK_TIMEOUT
- * @ws_from_tap:	Window scaling factor advertised from tap/guest
- * @ws_to_tap:		Window scaling factor advertised to tap/guest
  * @sndbuf:		Sending buffer in kernel, rounded to 2 ^ SNDBUF_BITS
  * @seq_dup_ack_approx:	Last duplicate ACK number sent to tap
- * @faddr:		Guest side forwarding address (guest's remote address)
- * @eport:		Guest side endpoint port (guest's local port)
- * @fport:		Guest side forwarding port (guest's remote port)
  * @wnd_from_tap:	Last window size from tap, unscaled (as received)
  * @wnd_to_tap:		Sending window advertised to tap, unscaled (as sent)
  * @seq_to_tap:		Next sequence for packets to tap
@@ -49,6 +46,10 @@ struct tcp_tap_conn {
 	unsigned int	ws_from_tap	:TCP_WS_BITS;
 	unsigned int	ws_to_tap	:TCP_WS_BITS;
 
+#define TCP_MSS_BITS			14
+	unsigned int	tap_mss		:TCP_MSS_BITS;
+#define MSS_SET(conn, mss)	(conn->tap_mss = (mss >> (16 - TCP_MSS_BITS)))
+#define MSS_GET(conn)		(conn->tap_mss << (16 - TCP_MSS_BITS))
 
 	int		sock		:FD_REF_BITS;
 
@@ -77,24 +78,12 @@ struct tcp_tap_conn {
 #define ACK_TO_TAP_DUE		BIT(3)
 #define ACK_FROM_TAP_DUE	BIT(4)
 
-
-#define TCP_MSS_BITS			14
-	unsigned int	tap_mss		:TCP_MSS_BITS;
-#define MSS_SET(conn, mss)	(conn->tap_mss = (mss >> (16 - TCP_MSS_BITS)))
-#define MSS_GET(conn)		(conn->tap_mss << (16 - TCP_MSS_BITS))
-
-
 #define SNDBUF_BITS		24
 	unsigned int	sndbuf		:SNDBUF_BITS;
 #define SNDBUF_SET(conn, bytes)	(conn->sndbuf = ((bytes) >> (32 - SNDBUF_BITS)))
 #define SNDBUF_GET(conn)	(conn->sndbuf << (32 - SNDBUF_BITS))
 
 	uint8_t		seq_dup_ack_approx;
-
-
-	union inany_addr faddr;
-	in_port_t	eport;
-	in_port_t	fport;
 
 	uint16_t	wnd_from_tap;
 	uint16_t	wnd_to_tap;
@@ -109,21 +98,23 @@ struct tcp_tap_conn {
 /**
  * struct tcp_splice_conn - Descriptor for a spliced TCP connection
  * @f:			Generic flow information
- * @in_epoll:		Is the connection in the epoll set?
  * @s:			File descriptor for sockets
  * @pipe:		File descriptors for pipes
- * @events:		Events observed/actions performed on connection
- * @flags:		Connection flags (attributes, not events)
  * @read:		Bytes read (not fully written to other side in one shot)
  * @written:		Bytes written (not fully written from one other side read)
-*/
+ * @events:		Events observed/actions performed on connection
+ * @flags:		Connection flags (attributes, not events)
+ * @in_epoll:		Is the connection in the epoll set?
+ */
 struct tcp_splice_conn {
 	/* Must be first element */
 	struct flow_common f;
 
-	bool in_epoll	:1;
 	int s[SIDES];
 	int pipe[SIDES][2];
+
+	uint32_t read[SIDES];
+	uint32_t written[SIDES];
 
 	uint8_t events;
 #define SPLICE_CLOSED			0
@@ -139,8 +130,7 @@ struct tcp_splice_conn {
 #define RCVLOWAT_ACT(sidei_)		((sidei_) ? BIT(4) : BIT(3))
 #define CLOSING				BIT(5)
 
-	uint32_t read[SIDES];
-	uint32_t written[SIDES];
+	bool in_epoll	:1;
 };
 
 /* Socket pools */
