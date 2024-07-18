@@ -229,7 +229,7 @@ static inline bool flow_sidx_eq(flow_sidx_t a, flow_sidx_t b)
 	return (a.flowi == b.flowi) && (a.sidei == b.sidei);
 }
 
-void flow_hash_insert(const struct ctx *c, flow_sidx_t sidx);
+uint64_t flow_hash_insert(const struct ctx *c, flow_sidx_t sidx);
 void flow_hash_remove(const struct ctx *c, flow_sidx_t sidx);
 flow_sidx_t flow_lookup_af(const struct ctx *c,
 			   uint8_t proto, uint8_t pif, sa_family_t af,

@@ -455,16 +455,16 @@ static uint64_t flow_sidx_hash(const struct ctx *c, flow_sidx_t sidx)
 }
 
 /**
- * flow_hash_probe() - Find hash bucket for a flow
- * @c:		Execution context
+ * flow_hash_probe_() - Find hash bucket for a flow, given hash
+ * @hash:	Raw hash value for flow & side
  * @sidx:	Flow and side to find bucket for
  *
  * Return: If @sidx is in the hash table, its current bucket, otherwise a
  *         suitable free bucket for it.
  */
-static inline unsigned flow_hash_probe(const struct ctx *c, flow_sidx_t sidx)
+static inline unsigned flow_hash_probe_(uint64_t hash, flow_sidx_t sidx)
 {
-	unsigned b = flow_sidx_hash(c, sidx) % FLOW_HASH_SIZE;
+	unsigned b = hash % FLOW_HASH_SIZE;
 
 	/* Linear probing */
 	while (flow_sidx_valid(flow_hashtab[b]) &&
@@ -475,17 +475,35 @@ static inline unsigned flow_hash_probe(const struct ctx *c, flow_sidx_t sidx)
 }
 
 /**
+ * flow_hash_probe() - Find hash bucket for a flow
+ * @c:		Execution context
+ * @sidx:	Flow and side to find bucket for
+ *
+ * Return: If @sidx is in the hash table, its current bucket, otherwise a
+ *         suitable free bucket for it.
+ */
+static inline unsigned flow_hash_probe(const struct ctx *c, flow_sidx_t sidx)
+{
+	return flow_hash_probe_(flow_sidx_hash(c, sidx), sidx);
+}
+
+/**
  * flow_hash_insert() - Insert side of a flow into into hash table
  * @c:		Execution context
  * @sidx:	Flow & side index
+ *
+ * Return: raw (un-modded) hash value of side of flow
  */
-void flow_hash_insert(const struct ctx *c, flow_sidx_t sidx)
+uint64_t flow_hash_insert(const struct ctx *c, flow_sidx_t sidx)
 {
-	unsigned b = flow_hash_probe(c, sidx);
+	uint64_t hash = flow_sidx_hash(c, sidx);
+	unsigned b = flow_hash_probe_(hash, sidx);
 
 	flow_hashtab[b] = sidx;
 	flow_dbg(flow_at_sidx(sidx), "Side %u hash table insert: bucket: %u",
 		 sidx.sidei, b);
+
+	return hash;
 }
 
 /**

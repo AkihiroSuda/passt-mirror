@@ -1294,28 +1294,16 @@ static void tcp_tap_window_update(struct tcp_tap_conn *conn, unsigned wnd)
 }
 
 /**
- * tcp_seq_init() - Calculate initial sequence number according to RFC 6528
- * @c:		Execution context
- * @conn:	TCP connection, with faddr, fport and eport populated
+ * tcp_init_seq() - Calculate initial sequence number according to RFC 6528
+ * @hash:	Hash of connection details
  * @now:	Current timestamp
  */
-static void tcp_seq_init(const struct ctx *c, struct tcp_tap_conn *conn,
-			 const struct timespec *now)
+static uint32_t tcp_init_seq(uint64_t hash, const struct timespec *now)
 {
-	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
-	const struct flowside *tapside = TAPFLOW(conn);
-	uint64_t hash;
-	uint32_t ns;
-
-	inany_siphash_feed(&state, &tapside->faddr);
-	inany_siphash_feed(&state, &tapside->eaddr);
-	hash = siphash_final(&state, 36,
-			     (uint64_t)tapside->fport << 16 | tapside->eport);
-
 	/* 32ns ticks, overflows 32 bits every 137s */
-	ns = (now->tv_sec * 1000000000 + now->tv_nsec) >> 5;
+	uint32_t ns = (now->tv_sec * 1000000000 + now->tv_nsec) >> 5;
 
-	conn->seq_to_tap = ((uint32_t)(hash >> 32) ^ (uint32_t)hash) + ns;
+	return ((uint32_t)(hash >> 32) ^ (uint32_t)hash) + ns;
 }
 
 /**
@@ -1488,6 +1476,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	union sockaddr_inany sa;
 	union flow *flow;
 	int s = -1, mss;
+	uint64_t hash;
 	socklen_t sl;
 
 	if (!(flow = flow_alloc()))
@@ -1584,10 +1573,9 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	conn->seq_from_tap = conn->seq_init_from_tap + 1;
 	conn->seq_ack_to_tap = conn->seq_from_tap;
 
-	tcp_seq_init(c, conn, now);
+	hash = flow_hash_insert(c, TAP_SIDX(conn));
+	conn->seq_to_tap = tcp_init_seq(hash, now);
 	conn->seq_ack_from_tap = conn->seq_to_tap;
-
-	flow_hash_insert(c, TAP_SIDX(conn));
 
 	tcp_bind_outbound(c, conn, s);
 
@@ -2110,6 +2098,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 	union inany_addr saddr, daddr; /* FIXME: avoid bulky temporaries */
 	struct tcp_tap_conn *conn;
 	in_port_t srcport;
+	uint64_t hash;
 
 	inany_from_sockaddr(&saddr, &srcport, sa);
 	tcp_snat_inbound(c, &saddr);
@@ -2133,8 +2122,8 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 	conn->ws_to_tap = conn->ws_from_tap = 0;
 	conn_event(c, conn, SOCK_ACCEPTED);
 
-	tcp_seq_init(c, conn, now);
-	flow_hash_insert(c, TAP_SIDX(conn));
+	hash = flow_hash_insert(c, TAP_SIDX(conn));
+	conn->seq_to_tap = tcp_init_seq(hash, now);
 
 	conn->seq_ack_from_tap = conn->seq_to_tap;
 
