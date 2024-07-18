@@ -340,31 +340,20 @@ static int tcp_splice_connect_finish(const struct ctx *c,
  * tcp_splice_connect() - Create and connect socket for new spliced connection
  * @c:		Execution context
  * @conn:	Connection pointer
- * @af:		Address family
- * @pif:	pif on which to create socket
- * @port:	Destination port, host order
  *
  * Return: 0 for connect() succeeded or in progress, negative value on error
  */
-static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
-			      sa_family_t af, uint8_t pif, in_port_t port)
+static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn)
 {
-	struct sockaddr_in6 addr6 = {
-		.sin6_family = AF_INET6,
-		.sin6_port = htons(port),
-		.sin6_addr = IN6ADDR_LOOPBACK_INIT,
-	};
-	struct sockaddr_in addr4 = {
-		.sin_family = AF_INET,
-		.sin_port = htons(port),
-		.sin_addr = IN4ADDR_LOOPBACK_INIT,
-	};
-	const struct sockaddr *sa;
+	const struct flowside *tgt = &conn->f.side[TGTSIDE];
+	sa_family_t af = inany_v4(&tgt->eaddr) ? AF_INET : AF_INET6;
+	uint8_t tgtpif = conn->f.pif[TGTSIDE];
+	union sockaddr_inany sa;
 	socklen_t sl;
 
-	if (pif == PIF_HOST)
+	if (tgtpif == PIF_HOST)
 		conn->s[1] = tcp_conn_sock(c, af);
-	else if (pif == PIF_SPLICE)
+	else if (tgtpif == PIF_SPLICE)
 		conn->s[1] = tcp_conn_sock_ns(c, af);
 	else
 		ASSERT(0);
@@ -378,15 +367,9 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn,
 			   conn->s[1]);
 	}
 
-	if (CONN_V6(conn)) {
-		sa = (struct sockaddr *)&addr6;
-		sl = sizeof(addr6);
-	} else {
-		sa = (struct sockaddr *)&addr4;
-		sl = sizeof(addr4);
-	}
+	pif_sockaddr(c, &sa, &sl, tgtpif, &tgt->eaddr, tgt->eport);
 
-	if (connect(conn->s[1], sa, sl)) {
+	if (connect(conn->s[1], &sa.sa, sl)) {
 		if (errno != EINPROGRESS) {
 			flow_trace(conn, "Couldn't connect socket for splice: %s",
 				   strerror(errno));
@@ -491,7 +474,13 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		return false;
 	}
 
-	flow_target(flow, tgtpif);
+	/* FIXME: Record outbound source address when known */
+	if (af == AF_INET)
+		flow_target_af(flow, tgtpif, AF_INET,
+			       NULL, 0, &in4addr_loopback, dstport);
+	else
+		flow_target_af(flow, tgtpif, AF_INET6,
+			       NULL, 0, &in6addr_loopback, dstport);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE, tcp_splice);
 
 	conn->flags = af == AF_INET ? 0 : SPLICE_V6;
@@ -503,7 +492,7 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 	if (setsockopt(s0, SOL_TCP, TCP_QUICKACK, &((int){ 1 }), sizeof(int)))
 		flow_trace(conn, "failed to set TCP_QUICKACK on %i", s0);
 
-	if (tcp_splice_connect(c, conn, af, tgtpif, dstport))
+	if (tcp_splice_connect(c, conn))
 		conn_flag(c, conn, CLOSING);
 
 	FLOW_ACTIVATE(conn);

@@ -165,8 +165,10 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
  */
 static void flow_set_state(struct flow_common *f, enum flow_state state)
 {
-	char estr[INANY_ADDRSTRLEN], fstr[INANY_ADDRSTRLEN];
+	char estr0[INANY_ADDRSTRLEN], fstr0[INANY_ADDRSTRLEN];
+	char estr1[INANY_ADDRSTRLEN], fstr1[INANY_ADDRSTRLEN];
 	const struct flowside *ini = &f->side[INISIDE];
+	const struct flowside *tgt = &f->side[TGTSIDE];
 	uint8_t oldstate = f->state;
 
 	ASSERT(state < FLOW_NUM_STATES);
@@ -177,19 +179,24 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 		  FLOW_STATE(f));
 
 	if (MAX(state, oldstate) >= FLOW_STATE_TGT)
-		flow_log_(f, LOG_DEBUG, "%s [%s]:%hu -> [%s]:%hu => %s",
+		flow_log_(f, LOG_DEBUG,
+			  "%s [%s]:%hu -> [%s]:%hu => %s [%s]:%hu -> [%s]:%hu",
 			  pif_name(f->pif[INISIDE]),
-			  inany_ntop(&ini->eaddr, estr, sizeof(estr)),
+			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
 			  ini->eport,
-			  inany_ntop(&ini->faddr, fstr, sizeof(fstr)),
+			  inany_ntop(&ini->faddr, fstr0, sizeof(fstr0)),
 			  ini->fport,
-			  pif_name(f->pif[TGTSIDE]));
+			  pif_name(f->pif[TGTSIDE]),
+			  inany_ntop(&tgt->faddr, fstr1, sizeof(fstr1)),
+			  tgt->fport,
+			  inany_ntop(&tgt->eaddr, estr1, sizeof(estr1)),
+			  tgt->eport);
 	else if (MAX(state, oldstate) >= FLOW_STATE_INI)
 		flow_log_(f, LOG_DEBUG, "%s [%s]:%hu -> [%s]:%hu => ?",
 			  pif_name(f->pif[INISIDE]),
-			  inany_ntop(&ini->eaddr, estr, sizeof(estr)),
+			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
 			  ini->eport,
-			  inany_ntop(&ini->faddr, fstr, sizeof(fstr)),
+			  inany_ntop(&ini->faddr, fstr0, sizeof(fstr0)),
 			  ini->fport);
 }
 
@@ -261,21 +268,34 @@ const struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
 }
 
 /**
- * flow_target() - Move flow to TGT, setting TGTSIDE details
+ * flow_target_af() - Move flow to TGT, setting TGTSIDE details
  * @flow:	Flow to change state
  * @pif:	pif of the target side
+ * @af:		Address family for @eaddr and @faddr
+ * @saddr:	Source address (pointer to in_addr or in6_addr)
+ * @sport:	Endpoint port
+ * @daddr:	Destination address (pointer to in_addr or in6_addr)
+ * @dport:	Destination port
+ *
+ * Return: pointer to the target flowside information
  */
-void flow_target(union flow *flow, uint8_t pif)
+const struct flowside *flow_target_af(union flow *flow, uint8_t pif,
+				      sa_family_t af,
+				      const void *saddr, in_port_t sport,
+				      const void *daddr, in_port_t dport)
 {
 	struct flow_common *f = &flow->f;
+	struct flowside *tgt = &f->side[TGTSIDE];
 
 	ASSERT(pif != PIF_NONE);
 	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_INI);
 	ASSERT(f->type == FLOW_TYPE_NONE);
 	ASSERT(f->pif[INISIDE] != PIF_NONE && f->pif[TGTSIDE] == PIF_NONE);
 
+	flowside_from_af(tgt, af, daddr, dport, saddr, sport);
 	f->pif[TGTSIDE] = pif;
 	flow_set_state(f, FLOW_STATE_TGT);
+	return tgt;
 }
 
 /**

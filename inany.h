@@ -187,7 +187,6 @@ static inline bool inany_is_unspecified(const union inany_addr *a)
  *
  * Return: true if @a is in fe80::/10 (IPv6 link local unicast)
  */
-/* cppcheck-suppress unusedFunction */
 static inline bool inany_is_linklocal6(const union inany_addr *a)
 {
 	return IN6_IS_ADDR_LINKLOCAL(&a->a6);

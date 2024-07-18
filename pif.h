@@ -7,6 +7,9 @@
 #ifndef PIF_H
 #define PIF_H
 
+union inany_addr;
+union sockaddr_inany;
+
 /**
  * enum pif_type - Type of passt/pasta interface ("pif")
  *
@@ -42,5 +45,19 @@ static inline const char *pif_name(uint8_t pif)
 {
 	return pif_type(pif);
 }
+
+/**
+ * pif_is_socket() - Is interface implemented via L4 sockets?
+ * @pif:     pif to check
+ *
+ * Return: true of @pif is an L4 socket based interface, otherwise false
+ */
+static inline bool pif_is_socket(uint8_t pif)
+{
+	return pif == PIF_HOST || pif == PIF_SPLICE;
+}
+
+void pif_sockaddr(const struct ctx *c, union sockaddr_inany *sa, socklen_t *sl,
+		  uint8_t pif, const union inany_addr *addr, in_port_t port);
 
 #endif /* PIF_H */

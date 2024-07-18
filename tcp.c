@@ -1647,18 +1647,10 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 {
 	in_port_t srcport = ntohs(th->source);
 	in_port_t dstport = ntohs(th->dest);
-	struct sockaddr_in addr4 = {
-		.sin_family = AF_INET,
-		.sin_port = htons(dstport),
-		.sin_addr = *(struct in_addr *)daddr,
-	};
-	struct sockaddr_in6 addr6 = {
-		.sin6_family = AF_INET6,
-		.sin6_port = htons(dstport),
-		.sin6_addr = *(struct in6_addr *)daddr,
-	};
-	const struct sockaddr *sa;
+	const struct flowside *ini, *tgt;
 	struct tcp_tap_conn *conn;
+	union inany_addr dstaddr; /* FIXME: Avoid bulky temporary */
+	union sockaddr_inany sa;
 	union flow *flow;
 	int s = -1, mss;
 	socklen_t sl;
@@ -1666,9 +1658,22 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	if (!(flow = flow_alloc()))
 		return;
 
-	flow_initiate_af(flow, PIF_TAP, af, saddr, srcport, daddr, dstport);
+	ini = flow_initiate_af(flow, PIF_TAP,
+			       af, saddr, srcport, daddr, dstport);
 
-	flow_target(flow, PIF_HOST);
+	dstaddr = ini->faddr;
+	if (!c->no_map_gw) {
+		if (inany_equals4(&dstaddr, &c->ip4.gw))
+			dstaddr = inany_loopback4;
+		else if (inany_equals6(&dstaddr, &c->ip6.gw))
+			dstaddr = inany_loopback6;
+
+	}
+
+	/* FIXME: Record outbound source address when known */
+	tgt = flow_target_af(flow, PIF_HOST, AF_INET6,
+			     NULL, 0, /* Kernel decides source address */
+			     &dstaddr, dstport);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
 	if (af == AF_INET) {
@@ -1687,9 +1692,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			      dstport);
 			goto cancel;
 		}
-
-		sa = (struct sockaddr *)&addr4;
-		sl = sizeof(addr4);
 	} else if (af == AF_INET6) {
 		if (IN6_IS_ADDR_UNSPECIFIED(saddr) ||
 		    IN6_IS_ADDR_MULTICAST(saddr) || srcport == 0 ||
@@ -1704,9 +1706,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			      dstport);
 			goto cancel;
 		}
-
-		sa = (struct sockaddr *)&addr6;
-		sl = sizeof(addr6);
 	} else {
 		ASSERT(0);
 	}
@@ -1714,12 +1713,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	if ((s = tcp_conn_sock(c, af)) < 0)
 		goto cancel;
 
-	if (!c->no_map_gw) {
-		if (af == AF_INET && IN4_ARE_ADDR_EQUAL(daddr, &c->ip4.gw))
-			addr4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-		if (af == AF_INET6 && IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.gw))
-			addr6.sin6_addr	= in6addr_loopback;
-	}
+	pif_sockaddr(c, &sa, &sl, PIF_HOST, &tgt->eaddr, tgt->eport);
 
 	/* Use bind() to check if the target address is local (EADDRINUSE or
 	 * similar) and already bound, and set the LOCAL flag in that case.
@@ -1731,7 +1725,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	 *
 	 * So, if bind() succeeds, close the socket, get a new one, and proceed.
 	 */
-	if (bind(s, sa, sl)) {
+	if (bind(s, &sa.sa, sl)) {
 		if (errno != EADDRNOTAVAIL && errno != EACCES)
 			conn_flag(c, conn, LOCAL);
 	} else {
@@ -1741,7 +1735,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 			goto cancel;
 	}
 
-	if (af == AF_INET6 && IN6_IS_ADDR_LINKLOCAL(&addr6.sin6_addr)) {
+	if (inany_is_linklocal6(&tgt->eaddr)) {
 		struct sockaddr_in6 addr6_ll = {
 			.sin6_family = AF_INET6,
 			.sin6_addr = c->ip6.addr_ll,
@@ -1749,6 +1743,8 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 		};
 		if (bind(s, (struct sockaddr *)&addr6_ll, sizeof(addr6_ll)))
 			goto cancel;
+	} else if (!inany_is_loopback(&tgt->eaddr)) {
+		tcp_bind_outbound(c, s, af);
 	}
 
 	conn->sock = s;
@@ -1784,12 +1780,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 
 	tcp_hash_insert(c, conn);
 
-	if ((af == AF_INET &&  !IN4_IS_ADDR_LOOPBACK(&addr4.sin_addr)) ||
-	    (af == AF_INET6 && !IN6_IS_ADDR_LOOPBACK(&addr6.sin6_addr) &&
-			       !IN6_IS_ADDR_LINKLOCAL(&addr6.sin6_addr)))
-		tcp_bind_outbound(c, s, af);
-
-	if (connect(s, sa, sl)) {
+	if (connect(s, &sa.sa, sl)) {
 		if (errno != EINPROGRESS) {
 			tcp_rst(c, conn);
 			goto cancel;
@@ -2297,9 +2288,25 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 				   const union sockaddr_inany *sa,
 				   const struct timespec *now)
 {
+	union inany_addr saddr, daddr; /* FIXME: avoid bulky temporaries */
 	struct tcp_tap_conn *conn;
+	in_port_t srcport;
 
-	flow_target(flow, PIF_TAP);
+	inany_from_sockaddr(&saddr, &srcport, sa);
+	tcp_snat_inbound(c, &saddr);
+
+	if (inany_v4(&saddr)) {
+		daddr = inany_from_v4(c->ip4.addr_seen);
+	} else {
+		if (inany_is_linklocal6(&saddr))
+			daddr.a6 = c->ip6.addr_ll_seen;
+		else
+			daddr.a6 = c->ip6.addr_seen;
+	}
+	dstport += c->tcp.fwd_in.delta[dstport];
+
+	flow_target_af(flow,  PIF_TAP, AF_INET6,
+		       &saddr, srcport, &daddr, dstport);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
 	conn->sock = s;
@@ -2307,10 +2314,9 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 	conn->ws_to_tap = conn->ws_from_tap = 0;
 	conn_event(c, conn, SOCK_ACCEPTED);
 
-	inany_from_sockaddr(&conn->faddr, &conn->fport, sa);
-	conn->eport = dstport + c->tcp.fwd_in.delta[dstport];
-
-	tcp_snat_inbound(c, &conn->faddr);
+	conn->faddr = saddr;
+	conn->fport = srcport;
+	conn->eport = dstport;
 
 	tcp_seq_init(c, conn, now);
 	tcp_hash_insert(c, conn);

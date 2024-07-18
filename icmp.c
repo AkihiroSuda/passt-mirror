@@ -183,7 +183,8 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 		return NULL;
 
 	flow_initiate_af(flow, PIF_TAP, af, saddr, id, daddr, id);
-	flow_target(flow, PIF_HOST);
+	/* FIXME: Record outbound source address when known */
+	flow_target_af(flow, PIF_HOST,	af, NULL, 0, daddr, 0);
 	pingf = FLOW_SET_TYPE(flow, flowtype, ping);
 
 	pingf->seq = -1;
