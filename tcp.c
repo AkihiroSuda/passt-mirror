@@ -1470,7 +1470,6 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 {
 	in_port_t srcport = ntohs(th->source);
 	in_port_t dstport = ntohs(th->dest);
-	union inany_addr srcaddr, dstaddr; /* FIXME: Avoid bulky temporaries */
 	const struct flowside *ini, *tgt;
 	struct tcp_tap_conn *conn;
 	union sockaddr_inany sa;
@@ -1485,34 +1484,16 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	ini = flow_initiate_af(flow, PIF_TAP,
 			       af, saddr, srcport, daddr, dstport);
 
-	dstaddr = ini->faddr;
-	if (!c->no_map_gw) {
-		if (inany_equals4(&dstaddr, &c->ip4.gw))
-			dstaddr = inany_loopback4;
-		else if (inany_equals6(&dstaddr, &c->ip6.gw))
-			dstaddr = inany_loopback6;
+	if (!(tgt = flow_target(c, flow, IPPROTO_TCP)))
+		goto cancel;
 
+	if (flow->f.pif[TGTSIDE] != PIF_HOST) {
+		flow_err(flow, "No support for forwarding TCP from %s to %s",
+			 pif_name(flow->f.pif[INISIDE]),
+			 pif_name(flow->f.pif[TGTSIDE]));
+		goto cancel;
 	}
 
-	if (inany_is_linklocal6(&dstaddr)) {
-		srcaddr.a6 = c->ip6.addr_ll;
-	} else if (inany_is_loopback(&dstaddr)) {
-		srcaddr = dstaddr;
-	} else if (inany_v4(&dstaddr)) {
-		if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr_out))
-			srcaddr = inany_from_v4(c->ip4.addr_out);
-		else
-			srcaddr = inany_any4;
-	} else {
-		if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_out))
-			srcaddr.a6 = c->ip6.addr_out;
-		else
-			srcaddr = inany_any6;
-	}
-
-	tgt = flow_target_af(flow, PIF_HOST, AF_INET6,
-			     &srcaddr, 0, /* Kernel decides source port */
-			     &dstaddr, dstport);
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
 	if (!inany_is_unicast(&ini->eaddr) || ini->eport == 0 ||
@@ -2061,61 +2042,18 @@ static void tcp_connect_finish(struct ctx *c, struct tcp_tap_conn *conn)
 }
 
 /**
- * tcp_snat_inbound() - Translate source address for inbound data if needed
- * @c:		Execution context
- * @addr:	Source address of inbound packet/connection
- */
-static void tcp_snat_inbound(const struct ctx *c, union inany_addr *addr)
-{
-	if (inany_is_loopback4(addr) ||
-	    inany_is_unspecified4(addr) ||
-	    inany_equals4(addr, &c->ip4.addr_seen)) {
-		*addr = inany_from_v4(c->ip4.gw);
-	} else if (inany_is_loopback6(addr) ||
-		   inany_equals6(addr, &c->ip6.addr_seen) ||
-		   inany_equals6(addr, &c->ip6.addr)) {
-		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
-			addr->a6 = c->ip6.gw;
-		else
-			addr->a6 = c->ip6.addr_ll;
-	}
-}
-
-/**
  * tcp_tap_conn_from_sock() - Initialize state for non-spliced connection
  * @c:		Execution context
- * @dstport:	Destination port for connection (host side)
  * @flow:	flow to initialise
  * @s:		Accepted socket
  * @sa:		Peer socket address (from accept())
  * @now:	Current timestamp
  */
-static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
-				   union flow *flow, int s,
-				   const union sockaddr_inany *sa,
+static void tcp_tap_conn_from_sock(struct ctx *c, union flow *flow, int s,
 				   const struct timespec *now)
 {
-	union inany_addr saddr, daddr; /* FIXME: avoid bulky temporaries */
-	struct tcp_tap_conn *conn;
-	in_port_t srcport;
+	struct tcp_tap_conn *conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 	uint64_t hash;
-
-	inany_from_sockaddr(&saddr, &srcport, sa);
-	tcp_snat_inbound(c, &saddr);
-
-	if (inany_v4(&saddr)) {
-		daddr = inany_from_v4(c->ip4.addr_seen);
-	} else {
-		if (inany_is_linklocal6(&saddr))
-			daddr.a6 = c->ip6.addr_ll_seen;
-		else
-			daddr.a6 = c->ip6.addr_seen;
-	}
-	dstport += c->tcp.fwd_in.delta[dstport];
-
-	flow_target_af(flow,  PIF_TAP, AF_INET6,
-		       &saddr, srcport, &daddr, dstport);
-	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
 	conn->sock = s;
 	conn->timer = -1;
@@ -2174,11 +2112,26 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 		goto cancel;
 	}
 
-	if (tcp_splice_conn_from_sock(c, ref.tcp_listen.pif,
-				      ref.tcp_listen.port, flow, s, &sa))
-		return;
+	if (!flow_target(c, flow, IPPROTO_TCP))
+		goto cancel;
 
-	tcp_tap_conn_from_sock(c, ref.tcp_listen.port, flow, s, &sa, now);
+	switch (flow->f.pif[TGTSIDE]) {
+	case PIF_SPLICE:
+	case PIF_HOST:
+		tcp_splice_conn_from_sock(c, flow, s);
+		break;
+
+	case PIF_TAP:
+		tcp_tap_conn_from_sock(c, flow, s, now);
+		break;
+
+	default:
+		flow_err(flow, "No support for forwarding TCP from %s to %s",
+			 pif_name(flow->f.pif[INISIDE]),
+			 pif_name(flow->f.pif[TGTSIDE]));
+		goto cancel;
+	}
+
 	return;
 
 cancel:

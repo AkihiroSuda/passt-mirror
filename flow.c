@@ -400,6 +400,59 @@ const struct flowside *flow_target_af(union flow *flow, uint8_t pif,
 	return tgt;
 }
 
+
+/**
+ * flow_target() - Determine where flow should forward to, and move to TGT
+ * @c:		Execution context
+ * @flow:	Flow to forward
+ * @proto:	Protocol
+ *
+ * Return: pointer to the target flowside information
+ */
+const struct flowside *flow_target(const struct ctx *c, union flow *flow,
+				   uint8_t proto)
+{
+	char estr[INANY_ADDRSTRLEN], fstr[INANY_ADDRSTRLEN];
+	struct flow_common *f = &flow->f;
+	const struct flowside *ini = &f->side[INISIDE];
+	struct flowside *tgt = &f->side[TGTSIDE];
+	uint8_t tgtpif = PIF_NONE;
+
+	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_INI);
+	ASSERT(f->type == FLOW_TYPE_NONE);
+	ASSERT(f->pif[INISIDE] != PIF_NONE && f->pif[TGTSIDE] == PIF_NONE);
+	ASSERT(flow->f.state == FLOW_STATE_INI);
+
+	switch (f->pif[INISIDE]) {
+	case PIF_TAP:
+		tgtpif = fwd_nat_from_tap(c, proto, ini, tgt);
+		break;
+
+	case PIF_SPLICE:
+		tgtpif = fwd_nat_from_splice(c, proto, ini, tgt);
+		break;
+
+	case PIF_HOST:
+		tgtpif = fwd_nat_from_host(c, proto, ini, tgt);
+		break;
+
+	default:
+		flow_err(flow, "No rules to forward %s [%s]:%hu -> [%s]:%hu",
+			 pif_name(f->pif[INISIDE]),
+			 inany_ntop(&ini->eaddr, estr, sizeof(estr)),
+			 ini->eport,
+			 inany_ntop(&ini->faddr, fstr, sizeof(fstr)),
+			 ini->fport);
+	}
+
+	if (tgtpif == PIF_NONE)
+		return NULL;
+
+	f->pif[TGTSIDE] = tgtpif;
+	flow_set_state(f, FLOW_STATE_TGT);
+	return tgt;
+}
+
 /**
  * flow_set_type() - Set type and move to TYPED
  * @flow:	Flow to change state

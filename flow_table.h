@@ -138,6 +138,8 @@ const struct flowside *flow_target_af(union flow *flow, uint8_t pif,
 				      sa_family_t af,
 				      const void *saddr, in_port_t sport,
 				      const void *daddr, in_port_t dport);
+const struct flowside *flow_target(const struct ctx *c, union flow *flow,
+				   uint8_t proto);
 
 union flow *flow_set_type(union flow *flow, enum flow_type type);
 #define FLOW_SET_TYPE(flow_, t_, var_)	(&flow_set_type((flow_), (t_))->var_)

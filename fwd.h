@@ -7,6 +7,8 @@
 #ifndef FWD_H
 #define FWD_H
 
+struct flowside;
+
 /* Number of ports for both TCP and UDP */
 #define	NUM_PORTS	(1U << 16)
 
@@ -41,5 +43,12 @@ void fwd_scan_ports_udp(struct fwd_ports *fwd, const struct fwd_ports *rev,
 			const struct fwd_ports *tcp_fwd,
 			const struct fwd_ports *tcp_rev);
 void fwd_scan_ports_init(struct ctx *c);
+
+uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
+			 const struct flowside *ini, struct flowside *tgt);
+uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
+			    const struct flowside *ini, struct flowside *tgt);
+uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
+			  const struct flowside *ini, struct flowside *tgt);
 
 #endif /* FWD_H */

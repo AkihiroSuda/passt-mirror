@@ -11,10 +11,7 @@ union sockaddr_inany;
 
 void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 			     uint32_t events);
-bool tcp_splice_conn_from_sock(const struct ctx *c,
-			       uint8_t pif0, in_port_t dstport,
-			       union flow *flow, int s0,
-			       const union sockaddr_inany *sa);
+void tcp_splice_conn_from_sock(const struct ctx *c, union flow *flow, int s0);
 void tcp_splice_init(struct ctx *c);
 
 #endif /* TCP_SPLICE_H */

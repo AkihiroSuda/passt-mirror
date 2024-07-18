@@ -414,72 +414,18 @@ static int tcp_conn_sock_ns(const struct ctx *c, sa_family_t af)
 /**
  * tcp_splice_conn_from_sock() - Attempt to init state for a spliced connection
  * @c:		Execution context
- * @pif0:	pif id of side 0
- * @dstport:	Side 0 destination port of connection
  * @flow:	flow to initialise
  * @s0:		Accepted (side 0) socket
  * @sa:		Peer address of connection
  *
- * Return: true if able to create a spliced connection, false otherwise
  * #syscalls:pasta setsockopt
  */
-bool tcp_splice_conn_from_sock(const struct ctx *c,
-			       uint8_t pif0, in_port_t dstport,
-			       union flow *flow, int s0,
-			       const union sockaddr_inany *sa)
+void tcp_splice_conn_from_sock(const struct ctx *c, union flow *flow, int s0)
 {
-	struct tcp_splice_conn *conn;
-	union inany_addr src;
-	in_port_t srcport;
-	sa_family_t af;
-	uint8_t tgtpif;
+	struct tcp_splice_conn *conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE,
+						     tcp_splice);
 
-	if (c->mode != MODE_PASTA)
-		return false;
-
-	inany_from_sockaddr(&src, &srcport, sa);
-	af = inany_v4(&src) ? AF_INET : AF_INET6;
-
-	switch (pif0) {
-	case PIF_SPLICE:
-		if (!inany_is_loopback(&src)) {
-			char str[INANY_ADDRSTRLEN];
-
-			/* We can't use flow_err() etc. because we haven't set
-			 * the flow type yet
-			 */
-			warn("Bad source address %s for splice, closing",
-			     inany_ntop(&src, str, sizeof(str)));
-
-			/* We *don't* want to fall back to tap */
-			flow_alloc_cancel(flow);
-			return true;
-		}
-
-		tgtpif = PIF_HOST;
-		dstport += c->tcp.fwd_out.delta[dstport];
-		break;
-
-	case PIF_HOST:
-		if (!inany_is_loopback(&src))
-			return false;
-
-		tgtpif = PIF_SPLICE;
-		dstport += c->tcp.fwd_in.delta[dstport];
-		break;
-
-	default:
-		return false;
-	}
-
-	/* FIXME: Record outbound source address when known */
-	if (af == AF_INET)
-		flow_target_af(flow, tgtpif, AF_INET,
-			       NULL, 0, &in4addr_loopback, dstport);
-	else
-		flow_target_af(flow, tgtpif, AF_INET6,
-			       NULL, 0, &in6addr_loopback, dstport);
-	conn = FLOW_SET_TYPE(flow, FLOW_TCP_SPLICE, tcp_splice);
+	ASSERT(c->mode == MODE_PASTA);
 
 	conn->s[0] = s0;
 	conn->s[1] = -1;
@@ -493,8 +439,6 @@ bool tcp_splice_conn_from_sock(const struct ctx *c,
 		conn_flag(c, conn, CLOSING);
 
 	FLOW_ACTIVATE(conn);
-
-	return true;
 }
 
 /**

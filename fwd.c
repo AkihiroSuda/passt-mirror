@@ -25,6 +25,7 @@
 #include "fwd.h"
 #include "passt.h"
 #include "lineread.h"
+#include "flow_table.h"
 
 /* See enum in kernel's include/net/tcp_states.h */
 #define UDP_LISTEN	0x07
@@ -153,4 +154,151 @@ void fwd_scan_ports_init(struct ctx *c)
 		fwd_scan_ports_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
 				   &c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
+}
+
+/**
+ * fwd_nat_from_tap() - Determine to forward a flow from the tap interface
+ * @c:		Execution context
+ * @proto:	Protocol (IP L4 protocol number)
+ * @ini:	Flow address information of the initiating side
+ * @tgt:	Flow address information on the target side (updated)
+ *
+ * Return: pif of the target interface to forward the flow to, PIF_NONE if the
+ *         flow cannot or should not be forwarded at all.
+ */
+uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
+			 const struct flowside *ini, struct flowside *tgt)
+{
+	(void)proto;
+
+	tgt->eaddr = ini->faddr;
+	tgt->eport = ini->fport;
+
+	if (!c->no_map_gw) {
+		if (inany_equals4(&tgt->eaddr, &c->ip4.gw))
+			tgt->eaddr = inany_loopback4;
+		else if (inany_equals6(&tgt->eaddr, &c->ip6.gw))
+			tgt->eaddr = inany_loopback6;
+	}
+
+	/* The relevant addr_out controls the host side source address.  This
+	 * may be unspecified, which allows the kernel to pick an address.
+	 */
+	if (inany_v4(&tgt->eaddr))
+		tgt->faddr = inany_from_v4(c->ip4.addr_out);
+	else
+		tgt->faddr.a6 = c->ip6.addr_out;
+
+	/* Let the kernel pick a host side source port */
+	tgt->fport = 0;
+
+	return PIF_HOST;
+}
+
+/**
+ * fwd_nat_from_splice() - Determine to forward a flow from the splice interface
+ * @c:		Execution context
+ * @proto:	Protocol (IP L4 protocol number)
+ * @ini:	Flow address information of the initiating side
+ * @tgt:	Flow address information on the target side (updated)
+ *
+ * Return: pif of the target interface to forward the flow to, PIF_NONE if the
+ *         flow cannot or should not be forwarded at all.
+ */
+uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
+			    const struct flowside *ini, struct flowside *tgt)
+{
+	if (!inany_is_loopback(&ini->eaddr) ||
+	    (!inany_is_loopback(&ini->faddr) && !inany_is_unspecified(&ini->faddr))) {
+		char estr[INANY_ADDRSTRLEN], fstr[INANY_ADDRSTRLEN];
+
+		debug("Non loopback address on %s: [%s]:%hu -> [%s]:%hu",
+		      pif_name(PIF_SPLICE),
+		      inany_ntop(&ini->eaddr, estr, sizeof(estr)), ini->eport,
+		      inany_ntop(&ini->faddr, fstr, sizeof(fstr)), ini->fport);
+		return PIF_NONE;
+	}
+
+	if (inany_v4(&ini->eaddr))
+		tgt->eaddr = inany_loopback4;
+	else
+		tgt->eaddr = inany_loopback6;
+
+	/* Preserve the specific loopback adddress used, but let the kernel pick
+	 * a source port on the target side
+	 */
+	tgt->faddr = ini->eaddr;
+	tgt->fport = 0;
+
+	tgt->eport = ini->fport;
+	if (proto == IPPROTO_TCP)
+		tgt->eport += c->tcp.fwd_out.delta[tgt->eport];
+
+	/* Let the kernel pick a host side source port */
+	tgt->fport = 0;
+
+	return PIF_HOST;
+}
+
+/**
+ * fwd_nat_from_host() - Determine to forward a flow from the host interface
+ * @c:		Execution context
+ * @proto:	Protocol (IP L4 protocol number)
+ * @ini:	Flow address information of the initiating side
+ * @tgt:	Flow address information on the target side (updated)
+ *
+ * Return: pif of the target interface to forward the flow to, PIF_NONE if the
+ *         flow cannot or should not be forwarded at all.
+ */
+uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
+			  const struct flowside *ini, struct flowside *tgt)
+{
+	/* Common for spliced and non-spliced cases */
+	tgt->eport = ini->fport;
+	if (proto == IPPROTO_TCP)
+		tgt->eport += c->tcp.fwd_in.delta[tgt->eport];
+
+	if (c->mode == MODE_PASTA && inany_is_loopback(&ini->eaddr) &&
+	    proto == IPPROTO_TCP) {
+		/* spliceable */
+
+		/* Preserve the specific loopback adddress used, but let the
+		 * kernel pick a source port on the target side
+		 */
+		tgt->faddr = ini->eaddr;
+		tgt->fport = 0;
+
+		if (inany_v4(&ini->eaddr))
+			tgt->eaddr = inany_loopback4;
+		else
+			tgt->eaddr = inany_loopback6;
+		return PIF_SPLICE;
+	}
+
+	tgt->faddr = ini->eaddr;
+	tgt->fport = ini->eport;
+
+	if (inany_is_loopback4(&tgt->faddr) ||
+	    inany_is_unspecified4(&tgt->faddr) ||
+	    inany_equals4(&tgt->faddr, &c->ip4.addr_seen)) {
+		tgt->faddr = inany_from_v4(c->ip4.gw);
+	} else if (inany_is_loopback6(&tgt->faddr) ||
+		   inany_equals6(&tgt->faddr, &c->ip6.addr_seen) ||
+		   inany_equals6(&tgt->faddr, &c->ip6.addr)) {
+		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
+			tgt->faddr.a6 = c->ip6.gw;
+		else
+			tgt->faddr.a6 = c->ip6.addr_ll;
+	}
+
+	if (inany_v4(&tgt->faddr)) {
+		tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
+	} else {
+		if (inany_is_linklocal6(&tgt->faddr))
+			tgt->eaddr.a6 = c->ip6.addr_ll_seen;
+		else
+			tgt->eaddr.a6 = c->ip6.addr_seen;
+	}
+
+	return PIF_TAP;
 }
