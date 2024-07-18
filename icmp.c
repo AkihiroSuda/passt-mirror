@@ -169,24 +169,28 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 					    sa_family_t af, uint16_t id,
 					    const void *saddr, const void *daddr)
 {
+	uint8_t proto = af == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6;
 	uint8_t flowtype = af == AF_INET ? FLOW_PING4 : FLOW_PING6;
 	union epoll_ref ref = { .type = EPOLL_TYPE_PING };
 	union flow *flow = flow_alloc();
 	struct icmp_ping_flow *pingf;
 	const struct flowside *tgt;
-	const void *bind_addr;
 
 	if (!flow)
 		return NULL;
 
 	flow_initiate_af(flow, PIF_TAP, af, saddr, id, daddr, id);
+	if (!(tgt = flow_target(c, flow, proto)))
+		goto cancel;
 
-	if (af == AF_INET)
-		bind_addr = &c->ip4.addr_out;
-	else if (af == AF_INET6)
-		bind_addr = &c->ip6.addr_out;
+	if (flow->f.pif[TGTSIDE] != PIF_HOST) {
+		flow_err(flow, "No support for forwarding %s from %s to %s",
+			 proto == IPPROTO_ICMP ? "ICMP" : "ICMPv6",
+			 pif_name(flow->f.pif[INISIDE]),
+			 pif_name(flow->f.pif[TGTSIDE]));
+		goto cancel;
+	}
 
-	tgt = flow_target_af(flow, PIF_HOST, af, bind_addr, 0, daddr, 0);
 	pingf = FLOW_SET_TYPE(flow, flowtype, ping);
 
 	pingf->seq = -1;

@@ -370,38 +370,6 @@ const struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
 }
 
 /**
- * flow_target_af() - Move flow to TGT, setting TGTSIDE details
- * @flow:	Flow to change state
- * @pif:	pif of the target side
- * @af:		Address family for @eaddr and @faddr
- * @saddr:	Source address (pointer to in_addr or in6_addr)
- * @sport:	Endpoint port
- * @daddr:	Destination address (pointer to in_addr or in6_addr)
- * @dport:	Destination port
- *
- * Return: pointer to the target flowside information
- */
-const struct flowside *flow_target_af(union flow *flow, uint8_t pif,
-				      sa_family_t af,
-				      const void *saddr, in_port_t sport,
-				      const void *daddr, in_port_t dport)
-{
-	struct flow_common *f = &flow->f;
-	struct flowside *tgt = &f->side[TGTSIDE];
-
-	ASSERT(pif != PIF_NONE);
-	ASSERT(flow_new_entry == flow && f->state == FLOW_STATE_INI);
-	ASSERT(f->type == FLOW_TYPE_NONE);
-	ASSERT(f->pif[INISIDE] != PIF_NONE && f->pif[TGTSIDE] == PIF_NONE);
-
-	flowside_from_af(tgt, af, daddr, dport, saddr, sport);
-	f->pif[TGTSIDE] = pif;
-	flow_set_state(f, FLOW_STATE_TGT);
-	return tgt;
-}
-
-
-/**
  * flow_target() - Determine where flow should forward to, and move to TGT
  * @c:		Execution context
  * @flow:	Flow to forward
