@@ -13,7 +13,6 @@
  * @seq:	Last sequence number sent to tap, host order, -1: not sent yet
  * @sock:	"ping" socket
  * @ts:		Last associated activity from tap, seconds
- * @id:		ICMP id for the flow as seen by the guest
  */
 struct icmp_ping_flow {
 	/* Must be first element */
@@ -22,7 +21,6 @@ struct icmp_ping_flow {
 	int seq;
 	int sock;
 	time_t ts;
-	uint16_t id;
 };
 
 bool icmp_ping_timer(const struct ctx *c, const struct icmp_ping_flow *pingf,

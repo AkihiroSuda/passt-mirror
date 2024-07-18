@@ -74,6 +74,7 @@ static struct icmp_ping_flow *ping_at_sidx(flow_sidx_t sidx)
 void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 {
 	struct icmp_ping_flow *pingf = ping_at_sidx(ref.flowside);
+	const struct flowside *ini = &pingf->f.side[INISIDE];
 	union sockaddr_inany sr;
 	socklen_t sl = sizeof(sr);
 	char buf[USHRT_MAX];
@@ -99,7 +100,7 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 			goto unexpected;
 
 		/* Adjust packet back to guest-side ID */
-		ih4->un.echo.id = htons(pingf->id);
+		ih4->un.echo.id = htons(ini->eport);
 		seq = ntohs(ih4->un.echo.sequence);
 	} else if (pingf->f.type == FLOW_PING6) {
 		struct icmp6hdr *ih6 = (struct icmp6hdr *)buf;
@@ -109,7 +110,7 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 			goto unexpected;
 
 		/* Adjust packet back to guest-side ID */
-		ih6->icmp6_identifier = htons(pingf->id);
+		ih6->icmp6_identifier = htons(ini->eport);
 		seq = ntohs(ih6->icmp6_sequence);
 	} else {
 		ASSERT(0);
@@ -124,7 +125,7 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 	}
 
 	flow_dbg(pingf, "echo reply to tap, ID: %"PRIu16", seq: %"PRIu16,
-		 pingf->id, seq);
+		 ini->eport, seq);
 
 	if (pingf->f.type == FLOW_PING4)
 		tap_icmp4_send(c, sr.sa4.sin_addr, tap_ip4_daddr(c), buf, n);
@@ -145,7 +146,7 @@ unexpected:
 static void icmp_ping_close(const struct ctx *c,
 			    const struct icmp_ping_flow *pingf)
 {
-	uint16_t id = pingf->id;
+	uint16_t id = pingf->f.side[INISIDE].eport;
 
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, pingf->sock, NULL);
 	close(pingf->sock);
@@ -188,7 +189,6 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 	pingf = FLOW_SET_TYPE(flow, flowtype, ping);
 
 	pingf->seq = -1;
-	pingf->id = id;
 
 	if (af == AF_INET) {
 		bind_addr = &c->ip4.addr_out;
