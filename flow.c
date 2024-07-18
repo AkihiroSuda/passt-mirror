@@ -5,9 +5,11 @@
  * Tracking for logical "flows" of packets.
  */
 
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sched.h>
 #include <string.h>
 
 #include "util.h"
@@ -141,6 +143,97 @@ static void flowside_from_af(struct flowside *side, sa_family_t af,
 	else
 		side->eaddr = inany_any6;
 	side->eport = eport;
+}
+
+/**
+ * struct flowside_sock_args - Parameters for flowside_sock_splice()
+ * @c:		Execution context
+ * @fd:		Filled in with new socket fd
+ * @err:	Filled in with errno if something failed
+ * @type:	Socket epoll type
+ * @sa:		Socket address
+ * @sl:		Length of @sa
+ * @data:	epoll reference data
+ */
+struct flowside_sock_args {
+	const struct ctx *c;
+	int fd;
+	int err;
+	enum epoll_type type;
+	const struct sockaddr *sa;
+	socklen_t sl;
+	const char *path;
+	uint32_t data;
+};
+
+/** flowside_sock_splice() - Create and bind socket for PIF_SPLICE based on flowside
+ * @arg:	Argument as a struct flowside_sock_args
+ *
+ * Return: 0
+ */
+static int flowside_sock_splice(void *arg)
+{
+	struct flowside_sock_args *a = arg;
+
+	ns_enter(a->c);
+
+	a->fd = sock_l4_sa(a->c, a->type, a->sa, a->sl, NULL,
+	                   a->sa->sa_family == AF_INET6, a->data);
+	a->err = errno;
+
+	return 0;
+}
+
+/** flowside_sock_l4() - Create and bind socket based on flowside
+ * @c:		Execution context
+ * @type:	Socket epoll type
+ * @pif:	Interface for this socket
+ * @tgt:	Target flowside
+ * @data:	epoll reference portion for protocol handlers
+ *
+ * Return: socket fd of protocol @proto bound to the forwarding address and port
+ *         from @tgt (if specified).
+ */
+/* cppcheck-suppress unusedFunction */
+int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
+		     const struct flowside *tgt, uint32_t data)
+{
+	const char *ifname = NULL;
+	union sockaddr_inany sa;
+	socklen_t sl;
+
+	ASSERT(pif_is_socket(pif));
+
+	pif_sockaddr(c, &sa, &sl, pif, &tgt->faddr, tgt->fport);
+
+	switch (pif) {
+	case PIF_HOST:
+		if (inany_is_loopback(&tgt->faddr))
+			ifname = NULL;
+		else if (sa.sa_family == AF_INET)
+			ifname = c->ip4.ifname_out;
+		else if (sa.sa_family == AF_INET6)
+			ifname = c->ip6.ifname_out;
+
+		return sock_l4_sa(c, type, &sa, sl, ifname,
+				  sa.sa_family == AF_INET6, data);
+
+	case PIF_SPLICE: {
+		struct flowside_sock_args args = {
+			.c = c, .type = type,
+			.sa = &sa.sa, .sl = sl, .data = data,
+		};
+		NS_CALL(flowside_sock_splice, &args);
+		errno = args.err;
+		return args.fd;
+	}
+
+	default:
+		/* If we add new socket pifs, they'll need to be implemented
+		 * here
+		 */
+		ASSERT(0);
+	}
 }
 
 /** flow_log_ - Log flow-related message

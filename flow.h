@@ -164,6 +164,9 @@ static inline bool flowside_eq(const struct flowside *left,
 	       left->fport == right->fport;
 }
 
+int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
+		     const struct flowside *tgt, uint32_t data);
+
 /**
  * struct flow_common - Common fields for packet flows
  * @state:	State of the flow table entry

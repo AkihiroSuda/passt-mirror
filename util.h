@@ -144,6 +144,9 @@ struct ctx;
 
 /* cppcheck-suppress funcArgNamesDifferent */
 __attribute__ ((weak)) int ffsl(long int i) { return __builtin_ffsl(i); }
+int sock_l4_sa(const struct ctx *c, enum epoll_type type,
+	       const void *sa, socklen_t sl,
+	       const char *ifname, bool v6only, uint32_t data);
 int sock_l4(const struct ctx *c, sa_family_t af, enum epoll_type type,
 	    const void *bind_addr, const char *ifname, uint16_t port,
 	    uint32_t data);

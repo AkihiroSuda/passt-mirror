@@ -45,9 +45,9 @@
  *
  * Return: newly created socket, negative error code on failure
  */
-static int sock_l4_sa(const struct ctx *c, enum epoll_type type,
-		      const void *sa, socklen_t sl,
-		      const char *ifname, bool v6only, uint32_t data)
+int sock_l4_sa(const struct ctx *c, enum epoll_type type,
+	       const void *sa, socklen_t sl,
+	       const char *ifname, bool v6only, uint32_t data)
 {
 	sa_family_t af = ((const struct sockaddr *)sa)->sa_family;
 	union epoll_ref ref = { .type = type, .data = data };
