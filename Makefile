@@ -128,7 +128,7 @@ qrap: $(QRAP_SRCS) passt.h
 	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(QRAP_SRCS) -o qrap $(LDFLAGS)
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
-			    getpid gettid kill clock_gettime mmap	\
+			    rt_sigreturn getpid gettid kill clock_gettime mmap \
 			    munmap open unlink gettimeofday futex
 valgrind: FLAGS += -g -DVALGRIND
 valgrind: all

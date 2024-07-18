@@ -116,6 +116,7 @@
 #include <sys/uio.h>
 #include <time.h>
 #include <fcntl.h>
+#include <arpa/inet.h>
 #include <linux/errqueue.h>
 
 #include "checksum.h"
@@ -389,6 +390,8 @@ static void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 		uflow->s[TGTSIDE] = -1;
 	}
 	flow_hash_remove(c, FLOW_SIDX(uflow, INISIDE));
+	if (!pif_is_socket(uflow->f.pif[TGTSIDE]))
+		flow_hash_remove(c, FLOW_SIDX(uflow, TGTSIDE));
 }
 
 /**
@@ -483,6 +486,13 @@ static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 	}
 
 	flow_hash_insert(c, FLOW_SIDX(uflow, INISIDE));
+
+	/* If the target side is a socket, it will be a reply socket that knows
+	 * its own flowside.  But if it's tap, then we need to look it up by
+	 * hash.
+	 */
+	if (!pif_is_socket(tgtpif))
+		flow_hash_insert(c, FLOW_SIDX(uflow, TGTSIDE));
 	FLOW_ACTIVATE(uflow);
 
 	return FLOW_SIDX(uflow, TGTSIDE);
@@ -907,10 +917,12 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 {
 	const struct flowside *fromside = flowside_at_sidx(ref.flowside);
 	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
+	const struct flowside *toside = flowside_at_sidx(tosidx);
 	struct udp_flow *uflow = udp_at_sidx(ref.flowside);
 	int from_s = uflow->s[ref.flowside.sidei];
 	bool v6 = !inany_v4(&fromside->eaddr);
 	struct mmsghdr *mmh_recv = v6 ? udp6_mh_recv : udp4_mh_recv;
+	uint8_t topif = pif_at_sidx(tosidx);
 	int n, i;
 
 	ASSERT(!c->no_udp && uflow);
@@ -921,10 +933,64 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 	flow_trace(uflow, "Received %d datagrams on reply socket", n);
 	uflow->ts = now->tv_sec;
 
-	for (i = 0; i < n; i++)
-		udp_splice_prepare(mmh_recv, i);
+	for (i = 0; i < n; i++) {
+		if (pif_is_socket(topif))
+			udp_splice_prepare(mmh_recv, i);
+		else
+			udp_tap_prepare(c, mmh_recv, i, toside->eport, v6, now);
+	}
 
-	udp_splice_send(c, 0, n, tosidx);
+	if (pif_is_socket(topif))
+		udp_splice_send(c, 0, n, tosidx);
+	else
+		tap_send_frames(c, &udp_l2_iov[0][0], UDP_NUM_IOVS, n);
+}
+
+/**
+ * udp_flow_from_tap() - Find or create UDP flow for tap packets
+ * @c:		Execution context
+ * @pif:	pif on which the packet is arriving
+ * @af:		Address family, AF_INET or AF_INET6
+ * @saddr:	Source address on guest side
+ * @daddr:	Destination address guest side
+ * @srcport:	Source port on guest side
+ * @dstport:	Destination port on guest side
+ *
+ * Return: sidx for the destination side of the flow for this packet, or
+ *         FLOW_SIDX_NONE if we couldn't find or create a flow.
+ */
+static flow_sidx_t udp_flow_from_tap(const struct ctx *c,
+				     uint8_t pif, sa_family_t af,
+				     const void *saddr, const void *daddr,
+				     in_port_t srcport, in_port_t dstport,
+				     const struct timespec *now)
+{
+	struct udp_flow *uflow;
+	union flow *flow;
+	flow_sidx_t sidx;
+
+	ASSERT(pif == PIF_TAP);
+
+	sidx = flow_lookup_af(c, IPPROTO_UDP, pif, af, saddr, daddr,
+			      srcport, dstport);
+	if ((uflow = udp_at_sidx(sidx))) {
+		uflow->ts = now->tv_sec;
+		return flow_sidx_opposite(sidx);
+	}
+
+	if (!(flow = flow_alloc())) {
+		char sstr[INET6_ADDRSTRLEN], dstr[INET6_ADDRSTRLEN];
+
+		debug("Couldn't allocate flow for UDP datagram from %s %s:%hu -> %s:%hu",
+		      pif_name(pif),
+		      inet_ntop(af, saddr, sstr, sizeof(sstr)), srcport,
+		      inet_ntop(af, daddr, dstr, sizeof(dstr)), dstport);
+		return FLOW_SIDX_NONE;
+	}
+
+	flow_initiate_af(flow, PIF_TAP, af, saddr, srcport, daddr, dstport);
+
+	return udp_flow_new(c, flow, -1, now);
 }
 
 /**
@@ -942,22 +1008,21 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
  *
  * #syscalls sendmmsg
  */
-int udp_tap_handler(struct ctx *c, uint8_t pif,
+int udp_tap_handler(const struct ctx *c, uint8_t pif,
 		    sa_family_t af, const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
+	const struct flowside *toside;
 	struct mmsghdr mm[UIO_MAXIOV];
+	union sockaddr_inany to_sa;
 	struct iovec m[UIO_MAXIOV];
-	struct sockaddr_in6 s_in6;
-	struct sockaddr_in s_in;
 	const struct udphdr *uh;
-	struct sockaddr *sa;
+	struct udp_flow *uflow;
 	int i, s, count = 0;
+	flow_sidx_t tosidx;
 	in_port_t src, dst;
+	uint8_t topif;
 	socklen_t sl;
-
-	(void)saddr;
-	(void)pif;
 
 	ASSERT(!c->no_udp);
 
@@ -969,116 +1034,34 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 	 * and destination, so we can just take those from the first message.
 	 */
 	src = ntohs(uh->source);
-	src += c->udp.fwd_in.rdelta[src];
 	dst = ntohs(uh->dest);
 
-	if (af == AF_INET) {
-		s_in = (struct sockaddr_in) {
-			.sin_family = AF_INET,
-			.sin_port = uh->dest,
-			.sin_addr = *(struct in_addr *)daddr,
-		};
+	tosidx = udp_flow_from_tap(c, pif, af, saddr, daddr, src, dst, now);
+	if (!(uflow = udp_at_sidx(tosidx))) {
+		char sstr[INET6_ADDRSTRLEN], dstr[INET6_ADDRSTRLEN];
 
-		sa = (struct sockaddr *)&s_in;
-		sl = sizeof(s_in);
-
-		if (IN4_ARE_ADDR_EQUAL(&s_in.sin_addr, &c->ip4.dns_match) &&
-		    ntohs(s_in.sin_port) == 53) {
-			s_in.sin_addr = c->ip4.dns_host;
-			udp_tap_map[V4][src].ts = now->tv_sec;
-			udp_tap_map[V4][src].flags |= PORT_DNS_FWD;
-			bitmap_set(udp_act[V4][UDP_ACT_TAP], src);
-		} else if (IN4_ARE_ADDR_EQUAL(&s_in.sin_addr, &c->ip4.gw) &&
-			   !c->no_map_gw) {
-			if (!(udp_tap_map[V4][dst].flags & PORT_LOCAL) ||
-			    (udp_tap_map[V4][dst].flags & PORT_LOOPBACK))
-				s_in.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-			else
-				s_in.sin_addr = c->ip4.addr_seen;
-		}
-
-		debug("UDP from tap src=%hu dst=%hu, s=%d",
-		      src, dst, udp_tap_map[V4][src].sock);
-		if ((s = udp_tap_map[V4][src].sock) < 0) {
-			struct in_addr bind_addr = IN4ADDR_ANY_INIT;
-			union udp_epoll_ref uref = {
-				.port = src,
-				.pif = PIF_HOST,
-			};
-			const char *bind_if = NULL;
-
-			if (!IN4_IS_ADDR_LOOPBACK(&s_in.sin_addr))
-				bind_if = c->ip4.ifname_out;
-
-			if (!IN4_IS_ADDR_LOOPBACK(&s_in.sin_addr))
-				bind_addr = c->ip4.addr_out;
-
-			s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP, &bind_addr,
-				    bind_if, src, uref.u32);
-			if (s < 0)
-				return p->count - idx;
-
-			udp_tap_map[V4][src].sock = s;
-			bitmap_set(udp_act[V4][UDP_ACT_TAP], src);
-		}
-
-		udp_tap_map[V4][src].ts = now->tv_sec;
-	} else {
-		s_in6 = (struct sockaddr_in6) {
-			.sin6_family = AF_INET6,
-			.sin6_port = uh->dest,
-			.sin6_addr = *(struct in6_addr *)daddr,
-		};
-		const struct in6_addr *bind_addr = &in6addr_any;
-
-		sa = (struct sockaddr *)&s_in6;
-		sl = sizeof(s_in6);
-
-		if (IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.dns_match) &&
-		    ntohs(s_in6.sin6_port) == 53) {
-			s_in6.sin6_addr = c->ip6.dns_host;
-			udp_tap_map[V6][src].ts = now->tv_sec;
-			udp_tap_map[V6][src].flags |= PORT_DNS_FWD;
-			bitmap_set(udp_act[V6][UDP_ACT_TAP], src);
-		} else if (IN6_ARE_ADDR_EQUAL(daddr, &c->ip6.gw) &&
-			   !c->no_map_gw) {
-			if (!(udp_tap_map[V6][dst].flags & PORT_LOCAL) ||
-			    (udp_tap_map[V6][dst].flags & PORT_LOOPBACK))
-				s_in6.sin6_addr = in6addr_loopback;
-			else if (udp_tap_map[V6][dst].flags & PORT_GUA)
-				s_in6.sin6_addr = c->ip6.addr;
-			else
-				s_in6.sin6_addr = c->ip6.addr_seen;
-		} else if (IN6_IS_ADDR_LINKLOCAL(&s_in6.sin6_addr)) {
-			bind_addr = &c->ip6.addr_ll;
-		}
-
-		if ((s = udp_tap_map[V6][src].sock) < 0) {
-			union udp_epoll_ref uref = {
-				.v6 = 1,
-				.port = src,
-				.pif = PIF_HOST,
-			};
-			const char *bind_if = NULL;
-
-			if (!IN6_IS_ADDR_LOOPBACK(&s_in6.sin6_addr))
-				bind_if = c->ip6.ifname_out;
-
-			if (!IN6_IS_ADDR_LOOPBACK(&s_in6.sin6_addr) &&
-			    !IN6_IS_ADDR_LINKLOCAL(&s_in6.sin6_addr))
-				bind_addr = &c->ip6.addr_out;
-
-			s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP, bind_addr,
-				    bind_if, src, uref.u32);
-			if (s < 0)
-				return p->count - idx;
-
-			udp_tap_map[V6][src].sock = s;
-			bitmap_set(udp_act[V6][UDP_ACT_TAP], src);
-		}
-
-		udp_tap_map[V6][src].ts = now->tv_sec;
+		debug("Dropping datagram with no flow %s %s:%hu -> %s:%hu",
+		      pif_name(pif),
+		      inet_ntop(af, saddr, sstr, sizeof(sstr)), src,
+		      inet_ntop(af, daddr, dstr, sizeof(dstr)), dst);
+		return 1;
 	}
+
+	topif = pif_at_sidx(tosidx);
+	if (topif != PIF_HOST) {
+		flow_sidx_t fromsidx = flow_sidx_opposite(tosidx);
+		uint8_t frompif = pif_at_sidx(fromsidx);
+
+		flow_err(uflow, "No support for forwarding UDP from %s to %s",
+			 pif_name(frompif), pif_name(topif));
+		return 1;
+	}
+	toside = flowside_at_sidx(tosidx);
+
+	s = udp_at_sidx(tosidx)->s[tosidx.sidei];
+	ASSERT(s >= 0);
+
+	pif_sockaddr(c, &to_sa, &sl, topif, &toside->eaddr, toside->eport);
 
 	for (i = 0; i < (int)p->count - idx; i++) {
 		struct udphdr *uh_send;
@@ -1088,7 +1071,7 @@ int udp_tap_handler(struct ctx *c, uint8_t pif,
 		if (!uh_send)
 			return p->count - idx;
 
-		mm[i].msg_hdr.msg_name = sa;
+		mm[i].msg_hdr.msg_name = &to_sa;
 		mm[i].msg_hdr.msg_namelen = sl;
 
 		if (len) {
