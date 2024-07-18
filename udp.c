@@ -206,33 +206,6 @@ void udp_portmap_clear(void)
 }
 
 /**
- * udp_invert_portmap() - Compute reverse port translations for return packets
- * @fwd:	Port forwarding configuration to compute reverse map for
- */
-static void udp_invert_portmap(struct udp_fwd_ports *fwd)
-{
-	unsigned int i;
-
-	static_assert(ARRAY_SIZE(fwd->f.delta) == ARRAY_SIZE(fwd->rdelta),
-		      "Forward and reverse delta arrays must have same size");
-	for (i = 0; i < ARRAY_SIZE(fwd->f.delta); i++) {
-		in_port_t delta = fwd->f.delta[i];
-
-		if (delta) {
-			/* Keep rport calculation separate from its usage: we
-			 * need to perform the sum in in_port_t width (that is,
-			 * modulo 65536), but C promotion rules would sum the
-			 * two terms as 'int', if we just open-coded the array
-			 * index as 'i + delta'.
-			 */
-			in_port_t rport = i + delta;
-
-			fwd->rdelta[rport] = NUM_PORTS - delta;
-		}
-	}
-}
-
-/**
  * udp_update_l2_buf() - Update L2 buffers with Ethernet and IPv4 addresses
  * @eth_d:	Ethernet destination address, NULL if unchanged
  * @eth_s:	Ethernet source address, NULL if unchanged
@@ -1080,9 +1053,9 @@ static void udp_port_rebind(struct ctx *c, bool outbound)
 {
 	int (*socks)[NUM_PORTS] = outbound ? udp_splice_ns : udp_splice_init;
 	const uint8_t *fmap
-		= outbound ? c->udp.fwd_out.f.map : c->udp.fwd_in.f.map;
+		= outbound ? c->udp.fwd_out.map : c->udp.fwd_in.map;
 	const uint8_t *rmap
-		= outbound ? c->udp.fwd_in.f.map : c->udp.fwd_out.f.map;
+		= outbound ? c->udp.fwd_in.map : c->udp.fwd_out.map;
 	unsigned port;
 
 	for (port = 0; port < NUM_PORTS; port++) {
@@ -1158,14 +1131,14 @@ void udp_timer(struct ctx *c, const struct timespec *now)
 	ASSERT(!c->no_udp);
 
 	if (c->mode == MODE_PASTA) {
-		if (c->udp.fwd_out.f.mode == FWD_AUTO) {
-			fwd_scan_ports_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
+		if (c->udp.fwd_out.mode == FWD_AUTO) {
+			fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
 					   &c->tcp.fwd_out, &c->tcp.fwd_in);
 			NS_CALL(udp_port_rebind_outbound, c);
 		}
 
-		if (c->udp.fwd_in.f.mode == FWD_AUTO) {
-			fwd_scan_ports_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
+		if (c->udp.fwd_in.mode == FWD_AUTO) {
+			fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
 					   &c->tcp.fwd_in, &c->tcp.fwd_out);
 			udp_port_rebind(c, false);
 		}
@@ -1183,9 +1156,6 @@ int udp_init(struct ctx *c)
 	ASSERT(!c->no_udp);
 
 	udp_iov_init(c);
-
-	udp_invert_portmap(&c->udp.fwd_in);
-	udp_invert_portmap(&c->udp.fwd_out);
 
 	if (c->mode == MODE_PASTA) {
 		udp_splice_iov_init();

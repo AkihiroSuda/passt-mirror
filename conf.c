@@ -1248,7 +1248,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	}
 
 	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
-	c->udp.fwd_in.f.mode = c->udp.fwd_out.f.mode = FWD_UNSET;
+	c->udp.fwd_in.mode = c->udp.fwd_out.mode = FWD_UNSET;
 
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
@@ -1664,7 +1664,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		if (name == 't')
 			conf_ports(c, name, optarg, &c->tcp.fwd_in);
 		else if (name == 'u')
-			conf_ports(c, name, optarg, &c->udp.fwd_in.f);
+			conf_ports(c, name, optarg, &c->udp.fwd_in);
 	} while (name != -1);
 
 	if (c->mode == MODE_PASTA)
@@ -1699,7 +1699,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		if (name == 'T')
 			conf_ports(c, name, optarg, &c->tcp.fwd_out);
 		else if (name == 'U')
-			conf_ports(c, name, optarg, &c->udp.fwd_out.f);
+			conf_ports(c, name, optarg, &c->udp.fwd_out);
 	} while (name != -1);
 
 	if (!c->ifi4)
@@ -1726,10 +1726,10 @@ void conf(struct ctx *c, int argc, char **argv)
 		c->tcp.fwd_in.mode = fwd_default;
 	if (!c->tcp.fwd_out.mode)
 		c->tcp.fwd_out.mode = fwd_default;
-	if (!c->udp.fwd_in.f.mode)
-		c->udp.fwd_in.f.mode = fwd_default;
-	if (!c->udp.fwd_out.f.mode)
-		c->udp.fwd_out.f.mode = fwd_default;
+	if (!c->udp.fwd_in.mode)
+		c->udp.fwd_in.mode = fwd_default;
+	if (!c->udp.fwd_out.mode)
+		c->udp.fwd_out.mode = fwd_default;
 
 	fwd_scan_ports_init(c);
 

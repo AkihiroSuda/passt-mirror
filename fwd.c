@@ -129,18 +129,18 @@ void fwd_scan_ports_init(struct ctx *c)
 
 	c->tcp.fwd_in.scan4 = c->tcp.fwd_in.scan6 = -1;
 	c->tcp.fwd_out.scan4 = c->tcp.fwd_out.scan6 = -1;
-	c->udp.fwd_in.f.scan4 = c->udp.fwd_in.f.scan6 = -1;
-	c->udp.fwd_out.f.scan4 = c->udp.fwd_out.f.scan6 = -1;
+	c->udp.fwd_in.scan4 = c->udp.fwd_in.scan6 = -1;
+	c->udp.fwd_out.scan4 = c->udp.fwd_out.scan6 = -1;
 
 	if (c->tcp.fwd_in.mode == FWD_AUTO) {
 		c->tcp.fwd_in.scan4 = open_in_ns(c, "/proc/net/tcp", flags);
 		c->tcp.fwd_in.scan6 = open_in_ns(c, "/proc/net/tcp6", flags);
 		fwd_scan_ports_tcp(&c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
-	if (c->udp.fwd_in.f.mode == FWD_AUTO) {
-		c->udp.fwd_in.f.scan4 = open_in_ns(c, "/proc/net/udp", flags);
-		c->udp.fwd_in.f.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
-		fwd_scan_ports_udp(&c->udp.fwd_in.f, &c->udp.fwd_out.f,
+	if (c->udp.fwd_in.mode == FWD_AUTO) {
+		c->udp.fwd_in.scan4 = open_in_ns(c, "/proc/net/udp", flags);
+		c->udp.fwd_in.scan6 = open_in_ns(c, "/proc/net/udp6", flags);
+		fwd_scan_ports_udp(&c->udp.fwd_in, &c->udp.fwd_out,
 				   &c->tcp.fwd_in, &c->tcp.fwd_out);
 	}
 	if (c->tcp.fwd_out.mode == FWD_AUTO) {
@@ -148,10 +148,10 @@ void fwd_scan_ports_init(struct ctx *c)
 		c->tcp.fwd_out.scan6 = open("/proc/net/tcp6", flags);
 		fwd_scan_ports_tcp(&c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
-	if (c->udp.fwd_out.f.mode == FWD_AUTO) {
-		c->udp.fwd_out.f.scan4 = open("/proc/net/udp", flags);
-		c->udp.fwd_out.f.scan6 = open("/proc/net/udp6", flags);
-		fwd_scan_ports_udp(&c->udp.fwd_out.f, &c->udp.fwd_in.f,
+	if (c->udp.fwd_out.mode == FWD_AUTO) {
+		c->udp.fwd_out.scan4 = open("/proc/net/udp", flags);
+		c->udp.fwd_out.scan6 = open("/proc/net/udp6", flags);
+		fwd_scan_ports_udp(&c->udp.fwd_out, &c->udp.fwd_in,
 				   &c->tcp.fwd_out, &c->tcp.fwd_in);
 	}
 }
@@ -242,7 +242,7 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 	if (proto == IPPROTO_TCP)
 		tgt->eport += c->tcp.fwd_out.delta[tgt->eport];
 	else if (proto == IPPROTO_UDP)
-		tgt->eport += c->udp.fwd_out.f.delta[tgt->eport];
+		tgt->eport += c->udp.fwd_out.delta[tgt->eport];
 
 	/* Let the kernel pick a host side source port */
 	tgt->fport = 0;
@@ -271,7 +271,7 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 	if (proto == IPPROTO_TCP)
 		tgt->eport += c->tcp.fwd_in.delta[tgt->eport];
 	else if (proto == IPPROTO_UDP)
-		tgt->eport += c->udp.fwd_in.f.delta[tgt->eport];
+		tgt->eport += c->udp.fwd_in.delta[tgt->eport];
 
 	if (c->mode == MODE_PASTA && inany_is_loopback(&ini->eaddr) &&
 	    (proto == IPPROTO_TCP || proto == IPPROTO_UDP)) {
