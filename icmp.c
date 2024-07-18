@@ -157,6 +157,7 @@ static void icmp_ping_close(const struct ctx *c,
 
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, pingf->sock, NULL);
 	close(pingf->sock);
+	flow_hash_remove(c, FLOW_SIDX(pingf, INISIDE));
 
 	if (pingf->f.type == FLOW_PING4)
 		icmp_id_map[V4][id] = NULL;
@@ -221,6 +222,7 @@ static struct icmp_ping_flow *icmp_ping_new(const struct ctx *c,
 
 	flow_dbg(pingf, "new socket %i for echo ID %"PRIu16, pingf->sock, id);
 
+	flow_hash_insert(c, FLOW_SIDX(pingf, INISIDE));
 	*id_sock = pingf;
 
 	FLOW_ACTIVATE(pingf);
@@ -253,6 +255,8 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 	union sockaddr_inany sa;
 	size_t dlen, l4len;
 	uint16_t id, seq;
+	union flow *flow;
+	uint8_t proto;
 	socklen_t sl;
 	void *pkt;
 
@@ -271,6 +275,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		if (ih->type != ICMP_ECHO)
 			return 1;
 
+		proto = IPPROTO_ICMP;
 		id = ntohs(ih->un.echo.id);
 		id_sock = &icmp_id_map[V4][id];
 		seq = ntohs(ih->un.echo.sequence);
@@ -286,6 +291,7 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		if (ih->icmp6_type != ICMPV6_ECHO_REQUEST)
 			return 1;
 
+		proto = IPPROTO_ICMPV6;
 		id = ntohs(ih->icmp6_identifier);
 		id_sock = &icmp_id_map[V6][id];
 		seq = ntohs(ih->icmp6_sequence);
@@ -293,11 +299,17 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		ASSERT(0);
 	}
 
-	if (!(pingf = *id_sock))
-		if (!(pingf = icmp_ping_new(c, id_sock, af, id, saddr, daddr)))
-			return 1;
+	flow = flow_at_sidx(flow_lookup_af(c, proto, PIF_TAP,
+					   af, saddr, daddr, id, id));
+
+	if (flow)
+		pingf = &flow->ping;
+	else if (!(pingf = icmp_ping_new(c, id_sock, af, id, saddr, daddr)))
+		return 1;
 
 	tgt = &pingf->f.side[TGTSIDE];
+
+	ASSERT(flow_proto[pingf->f.type] == proto);
 	pingf->ts = now->tv_sec;
 
 	pif_sockaddr(c, &sa, &sl, PIF_HOST, &tgt->eaddr, 0);
