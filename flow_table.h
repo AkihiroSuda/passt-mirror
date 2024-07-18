@@ -146,7 +146,4 @@ void flow_activate(struct flow_common *f);
 #define FLOW_ACTIVATE(flow_)			\
 	(flow_activate(&(flow_)->f))
 
-uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
-		   const struct flowside *side);
-
 #endif /* FLOW_TABLE_H */

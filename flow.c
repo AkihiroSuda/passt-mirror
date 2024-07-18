@@ -105,6 +105,16 @@ unsigned flow_first_free;
 union flow flowtab[FLOW_MAX];
 static const union flow *flow_new_entry; /* = NULL */
 
+/* Hash table to index it */
+#define FLOW_HASH_LOAD		70		/* % */
+#define FLOW_HASH_SIZE		((2 * FLOW_MAX * 100 / FLOW_HASH_LOAD))
+
+/* Table for lookup from flowside information */
+static flow_sidx_t flow_hashtab[FLOW_HASH_SIZE];
+
+static_assert(ARRAY_SIZE(flow_hashtab) >= 2 * FLOW_MAX,
+"Safe linear probing requires hash table with more entries than the number of sides in the flow table");
+
 /* Last time the flow timers ran */
 static struct timespec flow_timer_run;
 
@@ -116,9 +126,9 @@ static struct timespec flow_timer_run;
  * @faddr:	Forwarding address (pointer to in_addr or in6_addr)
  * @fport:	Forwarding port
  */
-void flowside_from_af(struct flowside *side, sa_family_t af,
-		      const void *eaddr, in_port_t eport,
-		      const void *faddr, in_port_t fport)
+static void flowside_from_af(struct flowside *side, sa_family_t af,
+			     const void *eaddr, in_port_t eport,
+			     const void *faddr, in_port_t fport)
 {
 	if (faddr)
 		inany_from_af(&side->faddr, af, faddr);
@@ -410,8 +420,8 @@ void flow_alloc_cancel(union flow *flow)
  *
  * Return: hash value
  */
-uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
-		   const struct flowside *side)
+static uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
+			  const struct flowside *side)
 {
 	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
 
@@ -428,6 +438,136 @@ uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
 			     (uint64_t)pif << 32 |
 			     (uint64_t)side->fport << 16 |
 			     (uint64_t)side->eport);
+}
+
+/**
+ * flow_sidx_hash() - Calculate hash value for given side of a given flow
+ * @c:		Execution context
+ * @sidx:	Flow & side index to get hash for
+ *
+ * Return: hash value, of the flow & side represented by @sidx
+ */
+static uint64_t flow_sidx_hash(const struct ctx *c, flow_sidx_t sidx)
+{
+	const struct flow_common *f = &flow_at_sidx(sidx)->f;
+	return flow_hash(c, FLOW_PROTO(f),
+			 f->pif[sidx.sidei], &f->side[sidx.sidei]);
+}
+
+/**
+ * flow_hash_probe() - Find hash bucket for a flow
+ * @c:		Execution context
+ * @sidx:	Flow and side to find bucket for
+ *
+ * Return: If @sidx is in the hash table, its current bucket, otherwise a
+ *         suitable free bucket for it.
+ */
+static inline unsigned flow_hash_probe(const struct ctx *c, flow_sidx_t sidx)
+{
+	unsigned b = flow_sidx_hash(c, sidx) % FLOW_HASH_SIZE;
+
+	/* Linear probing */
+	while (flow_sidx_valid(flow_hashtab[b]) &&
+	       !flow_sidx_eq(flow_hashtab[b], sidx))
+		b = mod_sub(b, 1, FLOW_HASH_SIZE);
+
+	return b;
+}
+
+/**
+ * flow_hash_insert() - Insert side of a flow into into hash table
+ * @c:		Execution context
+ * @sidx:	Flow & side index
+ */
+void flow_hash_insert(const struct ctx *c, flow_sidx_t sidx)
+{
+	unsigned b = flow_hash_probe(c, sidx);
+
+	flow_hashtab[b] = sidx;
+	flow_dbg(flow_at_sidx(sidx), "Side %u hash table insert: bucket: %u",
+		 sidx.sidei, b);
+}
+
+/**
+ * flow_hash_remove() - Drop side of a flow from the hash table
+ * @c:		Execution context
+ * @sidx:	Side of flow to remove
+ */
+void flow_hash_remove(const struct ctx *c, flow_sidx_t sidx)
+{
+	unsigned b = flow_hash_probe(c, sidx), s;
+
+	if (!flow_sidx_valid(flow_hashtab[b]))
+		return; /* Redundant remove */
+
+	flow_dbg(flow_at_sidx(sidx), "Side %u hash table remove: bucket: %u",
+		 sidx.sidei, b);
+
+	/* Scan the remainder of the cluster */
+	for (s = mod_sub(b, 1, FLOW_HASH_SIZE);
+	     flow_sidx_valid(flow_hashtab[s]);
+	     s = mod_sub(s, 1, FLOW_HASH_SIZE)) {
+		unsigned h = flow_sidx_hash(c, flow_hashtab[s]) % FLOW_HASH_SIZE;
+
+		if (!mod_between(h, s, b, FLOW_HASH_SIZE)) {
+			/* flow_hashtab[s] can live in flow_hashtab[b]'s slot */
+			debug("hash table remove: shuffle %u -> %u", s, b);
+			flow_hashtab[b] = flow_hashtab[s];
+			b = s;
+		}
+	}
+
+	flow_hashtab[b] = FLOW_SIDX_NONE;
+}
+
+/**
+ * flowside_lookup() - Look for a matching flowside in the flow table
+ * @c:		Execution context
+ * @proto:	Protocol of the flow (IP L4 protocol number)
+ * @pif:	pif to look for in the table
+ * @side:	Flowside to look for in the table
+ *
+ * Return: sidx of the matching flow & side, FLOW_SIDX_NONE if not found
+ */
+static flow_sidx_t flowside_lookup(const struct ctx *c, uint8_t proto,
+				   uint8_t pif, const struct flowside *side)
+{
+	flow_sidx_t sidx;
+	union flow *flow;
+	unsigned b;
+
+	b = flow_hash(c, proto, pif, side) % FLOW_HASH_SIZE;
+	while ((sidx = flow_hashtab[b], flow = flow_at_sidx(sidx)) &&
+	       !(FLOW_PROTO(&flow->f) == proto &&
+		 flow->f.pif[sidx.sidei] == pif &&
+		 flowside_eq(&flow->f.side[sidx.sidei], side)))
+		b = (b + 1) % FLOW_HASH_SIZE;
+
+	return flow_hashtab[b];
+}
+
+/**
+ * flow_lookup_af() - Look up a flow given addressing information
+ * @c:		Execution context
+ * @proto:	Protocol of the flow (IP L4 protocol number)
+ * @pif:	Interface of the flow
+ * @af:		Address family, AF_INET or AF_INET6
+ * @eaddr:	Guest side endpoint address (guest local address)
+ * @faddr:	Guest side forwarding address (guest remote address)
+ * @eport:	Guest side endpoint port (guest local port)
+ * @fport:	Guest side forwarding port (guest remote port)
+ *
+ * Return: sidx of the matching flow & side, FLOW_SIDX_NONE if not found
+ */
+flow_sidx_t flow_lookup_af(const struct ctx *c,
+			   uint8_t proto, uint8_t pif, sa_family_t af,
+			   const void *eaddr, const void *faddr,
+			   in_port_t eport, in_port_t fport)
+{
+	struct flowside side;
+
+	flowside_from_af(&side, af, eaddr, eport, faddr, fport);
+	return flowside_lookup(c, proto, pif, &side);
 }
 
 /**
@@ -543,7 +683,12 @@ void flow_defer_handler(const struct ctx *c, const struct timespec *now)
  */
 void flow_init(void)
 {
+	unsigned b;
+
 	/* Initial state is a single free cluster containing the whole table */
 	flowtab[0].free.n = FLOW_MAX;
 	flowtab[0].free.next = FLOW_MAX;
+
+	for (b = 0; b < FLOW_HASH_SIZE; b++)
+		flow_hashtab[b] = FLOW_SIDX_NONE;
 }

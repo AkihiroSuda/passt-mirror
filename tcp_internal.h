@@ -42,6 +42,7 @@
 
 #define TAPSIDE(conn_)	((conn_)->f.pif[1] == PIF_TAP)
 #define TAPFLOW(conn_)	(&((conn_)->f.side[TAPSIDE(conn_)]))
+#define TAP_SIDX(conn_)	(FLOW_SIDX((conn_), TAPSIDE(conn_)))
 
 #define CONN_V4(conn)		(!!inany_v4(&TAPFLOW(conn)->faddr))
 #define CONN_V6(conn)		(!CONN_V4(conn))

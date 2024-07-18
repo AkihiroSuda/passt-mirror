@@ -305,9 +305,6 @@
 #include "tcp_internal.h"
 #include "tcp_buf.h"
 
-#define TCP_HASH_TABLE_LOAD		70		/* % */
-#define TCP_HASH_TABLE_SIZE		(FLOW_MAX * 100 / TCP_HASH_TABLE_LOAD)
-
 /* MSS rounding: see SET_MSS() */
 #define MSS_DEFAULT			536
 #define WINDOW_DEFAULT			14600		/* RFC 6928 */
@@ -376,12 +373,6 @@ bool peek_offset_cap;
 
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
-
-/* Table for lookup from flowside information */
-static flow_sidx_t tc_hash[TCP_HASH_TABLE_SIZE];
-
-static_assert(ARRAY_SIZE(tc_hash) >= FLOW_MAX,
-	"Safe linear probing requires hash table larger than connection table");
 
 /* Pools for pre-opened sockets (in init) */
 int init_sock_pool4		[TCP_SOCK_POOL_SIZE];
@@ -605,9 +596,6 @@ void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
 		tcp_timer_ctl(c, conn);
 }
 
-static void tcp_hash_remove(const struct ctx *c,
-			    const struct tcp_tap_conn *conn);
-
 /**
  * conn_event_do() - Set and log connection events, update epoll state
  * @c:		Execution context
@@ -653,7 +641,7 @@ void conn_event_do(const struct ctx *c, struct tcp_tap_conn *conn,
 			 num == -1 	       ? "CLOSED" : tcp_event_str[num]);
 
 	if (event == CLOSED)
-		tcp_hash_remove(c, conn);
+		flow_hash_remove(c, TAP_SIDX(conn));
 	else if ((event == TAP_FIN_RCVD) && !(conn->events & SOCK_FIN_RCVD))
 		conn_flag(c, conn, ACTIVE_CLOSE);
 	else
@@ -850,117 +838,6 @@ static int tcp_opt_get(const char *opts, size_t len, uint8_t type_find,
 	}
 
 	return -1;
-}
-
-/**
- * tcp_conn_hash() - Calculate hash bucket of an existing connection
- * @c:		Execution context
- * @conn:	Connection
- *
- * Return: hash value, needs to be adjusted for table size
- */
-static uint64_t tcp_conn_hash(const struct ctx *c,
-			      const struct tcp_tap_conn *conn)
-{
-	const struct flowside *tapside = TAPFLOW(conn);
-
-	return flow_hash(c, IPPROTO_TCP, conn->f.pif[TAPSIDE(conn)], tapside);
-}
-
-/**
- * tcp_hash_probe() - Find hash bucket for a connection
- * @c:		Execution context
- * @conn:	Connection to find bucket for
- *
- * Return: If @conn is in the table, its current bucket, otherwise a suitable
- *         free bucket for it.
- */
-static inline unsigned tcp_hash_probe(const struct ctx *c,
-				      const struct tcp_tap_conn *conn)
-{
-	unsigned b = tcp_conn_hash(c, conn) % TCP_HASH_TABLE_SIZE;
-	flow_sidx_t sidx = FLOW_SIDX(conn, TAPSIDE(conn));
-
-	/* Linear probing */
-	while (flow_sidx_valid(tc_hash[b]) && !flow_sidx_eq(tc_hash[b], sidx))
-		b = mod_sub(b, 1, TCP_HASH_TABLE_SIZE);
-
-	return b;
-}
-
-/**
- * tcp_hash_insert() - Insert connection into hash table, chain link
- * @c:		Execution context
- * @conn:	Connection pointer
- */
-static void tcp_hash_insert(const struct ctx *c, struct tcp_tap_conn *conn)
-{
-	unsigned b = tcp_hash_probe(c, conn);
-
-	tc_hash[b] = FLOW_SIDX(conn, TAPSIDE(conn));
-	flow_dbg(conn, "hash table insert: sock %i, bucket: %u", conn->sock, b);
-}
-
-/**
- * tcp_hash_remove() - Drop connection from hash table, chain unlink
- * @c:		Execution context
- * @conn:	Connection pointer
- */
-static void tcp_hash_remove(const struct ctx *c,
-			    const struct tcp_tap_conn *conn)
-{
-	unsigned b = tcp_hash_probe(c, conn), s;
-	union flow *flow;
-
-	if (!flow_sidx_valid(tc_hash[b]))
-		return; /* Redundant remove */
-
-	flow_dbg(conn, "hash table remove: sock %i, bucket: %u", conn->sock, b);
-
-	/* Scan the remainder of the cluster */
-	for (s = mod_sub(b, 1, TCP_HASH_TABLE_SIZE);
-	     (flow = flow_at_sidx(tc_hash[s]));
-	     s = mod_sub(s, 1, TCP_HASH_TABLE_SIZE)) {
-		unsigned h = tcp_conn_hash(c, &flow->tcp) % TCP_HASH_TABLE_SIZE;
-
-		if (!mod_between(h, s, b, TCP_HASH_TABLE_SIZE)) {
-			/* tc_hash[s] can live in tc_hash[b]'s slot */
-			debug("hash table remove: shuffle %u -> %u", s, b);
-			tc_hash[b] = tc_hash[s];
-			b = s;
-		}
-	}
-
-	tc_hash[b] = FLOW_SIDX_NONE;
-}
-
-/**
- * tcp_hash_lookup() - Look up connection given remote address and ports
- * @c:		Execution context
- * @af:		Address family, AF_INET or AF_INET6
- * @eaddr:	Guest side endpoint address (guest local address)
- * @faddr:	Guest side forwarding address (guest remote address)
- * @eport:	Guest side endpoint port (guest local port)
- * @fport:	Guest side forwarding port (guest remote port)
- *
- * Return: connection pointer, if found, -ENOENT otherwise
- */
-static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c, sa_family_t af,
-					    const void *eaddr, const void *faddr,
-					    in_port_t eport, in_port_t fport)
-{
-	struct flowside side;
-	union flow *flow;
-	unsigned b;
-
-	flowside_from_af(&side, af, eaddr, eport, faddr, fport);
-
-	b = flow_hash(c, IPPROTO_TCP, PIF_TAP, &side) % TCP_HASH_TABLE_SIZE;
-	while ((flow = flow_at_sidx(tc_hash[b])) &&
-	       !flowside_eq(&flow->f.side[TAPSIDE(flow)], &side))
-		b = mod_sub(b, 1, TCP_HASH_TABLE_SIZE);
-
-	return &flow->tcp;
 }
 
 /**
@@ -1710,7 +1587,7 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	tcp_seq_init(c, conn, now);
 	conn->seq_ack_from_tap = conn->seq_to_tap;
 
-	tcp_hash_insert(c, conn);
+	flow_hash_insert(c, TAP_SIDX(conn));
 
 	tcp_bind_outbound(c, conn, s);
 
@@ -2047,6 +1924,8 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, sa_family_t af,
 	const struct tcphdr *th;
 	size_t optlen, len;
 	const char *opts;
+	union flow *flow;
+	flow_sidx_t sidx;
 	int ack_due = 0;
 	int count;
 
@@ -2062,16 +1941,21 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, sa_family_t af,
 	optlen = MIN(optlen, ((1UL << 4) /* from doff width */ - 6) * 4UL);
 	opts = packet_get(p, idx, sizeof(*th), optlen, NULL);
 
-	conn = tcp_hash_lookup(c, af, saddr, daddr,
-			       ntohs(th->source), ntohs(th->dest));
+	sidx = flow_lookup_af(c, IPPROTO_TCP, PIF_TAP, af, saddr, daddr,
+			      ntohs(th->source), ntohs(th->dest));
+	flow = flow_at_sidx(sidx);
 
 	/* New connection from tap */
-	if (!conn) {
+	if (!flow) {
 		if (opts && th->syn && !th->ack)
 			tcp_conn_from_tap(c, af, saddr, daddr, th,
 					  opts, optlen, now);
 		return 1;
 	}
+
+	ASSERT(flow->f.type == FLOW_TCP);
+	ASSERT(pif_at_sidx(sidx) == PIF_TAP);
+	conn = &flow->tcp;
 
 	flow_trace(conn, "packet length %zu from tap", len);
 
@@ -2250,7 +2134,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c, in_port_t dstport,
 	conn_event(c, conn, SOCK_ACCEPTED);
 
 	tcp_seq_init(c, conn, now);
-	tcp_hash_insert(c, conn);
+	flow_hash_insert(c, TAP_SIDX(conn));
 
 	conn->seq_ack_from_tap = conn->seq_to_tap;
 
@@ -2652,13 +2536,10 @@ static void tcp_sock_refill_init(const struct ctx *c)
  */
 int tcp_init(struct ctx *c)
 {
-	unsigned int b, optv = 0;
+	unsigned int optv = 0;
 	int s;
 
 	ASSERT(!c->no_tcp);
-
-	for (b = 0; b < TCP_HASH_TABLE_SIZE; b++)
-		tc_hash[b] = FLOW_SIDX_NONE;
 
 	if (c->ifi4)
 		tcp_sock4_iov_init(c);
