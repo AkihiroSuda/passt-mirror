@@ -116,9 +116,9 @@ static struct timespec flow_timer_run;
  * @faddr:	Forwarding address (pointer to in_addr or in6_addr)
  * @fport:	Forwarding port
  */
-static void flowside_from_af(struct flowside *side, sa_family_t af,
-			     const void *eaddr, in_port_t eport,
-			     const void *faddr, in_port_t fport)
+void flowside_from_af(struct flowside *side, sa_family_t af,
+		      const void *eaddr, in_port_t eport,
+		      const void *faddr, in_port_t fport)
 {
 	if (faddr)
 		inany_from_af(&side->faddr, af, faddr);
@@ -399,6 +399,35 @@ void flow_alloc_cancel(union flow *flow)
 	flow->free.next = flow_first_free;
 	flow_first_free = FLOW_IDX(flow);
 	flow_new_entry = NULL;
+}
+
+/**
+ * flow_hash() - Calculate hash value for one side of a flow
+ * @c:		Execution context
+ * @proto:	Protocol of this flow (IP L4 protocol number)
+ * @pif:	pif of the side to hash
+ * @side:	Flowside (must not have unspecified parts)
+ *
+ * Return: hash value
+ */
+uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
+		   const struct flowside *side)
+{
+	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
+
+	/* For the hash table to work, we need complete endpoint information,
+	 * and at least a forwarding port.
+	 */
+	ASSERT(pif != PIF_NONE && !inany_is_unspecified(&side->eaddr) &&
+	       side->eport != 0 && side->fport != 0);
+
+	inany_siphash_feed(&state, &side->faddr);
+	inany_siphash_feed(&state, &side->eaddr);
+
+	return siphash_final(&state, 38, (uint64_t)proto << 40 |
+			     (uint64_t)pif << 32 |
+			     (uint64_t)side->fport << 16 |
+			     (uint64_t)side->eport);
 }
 
 /**

@@ -377,7 +377,7 @@ bool peek_offset_cap;
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
 
-/* Table for lookup from remote address, local port, remote port */
+/* Table for lookup from flowside information */
 static flow_sidx_t tc_hash[TCP_HASH_TABLE_SIZE];
 
 static_assert(ARRAY_SIZE(tc_hash) >= FLOW_MAX,
@@ -853,46 +853,6 @@ static int tcp_opt_get(const char *opts, size_t len, uint8_t type_find,
 }
 
 /**
- * tcp_hash_match() - Check if a connection entry matches address and ports
- * @conn:	Connection entry to match against
- * @faddr:	Guest side forwarding address
- * @eport:	Guest side endpoint port
- * @fport:	Guest side forwarding port
- *
- * Return: 1 on match, 0 otherwise
- */
-static int tcp_hash_match(const struct tcp_tap_conn *conn,
-			  const union inany_addr *faddr,
-			  in_port_t eport, in_port_t fport)
-{
-	const struct flowside *tapside = TAPFLOW(conn);
-
-	if (inany_equals(&tapside->faddr, faddr) &&
-	    tapside->eport == eport && tapside->fport == fport)
-		return 1;
-
-	return 0;
-}
-
-/**
- * tcp_hash() - Calculate hash value for connection given address and ports
- * @c:		Execution context
- * @faddr:	Guest side forwarding address
- * @eport:	Guest side endpoint port
- * @fport:	Guest side forwarding port
- *
- * Return: hash value, needs to be adjusted for table size
- */
-static uint64_t tcp_hash(const struct ctx *c, const union inany_addr *faddr,
-			 in_port_t eport, in_port_t fport)
-{
-	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
-
-	inany_siphash_feed(&state, faddr);
-	return siphash_final(&state, 20, (uint64_t)eport << 16 | fport);
-}
-
-/**
  * tcp_conn_hash() - Calculate hash bucket of an existing connection
  * @c:		Execution context
  * @conn:	Connection
@@ -904,8 +864,7 @@ static uint64_t tcp_conn_hash(const struct ctx *c,
 {
 	const struct flowside *tapside = TAPFLOW(conn);
 
-	return tcp_hash(c, &tapside->faddr, tapside->eport,
-			tapside->fport);
+	return flow_hash(c, IPPROTO_TCP, conn->f.pif[TAPSIDE(conn)], tapside);
 }
 
 /**
@@ -979,25 +938,26 @@ static void tcp_hash_remove(const struct ctx *c,
  * tcp_hash_lookup() - Look up connection given remote address and ports
  * @c:		Execution context
  * @af:		Address family, AF_INET or AF_INET6
+ * @eaddr:	Guest side endpoint address (guest local address)
  * @faddr:	Guest side forwarding address (guest remote address)
  * @eport:	Guest side endpoint port (guest local port)
  * @fport:	Guest side forwarding port (guest remote port)
  *
  * Return: connection pointer, if found, -ENOENT otherwise
  */
-static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c,
-					    sa_family_t af, const void *faddr,
+static struct tcp_tap_conn *tcp_hash_lookup(const struct ctx *c, sa_family_t af,
+					    const void *eaddr, const void *faddr,
 					    in_port_t eport, in_port_t fport)
 {
-	union inany_addr aany;
+	struct flowside side;
 	union flow *flow;
 	unsigned b;
 
-	inany_from_af(&aany, af, faddr);
+	flowside_from_af(&side, af, eaddr, eport, faddr, fport);
 
-	b = tcp_hash(c, &aany, eport, fport) % TCP_HASH_TABLE_SIZE;
+	b = flow_hash(c, IPPROTO_TCP, PIF_TAP, &side) % TCP_HASH_TABLE_SIZE;
 	while ((flow = flow_at_sidx(tc_hash[b])) &&
-	       !tcp_hash_match(&flow->tcp, &aany, eport, fport))
+	       !flowside_eq(&flow->f.side[TAPSIDE(flow)], &side))
 		b = mod_sub(b, 1, TCP_HASH_TABLE_SIZE);
 
 	return &flow->tcp;
@@ -2102,7 +2062,8 @@ int tcp_tap_handler(struct ctx *c, uint8_t pif, sa_family_t af,
 	optlen = MIN(optlen, ((1UL << 4) /* from doff width */ - 6) * 4UL);
 	opts = packet_get(p, idx, sizeof(*th), optlen, NULL);
 
-	conn = tcp_hash_lookup(c, af, daddr, ntohs(th->source), ntohs(th->dest));
+	conn = tcp_hash_lookup(c, af, saddr, daddr,
+			       ntohs(th->source), ntohs(th->dest));
 
 	/* New connection from tap */
 	if (!conn) {

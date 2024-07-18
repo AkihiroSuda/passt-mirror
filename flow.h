@@ -150,6 +150,25 @@ struct flowside {
 };
 
 /**
+ * flowside_eq() - Check if two flowsides are equal
+ * @left, @right:	Flowsides to compare
+ *
+ * Return: true if equal, false otherwise
+ */
+static inline bool flowside_eq(const struct flowside *left,
+			       const struct flowside *right)
+{
+	return inany_equals(&left->eaddr, &right->eaddr) &&
+	       left->eport == right->eport &&
+	       inany_equals(&left->faddr, &right->faddr) &&
+	       left->fport == right->fport;
+}
+
+void flowside_from_af(struct flowside *side, sa_family_t af,
+		      const void *eaddr, in_port_t eport,
+		      const void *faddr, in_port_t fport);
+
+/**
  * struct flow_common - Common fields for packet flows
  * @state:	State of the flow table entry
  * @type:	Type of packet flow
