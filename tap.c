@@ -91,17 +91,6 @@ void tap_send_single(const struct ctx *c, const void *data, size_t l2len)
 }
 
 /**
- * tap_ip4_daddr() - Normal IPv4 destination address for inbound packets
- * @c:		Execution context
- *
- * Return: IPv4 address
- */
-struct in_addr tap_ip4_daddr(const struct ctx *c)
-{
-	return c->ip4.addr_seen;
-}
-
-/**
  * tap_ip6_daddr() - Normal IPv6 destination address for inbound packets
  * @c:		Execution context
  * @src:	Source address

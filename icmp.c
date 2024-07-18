@@ -127,11 +127,18 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 	flow_dbg(pingf, "echo reply to tap, ID: %"PRIu16", seq: %"PRIu16,
 		 ini->eport, seq);
 
-	if (pingf->f.type == FLOW_PING4)
-		tap_icmp4_send(c, sr.sa4.sin_addr, tap_ip4_daddr(c), buf, n);
-	else if (pingf->f.type == FLOW_PING6)
-		tap_icmp6_send(c, &sr.sa6.sin6_addr,
-			       tap_ip6_daddr(c, &sr.sa6.sin6_addr), buf, n);
+	if (pingf->f.type == FLOW_PING4) {
+		const struct in_addr *saddr = inany_v4(&ini->faddr);
+		const struct in_addr *daddr = inany_v4(&ini->eaddr);
+
+		ASSERT(saddr && daddr); /* Must have IPv4 addresses */
+		tap_icmp4_send(c, *saddr, *daddr, buf, n);
+	} else if (pingf->f.type == FLOW_PING6) {
+		const struct in6_addr *saddr = &ini->faddr.a6;
+		const struct in6_addr *daddr = &ini->eaddr.a6;
+
+		tap_icmp6_send(c, saddr, daddr, buf, n);
+	}
 	return;
 
 unexpected:
@@ -241,11 +248,12 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		     const void *saddr, const void *daddr,
 		     const struct pool *p, const struct timespec *now)
 {
-	union sockaddr_inany sa = { .sa_family = af };
-	const socklen_t sl = af == AF_INET ? sizeof(sa.sa4) : sizeof(sa.sa6);
 	struct icmp_ping_flow *pingf, **id_sock;
+	const struct flowside *tgt;
+	union sockaddr_inany sa;
 	size_t dlen, l4len;
 	uint16_t id, seq;
+	socklen_t sl;
 	void *pkt;
 
 	(void)saddr;
@@ -266,7 +274,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		id = ntohs(ih->un.echo.id);
 		id_sock = &icmp_id_map[V4][id];
 		seq = ntohs(ih->un.echo.sequence);
-		sa.sa4.sin_addr = *(struct in_addr *)daddr;
 	} else if (af == AF_INET6) {
 		const struct icmp6hdr *ih;
 
@@ -282,8 +289,6 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		id = ntohs(ih->icmp6_identifier);
 		id_sock = &icmp_id_map[V6][id];
 		seq = ntohs(ih->icmp6_sequence);
-		sa.sa6.sin6_addr = *(struct in6_addr *)daddr;
-		sa.sa6.sin6_scope_id = c->ifi6;
 	} else {
 		ASSERT(0);
 	}
@@ -292,8 +297,10 @@ int icmp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		if (!(pingf = icmp_ping_new(c, id_sock, af, id, saddr, daddr)))
 			return 1;
 
+	tgt = &pingf->f.side[TGTSIDE];
 	pingf->ts = now->tv_sec;
 
+	pif_sockaddr(c, &sa, &sl, PIF_HOST, &tgt->eaddr, 0);
 	if (sendto(pingf->sock, pkt, l4len, MSG_NOSIGNAL, &sa.sa, sl) < 0) {
 		flow_dbg(pingf, "failed to relay request to socket: %s",
 			 strerror(errno));

@@ -43,7 +43,6 @@ static inline void tap_hdr_update(struct tap_hdr *thdr, size_t l2len)
 	thdr->vnet_len = htonl(l2len);
 }
 
-struct in_addr tap_ip4_daddr(const struct ctx *c);
 void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 		   struct in_addr dst, in_port_t dport,
 		   const void *in, size_t dlen);
