@@ -2471,6 +2471,29 @@ static void tcp_sock_refill_init(const struct ctx *c)
 }
 
 /**
+ * tcp_probe_peek_offset_cap() - Check if SO_PEEK_OFF is supported by kernel
+ * @af:		Address family, IPv4 or IPv6
+ *
+ * Return: true if supported, false otherwise
+ */
+bool tcp_probe_peek_offset_cap(sa_family_t af)
+{
+	bool ret = false;
+	int s, optv = 0;
+
+	s = socket(af, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+	if (s < 0) {
+		warn_perror("Temporary TCP socket creation failed");
+	} else {
+		if (!setsockopt(s, SOL_SOCKET, SO_PEEK_OFF, &optv, sizeof(int)))
+			ret = true;
+		close(s);
+	}
+
+	return ret;
+}
+
+/**
  * tcp_init() - Get initial sequence, hash secret, initialise per-socket data
  * @c:		Execution context
  *
@@ -2478,9 +2501,6 @@ static void tcp_sock_refill_init(const struct ctx *c)
  */
 int tcp_init(struct ctx *c)
 {
-	unsigned int optv = 0;
-	int s;
-
 	ASSERT(!c->no_tcp);
 
 	if (c->ifi4)
@@ -2502,15 +2522,8 @@ int tcp_init(struct ctx *c)
 		NS_CALL(tcp_ns_socks_init, c);
 	}
 
-	/* Probe for SO_PEEK_OFF support */
-	s = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
-	if (s < 0) {
-		warn_perror("Temporary TCP socket creation failed");
-	} else {
-		if (!setsockopt(s, SOL_SOCKET, SO_PEEK_OFF, &optv, sizeof(int)))
-			peek_offset_cap = true;
-		close(s);
-	}
+	peek_offset_cap = (!c->ifi4 || tcp_probe_peek_offset_cap(AF_INET)) &&
+			  (!c->ifi6 || tcp_probe_peek_offset_cap(AF_INET6));
 	info("SO_PEEK_OFF%ssupported", peek_offset_cap ? " " : " not ");
 
 	return 0;
