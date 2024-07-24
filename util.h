@@ -152,6 +152,7 @@ int sock_l4(const struct ctx *c, sa_family_t af, enum epoll_type type,
 	    uint32_t data);
 void sock_probe_mem(struct ctx *c);
 long timespec_diff_ms(const struct timespec *a, const struct timespec *b);
+long long timespec_diff_us(const struct timespec *a, const struct timespec *b);
 void bitmap_set(uint8_t *map, unsigned bit);
 void bitmap_clear(uint8_t *map, unsigned bit);
 bool bitmap_isset(const uint8_t *map, unsigned bit);

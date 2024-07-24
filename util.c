@@ -239,6 +239,23 @@ void sock_probe_mem(struct ctx *c)
 	close(s);
 }
 
+/**
+ * timespec_diff_us() - Report difference in microseconds between two timestamps
+ * @a:		Minuend timestamp
+ * @b:		Subtrahend timestamp
+ *
+ * Return: difference in microseconds (wraps after 2^64 / 10^6s ~= 585k years)
+ */
+long long timespec_diff_us(const struct timespec *a, const struct timespec *b)
+{
+	if (a->tv_nsec < b->tv_nsec) {
+		return (b->tv_nsec - a->tv_nsec) / 1000 +
+		       (a->tv_sec - b->tv_sec - 1) * 1000000;
+	}
+
+	return (a->tv_nsec - b->tv_nsec) / 1000 +
+	       (a->tv_sec - b->tv_sec) * 1000000;
+}
 
 /**
  * timespec_diff_ms() - Report difference in milliseconds between two timestamps
@@ -249,13 +266,7 @@ void sock_probe_mem(struct ctx *c)
  */
 long timespec_diff_ms(const struct timespec *a, const struct timespec *b)
 {
-	if (a->tv_nsec < b->tv_nsec) {
-		return (b->tv_nsec - a->tv_nsec) / 1000000 +
-		       (a->tv_sec - b->tv_sec - 1) * 1000;
-	}
-
-	return (a->tv_nsec - b->tv_nsec) / 1000000 +
-	       (a->tv_sec - b->tv_sec) * 1000;
+	return timespec_diff_us(a, b) / 1000;
 }
 
 /**

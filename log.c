@@ -40,11 +40,20 @@ static size_t	log_written;		/* Currently used bytes in log file */
 static size_t	log_cut_size;		/* Bytes to cut at start on rotation */
 static char	log_header[BUFSIZ];	/* File header, written back on cuts */
 
-static time_t	log_start;		/* Start timestamp */
+static struct timespec log_start;	/* Start timestamp */
 
 int		log_trace;		/* --trace mode enabled */
 bool		log_conf_parsed;	/* Logging options already parsed */
 bool		log_runtime;		/* Daemonised, or ready in foreground */
+
+/**
+ * logtime_fmt_and_arg() - Build format and arguments to print relative log time
+ * @x:		Current timestamp
+ */
+#define logtime_fmt_and_arg(x)						\
+	"%lli.%04lli",							\
+	(timespec_diff_us((x), &log_start) / 1000000LL),		\
+	(timespec_diff_us((x), &log_start) / 100LL)
 
 /**
  * vlogmsg() - Print or send messages to log or output files as configured
@@ -60,9 +69,8 @@ void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 
 	if (debug_print) {
 		clock_gettime(CLOCK_REALTIME, &tp);
-		fprintf(stderr, "%lli.%04lli: ",
-			(long long int)tp.tv_sec - log_start,
-			(long long int)tp.tv_nsec / (100L * 1000));
+		fprintf(stderr, logtime_fmt_and_arg(&tp));
+		fprintf(stderr, ": ");
 	}
 
 	if ((log_mask & LOG_MASK(LOG_PRI(pri))) || !log_conf_parsed) {
@@ -144,12 +152,9 @@ void trace_init(int enable)
  */
 void __openlog(const char *ident, int option, int facility)
 {
-	struct timespec tp;
-
 	(void)option;
 
-	clock_gettime(CLOCK_REALTIME, &tp);
-	log_start = tp.tv_sec;
+	clock_gettime(CLOCK_REALTIME, &log_start);
 
 	if (log_sock < 0) {
 		struct sockaddr_un a = { .sun_family = AF_UNIX, };
@@ -255,10 +260,8 @@ static void logfile_rotate_fallocate(int fd, const struct timespec *now)
 	if (read(fd, buf, BUFSIZ) == -1)
 		return;
 
-	n = snprintf(buf, BUFSIZ,
-		     "%s - log truncated at %lli.%04lli", log_header,
-		     (long long int)(now->tv_sec - log_start),
-		     (long long int)(now->tv_nsec / (100L * 1000)));
+	n =  snprintf(buf, BUFSIZ, "%s - log truncated at ", log_header);
+	n += snprintf(buf + n, BUFSIZ - n, logtime_fmt_and_arg(now));
 
 	/* Avoid partial lines by padding the header with spaces */
 	nl = memchr(buf + n + 1, '\n', BUFSIZ - n - 1);
@@ -288,10 +291,11 @@ static void logfile_rotate_move(int fd, const struct timespec *now)
 	char buf[BUFSIZ];
 	const char *nl;
 
-	header_len = snprintf(buf, BUFSIZ,
-			      "%s - log truncated at %lli.%04lli\n", log_header,
-			      (long long int)(now->tv_sec - log_start),
-			      (long long int)(now->tv_nsec / (100L * 1000)));
+	header_len =  snprintf(buf, BUFSIZ, "%s - log truncated at ",
+			       log_header);
+	header_len += snprintf(buf + header_len, BUFSIZ - header_len,
+			       logtime_fmt_and_arg(now));
+
 	if (lseek(fd, 0, SEEK_SET) == -1)
 		return;
 	if (write(fd, buf, header_len) == -1)
@@ -383,10 +387,8 @@ void logfile_write(bool newline, int pri, const char *format, va_list ap)
 	if (clock_gettime(CLOCK_REALTIME, &now))
 		return;
 
-	n = snprintf(buf, BUFSIZ, "%lli.%04lli: %s",
-		     (long long int)(now.tv_sec - log_start),
-		     (long long int)(now.tv_nsec / (100L * 1000)),
-		     logfile_prefix[pri]);
+	n  = snprintf(buf, BUFSIZ, logtime_fmt_and_arg(&now));
+	n += snprintf(buf + n, BUFSIZ - n, ": %s", logfile_prefix[pri]);
 
 	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
 
