@@ -169,21 +169,20 @@ void fwd_scan_ports_init(struct ctx *c)
 uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 			 const struct flowside *ini, struct flowside *tgt)
 {
-	tgt->eaddr = ini->faddr;
-	tgt->eport = ini->fport;
-
-	if (proto == IPPROTO_UDP && tgt->eport == 53 &&
-	    inany_equals4(&tgt->eaddr, &c->ip4.dns_match)) {
+	if (proto == IPPROTO_UDP && ini->fport == 53 &&
+	    inany_equals4(&ini->faddr, &c->ip4.dns_match))
 		tgt->eaddr = inany_from_v4(c->ip4.dns_host);
-	} else if (proto == IPPROTO_UDP && tgt->eport == 53 &&
-		   inany_equals6(&tgt->eaddr, &c->ip6.dns_match)) {
+	else if (proto == IPPROTO_UDP && ini->fport == 53 &&
+		   inany_equals6(&ini->faddr, &c->ip6.dns_match))
 		tgt->eaddr.a6 = c->ip6.dns_host;
-	} else if (!c->no_map_gw) {
-		if (inany_equals4(&tgt->eaddr, &c->ip4.gw))
-			tgt->eaddr = inany_loopback4;
-		else if (inany_equals6(&tgt->eaddr, &c->ip6.gw))
-			tgt->eaddr = inany_loopback6;
-	}
+	else if (!c->no_map_gw && inany_equals4(&ini->faddr, &c->ip4.gw))
+		tgt->eaddr = inany_loopback4;
+	else if (!c->no_map_gw && inany_equals6(&ini->faddr, &c->ip6.gw))
+		tgt->eaddr = inany_loopback6;
+	else
+		tgt->eaddr = ini->faddr;
+
+	tgt->eport = ini->fport;
 
 	/* The relevant addr_out controls the host side source address.  This
 	 * may be unspecified, which allows the kernel to pick an address.
