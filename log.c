@@ -40,7 +40,7 @@ static size_t	log_written;		/* Currently used bytes in log file */
 static size_t	log_cut_size;		/* Bytes to cut at start on rotation */
 static char	log_header[BUFSIZ];	/* File header, written back on cuts */
 
-static struct timespec log_start;	/* Start timestamp */
+struct timespec	log_start;		/* Start timestamp */
 
 int		log_trace;		/* --trace mode enabled */
 bool		log_conf_parsed;	/* Logging options already parsed */
@@ -153,8 +153,6 @@ void trace_init(int enable)
 void __openlog(const char *ident, int option, int facility)
 {
 	(void)option;
-
-	clock_gettime(CLOCK_REALTIME, &log_start);
 
 	if (log_sock < 0) {
 		struct sockaddr_un a = { .sun_family = AF_UNIX, };
