@@ -157,6 +157,20 @@ void fwd_scan_ports_init(struct ctx *c)
 }
 
 /**
+ * is_dns_flow() - Determine if flow appears to be a DNS request
+ * @proto:	Protocol (IP L4 protocol number)
+ * @ini:	Flow address information of the initiating side
+ *
+ * Return: true if the flow appears to be directed at a dns server, that is a
+ *         TCP or UDP flow to port 53 (domain) or port 853 (domain-s)
+ */
+static bool is_dns_flow(uint8_t proto, const struct flowside *ini)
+{
+	return ((proto == IPPROTO_UDP) || (proto == IPPROTO_TCP)) &&
+		((ini->fport == 53) || (ini->fport == 853));
+}
+
+/**
  * fwd_nat_from_tap() - Determine to forward a flow from the tap interface
  * @c:		Execution context
  * @proto:	Protocol (IP L4 protocol number)
@@ -169,10 +183,10 @@ void fwd_scan_ports_init(struct ctx *c)
 uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 			 const struct flowside *ini, struct flowside *tgt)
 {
-	if (proto == IPPROTO_UDP && ini->fport == 53 &&
+	if (is_dns_flow(proto, ini) &&
 	    inany_equals4(&ini->faddr, &c->ip4.dns_match))
 		tgt->eaddr = inany_from_v4(c->ip4.dns_host);
-	else if (proto == IPPROTO_UDP && ini->fport == 53 &&
+	else if (is_dns_flow(proto, ini) &&
 		   inany_equals6(&ini->faddr, &c->ip6.dns_match))
 		tgt->eaddr.a6 = c->ip6.dns_host;
 	else if (!c->no_map_gw && inany_equals4(&ini->faddr, &c->ip4.gw))

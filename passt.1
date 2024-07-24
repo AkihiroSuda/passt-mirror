@@ -244,11 +244,11 @@ usage of DNS addresses altogether.
 
 .TP
 .BR \-\-dns-forward " " \fIaddr
-Map \fIaddr\fR (IPv4 or IPv6) as seen from guest or namespace to the first
-configured DNS resolver (with corresponding IP version). Mapping is limited to
-UDP traffic directed to port 53, and DNS answers are translated back with a
-reverse mapping.
-This option can be specified zero to two times (once for IPv4, once for IPv6).
+Map \fIaddr\fR (IPv4 or IPv6) as seen from guest or namespace to the
+first configured DNS resolver (with corresponding IP version). Maps
+only UDP and TCP traffic to port 53 or port 853.  Replies are
+translated back with a reverse mapping.  This option can be specified
+zero to two times (once for IPv4, once for IPv6).
 
 .TP
 .BR \-S ", " \-\-search " " \fIlist
