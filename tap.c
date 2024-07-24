@@ -1139,8 +1139,11 @@ int tap_sock_unix_open(char *sock_path)
 		close(ex);
 
 		unlink(path);
-		if (!bind(fd, (const struct sockaddr *)&addr, sizeof(addr)) ||
-		    *sock_path)
+		ret = bind(fd, (const struct sockaddr *)&addr, sizeof(addr));
+		if (*sock_path && ret)
+			die_perror("Failed to bind UNIX domain socket");
+
+		if (!ret)
 			break;
 	}
 
