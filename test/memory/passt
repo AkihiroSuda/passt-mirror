@@ -110,27 +110,17 @@ info
 th	symbol MiB
 set	WHAT tcp_buf_discard
 nm_row
-set	WHAT tcp6_l2_buf
+set	WHAT flowtab
 nm_row
-set	WHAT tcp4_l2_buf
+set	WHAT tcp6_payload
 nm_row
-set	WHAT tc
+set	WHAT tcp4_payload
 nm_row
 set	WHAT pkt_buf
 nm_row
-set	WHAT udp_splice_map
+set	WHAT udp_payload
 nm_row
-set	WHAT udp6_l2_buf
-nm_row
-set	WHAT udp4_l2_buf
-nm_row
-set	WHAT udp_tap_map
-nm_row
-set	WHAT icmp_id_map
-nm_row
-set	WHAT udp_splice_buf
-nm_row
-set	WHAT tc_hash
+set	WHAT flow_hashtab
 nm_row
 set	WHAT pool_tap6_storage
 nm_row
@@ -148,8 +138,6 @@ th	objects count size MiB
 set	WHAT pid
 slab_row
 set	WHAT dentry
-slab_row
-set	WHAT Acpi-Parse
 slab_row
 set	WHAT kmalloc-64
 slab_row
