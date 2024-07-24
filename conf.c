@@ -209,14 +209,24 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 		}
 
-		if (ifname == buf + 1)		/* Interface without address */
+		if (ifname == buf + 1) {	/* Interface without address */
 			addr = NULL;
-		else if (inet_pton(AF_INET, buf, addr))
-			af = AF_INET;
-		else if (inet_pton(AF_INET6, buf, addr))
-			af = AF_INET6;
-		else
-			goto bad;
+		} else {
+			p = buf;
+
+			/* Allow square brackets for IPv4 too for convenience */
+			if (*p == '[' && p[strlen(p) - 1] == ']') {
+				p[strlen(p) - 1] = '\0';
+				p++;
+			}
+
+			if (inet_pton(AF_INET, p, addr))
+				af = AF_INET;
+			else if (inet_pton(AF_INET6, p, addr))
+				af = AF_INET6;
+			else
+				goto bad;
+		}
 	} else {
 		spec = buf;
 
