@@ -235,12 +235,13 @@ void tcp_flags_flush(const struct ctx *c)
 
 /**
  * tcp_revert_seq() - Revert affected conn->seq_to_tap after failed transmission
- * @conns:       Array of connection pointers corresponding to queued frames
- * @frames:      Two-dimensional array containing queued frames with sub-iovs
- * @num_frames:  Number of entries in the two arrays to be compared
+ * @ctx:	Execution context
+ * @conns:	Array of connection pointers corresponding to queued frames
+ * @frames:	Two-dimensional array containing queued frames with sub-iovs
+ * @num_frames:	Number of entries in the two arrays to be compared
  */
-static void tcp_revert_seq(struct tcp_tap_conn **conns, struct iovec (*frames)[TCP_NUM_IOVS],
-			   int num_frames)
+static void tcp_revert_seq(struct ctx *c, struct tcp_tap_conn **conns,
+			   struct iovec (*frames)[TCP_NUM_IOVS], int num_frames)
 {
 	int i;
 
@@ -248,11 +249,15 @@ static void tcp_revert_seq(struct tcp_tap_conn **conns, struct iovec (*frames)[T
 		const struct tcphdr *th = frames[i][TCP_IOV_PAYLOAD].iov_base;
 		struct tcp_tap_conn *conn = conns[i];
 		uint32_t seq = ntohl(th->seq);
+		uint32_t peek_offset;
 
 		if (SEQ_LE(conn->seq_to_tap, seq))
 			continue;
 
 		conn->seq_to_tap = seq;
+		peek_offset = conn->seq_to_tap - conn->seq_ack_from_tap;
+		if (tcp_set_peek_offset(conn->sock, peek_offset))
+			tcp_rst(c, conn);
 	}
 }
 
@@ -260,14 +265,14 @@ static void tcp_revert_seq(struct tcp_tap_conn **conns, struct iovec (*frames)[T
  * tcp_payload_flush() - Send out buffers for segments with data
  * @c:		Execution context
  */
-void tcp_payload_flush(const struct ctx *c)
+void tcp_payload_flush(struct ctx *c)
 {
 	size_t m;
 
 	m = tap_send_frames(c, &tcp6_l2_iov[0][0], TCP_NUM_IOVS,
 			    tcp6_payload_used);
 	if (m != tcp6_payload_used) {
-		tcp_revert_seq(&tcp6_frame_conns[m], &tcp6_l2_iov[m],
+		tcp_revert_seq(c, &tcp6_frame_conns[m], &tcp6_l2_iov[m],
 			       tcp6_payload_used - m);
 	}
 	tcp6_payload_used = 0;
@@ -275,7 +280,7 @@ void tcp_payload_flush(const struct ctx *c)
 	m = tap_send_frames(c, &tcp4_l2_iov[0][0], TCP_NUM_IOVS,
 			    tcp4_payload_used);
 	if (m != tcp4_payload_used) {
-		tcp_revert_seq(&tcp4_frame_conns[m], &tcp4_l2_iov[m],
+		tcp_revert_seq(c, &tcp4_frame_conns[m], &tcp4_l2_iov[m],
 			       tcp4_payload_used - m);
 	}
 	tcp4_payload_used = 0;
@@ -353,7 +358,7 @@ int tcp_buf_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
  * @no_csum:	Don't compute IPv4 checksum, use the one from previous buffer
  * @seq:	Sequence number to be sent
  */
-static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
+static void tcp_data_to_tap(struct ctx *c, struct tcp_tap_conn *conn,
 			    ssize_t dlen, int no_csum, uint32_t seq)
 {
 	struct iovec *iov;
