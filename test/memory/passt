@@ -44,7 +44,7 @@ endef
 def	start_stop_diff
 guest	sed /proc/slabinfo -ne 's/^\([^ ]* *[^ ]* *[^ ]* *[^ ]*\).*/\\\1/p' > /tmp/slabinfo.before
 guest	cat /proc/meminfo > /tmp/meminfo.before
-guest	/bin/passt.avx2 -l /tmp/log -s /tmp/sock -P /tmp/pid __OPTS__ --netns-only
+guest	/bin/passt.avx2 -l /tmp/log -s /tmp/sock -P /tmp/pid __OPTS__
 sleep	2
 guest	cat /proc/meminfo > /tmp/meminfo.after
 guest	sed /proc/slabinfo -ne 's/^\([^ ]* *[^ ]* *[^ ]* *[^ ]*\).*/\\\1/p' > /tmp/slabinfo.after
@@ -78,9 +78,16 @@ guest	mount -o bind /proc /test/proc
 guest	mount -o bind /dev /test/dev
 guest	cp -Lr /bin /lib /lib64 /usr /sbin /test/
 
+guest	exec switch_root /test /bin/sh
+
 guest	ulimit -Hn 300000
-guest	unshare -rUm -R /test
-guest	chroot .
+guest	unshare -rUn
+guest	ip link add eth0 type dummy
+guest	ip link set eth0 up
+guest	ip address add 192.0.2.2/24 dev eth0
+guest	ip address add 2001:db8::2/64 dev eth0
+guest	ip route add default via 192.0.2.1
+guest	ip -6 route add default via 2001:db8::1 dev eth0
 
 guest	meminfo_size() { grep "^$2:" $1 | tr -s ' ' | cut -f2 -d ' '; }
 guest	meminfo_diff() { echo $(( $(meminfo_size $2 $3) - $(meminfo_size $1 $3) )); }
