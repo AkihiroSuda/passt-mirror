@@ -324,6 +324,7 @@ static size_t tap_send_frames_pasta(const struct ctx *c,
 			case EINTR:
 			case ENOBUFS:
 			case ENOSPC:
+			case EIO:		/* interface down? */
 				break;
 			default:
 				die("Write error on tap device, exiting");
