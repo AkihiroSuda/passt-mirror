@@ -2524,7 +2524,7 @@ int tcp_init(struct ctx *c)
 
 	peek_offset_cap = (!c->ifi4 || tcp_probe_peek_offset_cap(AF_INET)) &&
 			  (!c->ifi6 || tcp_probe_peek_offset_cap(AF_INET6));
-	info("SO_PEEK_OFF%ssupported", peek_offset_cap ? " " : " not ");
+	debug("SO_PEEK_OFF%ssupported", peek_offset_cap ? " " : " not ");
 
 	return 0;
 }
