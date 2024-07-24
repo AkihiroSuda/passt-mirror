@@ -279,7 +279,7 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 	else
 		type_or_state = FLOW_TYPE(f);
 
-	logmsg(pri, "Flow %u (%s): %s", flow_idx(f), type_or_state, msg);
+	logmsg(true, pri, "Flow %u (%s): %s", flow_idx(f), type_or_state, msg);
 }
 
 /**

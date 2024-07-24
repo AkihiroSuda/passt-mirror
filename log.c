@@ -46,7 +46,14 @@ int		log_trace;		/* --trace mode enabled */
 bool		log_conf_parsed;	/* Logging options already parsed */
 bool		log_runtime;		/* Daemonised, or ready in foreground */
 
-void vlogmsg(int pri, const char *format, va_list ap)
+/**
+ * vlogmsg() - Print or send messages to log or output files as configured
+ * @newline:	Append newline at the end of the message, if missing
+ * @pri:	Facility and level map, same as priority for vsyslog()
+ * @format:	Message
+ * @ap:		Variable argument list
+ */
+void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 {
 	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
 	struct timespec tp;
@@ -63,9 +70,9 @@ void vlogmsg(int pri, const char *format, va_list ap)
 
 		va_copy(ap2, ap); /* Don't clobber ap, we need it again */
 		if (log_file != -1)
-			logfile_write(pri, format, ap2);
+			logfile_write(newline, pri, format, ap2);
 		else if (!(log_mask & LOG_MASK(LOG_DEBUG)))
-			passt_vsyslog(pri, format, ap2);
+			passt_vsyslog(newline, pri, format, ap2);
 
 		va_end(ap2);
 	}
@@ -73,22 +80,23 @@ void vlogmsg(int pri, const char *format, va_list ap)
 	if (debug_print || !log_conf_parsed ||
 	    (!log_runtime && (log_mask & LOG_MASK(LOG_PRI(pri))))) {
 		(void)vfprintf(stderr, format, ap);
-		if (format[strlen(format)] != '\n')
+		if (newline && format[strlen(format)] != '\n')
 			fprintf(stderr, "\n");
 	}
 }
 
 /**
  * logmsg() - vlogmsg() wrapper for variable argument lists
+ * @newline:	Append newline at the end of the message, if missing
  * @pri:	Facility and level map, same as priority for vsyslog()
  * @format:	Message
  */
-void logmsg(int pri, const char *format, ...)
+void logmsg(bool newline, int pri, const char *format, ...)
 {
 	va_list ap;
 
 	va_start(ap, format);
-	vlogmsg(pri, format, ap);
+	vlogmsg(newline, pri, format, ap);
 	va_end(ap);
 }
 
@@ -103,10 +111,10 @@ void logmsg_perror(int pri, const char *format, ...)
 	va_list ap;
 
 	va_start(ap, format);
-	vlogmsg(pri, format, ap);
+	vlogmsg(false, pri, format, ap);
 	va_end(ap);
 
-	logmsg(pri, ": %s", strerror(errno_copy));
+	logmsg(true, pri, ": %s", strerror(errno_copy));
 }
 
 /* Prefixes for log file messages, indexed by priority */
@@ -174,11 +182,12 @@ void __setlogmask(int mask)
 
 /**
  * passt_vsyslog() - vsyslog() implementation not using heap memory
+ * @newline:	Append newline at the end of the message, if missing
  * @pri:	Facility and level map, same as priority for vsyslog()
  * @format:	Same as vsyslog() format
  * @ap:		Same as vsyslog() ap
  */
-void passt_vsyslog(int pri, const char *format, va_list ap)
+void passt_vsyslog(bool newline, int pri, const char *format, va_list ap)
 {
 	char buf[BUFSIZ];
 	int n;
@@ -188,7 +197,7 @@ void passt_vsyslog(int pri, const char *format, va_list ap)
 
 	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
 
-	if (format[strlen(format)] != '\n')
+	if (newline && format[strlen(format)] != '\n')
 		n += snprintf(buf + n, BUFSIZ - n, "\n");
 
 	if (log_sock >= 0 && send(log_sock, buf, n, 0) != n && !log_runtime)
@@ -360,11 +369,12 @@ static int logfile_rotate(int fd, const struct timespec *now)
 
 /**
  * logfile_write() - Write entry to log file, trigger rotation if full
+ * @newline:	Append newline at the end of the message, if missing
  * @pri:	Facility and level map, same as priority for vsyslog()
  * @format:	Same as vsyslog() format
  * @ap:		Same as vsyslog() ap
  */
-void logfile_write(int pri, const char *format, va_list ap)
+void logfile_write(bool newline, int pri, const char *format, va_list ap)
 {
 	struct timespec now;
 	char buf[BUFSIZ];
@@ -380,7 +390,7 @@ void logfile_write(int pri, const char *format, va_list ap)
 
 	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
 
-	if (format[strlen(format)] != '\n')
+	if (newline && format[strlen(format)] != '\n')
 		n += snprintf(buf + n, BUFSIZ - n, "\n");
 
 	if ((log_written + n >= log_size) && logfile_rotate(log_file, &now))
