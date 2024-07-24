@@ -15,18 +15,13 @@
 
 # test_iperf3s() - Start iperf3 server
 # $1:	Destination/server context
-# $2:	Port number, ${i} is translated to process index
-# $3:	Number of processes to run in parallel
+# $2:	Port number
 test_iperf3s() {
 	__sctx="${1}"
 	__port="${2}"
-	__procs="$((${3} - 1))"
 
 	pane_or_context_run_bg "${__sctx}" 				\
-		 'for i in $(seq 0 '${__procs}'); do'			\
-		 '	iperf3 -s -p'${__port}' &'			\
-		 '	echo $! > s${i}.pid; '				\
-		 'done'							\
+		 'iperf3 -s -p'${__port}' & echo $! > s.pid'		\
 
 	sleep 1		# Wait for server to be ready
 }
@@ -36,7 +31,7 @@ test_iperf3s() {
 test_iperf3k() {
 	__sctx="${1}"
 
-	pane_or_context_run "${__sctx}" 'kill -INT $(cat s*.pid); rm s*.pid'
+	pane_or_context_run "${__sctx}" 'kill -INT $(cat s.pid); rm s.pid'
 
 	sleep 3		# Wait for kernel to free up ports
 }
@@ -46,37 +41,29 @@ test_iperf3k() {
 # $2:	Source/client context
 # $3:	Destination name or address for client
 # $4:	Port number, ${i} is translated to process index
-# $5:	Number of processes to run in parallel
-# $6:	Run time, in seconds
+# $5:	Run time, in seconds
 # $@:	Client options
 test_iperf3() {
 	__var="${1}"; shift
 	__cctx="${1}"; shift
 	__dest="${1}"; shift
 	__port="${1}"; shift
-	__procs="$((${1} - 1))"; shift
 	__time="${1}"; shift
 
-	pane_or_context_run "${__cctx}" 'rm -f c*.json'
+	pane_or_context_run "${__cctx}" 'rm -f c.json'
 
         # A 1s wait for connection on what's basically a local link
         # indicates something is pretty wrong
         __timeout=1000
 	pane_or_context_run "${__cctx}" 				\
-		 '('							\
-		 '	for i in $(seq 0 '${__procs}'); do'		\
-		 '		iperf3 -J -c '${__dest}' -p '${__port}	\
-		 '		 --connect-timeout '${__timeout}	\
-		 '		 -t'${__time}' -i0 -T c${i} '"${@}"	\
-                 ' 		> c${i}.json &'				\
-		 '	done;'						\
-		 '	wait'						\
-		 ')'
+		 'iperf3 -J -c '${__dest}' -p '${__port}		\
+		 '	 --connect-timeout '${__timeout}		\
+		 '	 -t'${__time}' -i0 '"${@}"' > c.json'		\
 
 	__jval=".end.sum_received.bits_per_second"
 
 	__bw=$(pane_or_context_output "${__cctx}"			\
-		 'cat c*.json | jq -rMs "map('${__jval}') | add"')
+		 'cat c.json | jq -rMs "map('${__jval}') | add"')
 
 	TEST_ONE_subs="$(list_add_pair "${TEST_ONE_subs}" "__${__var}__" "${__bw}" )"
 }

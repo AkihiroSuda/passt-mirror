@@ -18,7 +18,7 @@ PERF_LINK_COUNT=0
 PERF_JS="${LOGDIR}/web/perf.js"
 
 PERF_TEMPLATE_HTML="document.write('"'
-Throughput in Gbps, latency in µs. Threads are <span style="font-family: monospace;">iperf3</span> processes, <i>passt</i> and <i>pasta</i> are currently single-threaded.<br/>
+Throughput in Gbps, latency in µs. Threads are <span style="font-family: monospace;">iperf3</span> threads, <i>passt</i> and <i>pasta</i> are currently single-threaded.<br/>
 Click on numbers to show test execution. Measured at head, commit <span style="font-family: monospace;">__commit__</span>.
 
 <style type="text/CSS">

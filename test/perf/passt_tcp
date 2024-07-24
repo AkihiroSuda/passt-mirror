@@ -37,34 +37,33 @@ hout	FREQ_PROCFS (echo "scale=1"; sed -n 's/cpu MHz.*: \([0-9]*\)\..*$/(\1+10^2\
 hout	FREQ_CPUFREQ (echo "scale=1"; printf '( %i + 10^5 / 2 ) / 10^6\n' $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq) ) | bc -l
 hout	FREQ [ -n "__FREQ_CPUFREQ__" ] && echo __FREQ_CPUFREQ__ || echo __FREQ_PROCFS__
 
-set	THREADS 1
-set	STREAMS 8
+set	THREADS 4
 set	TIME 10
 set	OMIT 0.1
-set	OPTS -Z -P __STREAMS__ -l 1M -O__OMIT__
+set	OPTS -Z -P __THREADS__ -l 1M -O__OMIT__
 
-info	Throughput in Gbps, latency in µs, one thread at __FREQ__ GHz, __STREAMS__ streams
+info	Throughput in Gbps, latency in µs, __THREADS__ threads at __FREQ__ GHz
 report	passt tcp __THREADS__ __FREQ__
 
 th	MTU 256B 576B 1280B 1500B 9000B 65520B
 
 
 tr	TCP throughput over IPv6: guest to host
-iperf3s	ns 100${i}2 __THREADS__
+iperf3s	ns 10002
 
 bw	-
 bw	-
 guest	ip link set dev __IFNAME__ mtu 1280
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.2 1.5
 guest	ip link set dev __IFNAME__ mtu 1500
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.6 1.8
 guest	ip link set dev __IFNAME__ mtu 9000
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 8M
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 4.0 5.0
 guest	ip link set dev __IFNAME__ mtu 65520
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 16M
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 16M
 bw	__BW__ 7.0 8.0
 
 iperf3k	ns
@@ -90,25 +89,25 @@ gout	LAT tcp_crr --nolog -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.
 lat	__LAT__ 500 400
 
 tr	TCP throughput over IPv4: guest to host
-iperf3s	ns 100${i}2 __THREADS__
+iperf3s	ns 10002
 
 guest	ip link set dev __IFNAME__ mtu 256
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 1M
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 1M
 bw	__BW__ 0.2 0.3
 guest	ip link set dev __IFNAME__ mtu 576
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 1M
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 1M
 bw	__BW__ 0.5 0.8
 guest	ip link set dev __IFNAME__ mtu 1280
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.2 1.5
 guest	ip link set dev __IFNAME__ mtu 1500
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.6 1.8
 guest	ip link set dev __IFNAME__ mtu 9000
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 8M
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 4.0 5.0
 guest	ip link set dev __IFNAME__ mtu 65520
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -w 16M
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 16M
 bw	__BW__ 7.0 8.0
 
 iperf3k	ns
@@ -134,14 +133,14 @@ gout	LAT tcp_crr --nolog -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 500 400
 
 tr	TCP throughput over IPv6: host to guest
-iperf3s	guest 100${i}1 __THREADS__
+iperf3s	guest 10001
 
 bw	-
 bw	-
 bw	-
 bw	-
 bw	-
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__
+iperf3	BW ns ::1 10001 __TIME__ __OPTS__
 bw	__BW__ 6.0 6.8
 
 iperf3k	guest
@@ -170,14 +169,14 @@ lat	__LAT__ 500 350
 
 
 tr	TCP throughput over IPv4: host to guest
-iperf3s	guest 100${i}1 __THREADS__
+iperf3s	guest 10001
 
 bw	-
 bw	-
 bw	-
 bw	-
 bw	-
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__
+iperf3	BW ns 127.0.0.1 10001 __TIME__ __OPTS__
 bw	__BW__ 6.0 6.8
 
 iperf3k	guest

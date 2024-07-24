@@ -30,30 +30,29 @@ hout	FREQ_PROCFS (echo "scale=1"; sed -n 's/cpu MHz.*: \([0-9]*\)\..*$/(\1+10^2\
 hout	FREQ_CPUFREQ (echo "scale=1"; printf '( %i + 10^5 / 2 ) / 10^6\n' $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq) ) | bc -l
 hout	FREQ [ -n "__FREQ_CPUFREQ__" ] && echo __FREQ_CPUFREQ__ || echo __FREQ_PROCFS__
 
-set	THREADS 4
-set	STREAMS 1
+set	THREADS 2
 set	TIME 10
-set	OPTS -u -P __STREAMS__ --pacing-timer 1000
+set	OPTS -u -P __THREADS__ --pacing-timer 1000
 
-info	Throughput in Gbps, latency in µs, __THREADS__ threads at __FREQ__ GHz, one stream each
+info	Throughput in Gbps, latency in µs, __THREADS__ threads at __FREQ__ GHz
 
 report	passt udp __THREADS__ __FREQ__
 
 th	pktlen 256B 576B 1280B 1500B 9000B 65520B
 
 tr	UDP throughput over IPv6: guest to host
-iperf3s	ns 100${i}2 __THREADS__
+iperf3s	ns 10002
 # (datagram size) = (packet size) - 48: 40 bytes of IPv6 header, 8 of UDP header
 
 bw	-
 bw	-
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 2G -l 1232
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -b 3G -l 1232
 bw	__BW__ 0.8 1.2
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 3G -l 1452
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -b 4G -l 1452
 bw	__BW__ 1.0 1.5
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 5G -l 8952
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -b 8G -l 8952
 bw	__BW__ 4.0 5.0
-iperf3	BW guest __GW6__%__IFNAME__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 7G -l 64372
+iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -b 15G -l 64372
 bw	__BW__ 4.0 5.0
 
 iperf3k	ns
@@ -70,20 +69,20 @@ lat	__LAT__ 200 150
 
 
 tr	UDP throughput over IPv4: guest to host
-iperf3s	ns 100${i}2 __THREADS__
+iperf3s	ns 10002
 # (datagram size) = (packet size) - 28: 20 bytes of IPv4 header, 8 of UDP header
 
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 500M -l 228
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -b 1G -l 228
 bw	__BW__ 0.0 0.0
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 1G -l 548
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -b 2G -l 548
 bw	__BW__ 0.4 0.6
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 2G -l 1252
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -b 3G -l 1252
 bw	__BW__ 0.8 1.2
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 3G -l 1472
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -b 4G -l 1472
 bw	__BW__ 1.0 1.5
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 6G -l 8972
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -b 8G -l 8972
 bw	__BW__ 4.0 5.0
-iperf3	BW guest __GW__ 100${i}2 __THREADS__ __TIME__ __OPTS__ -b 7G -l 65492
+iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -b 15G -l 65492
 bw	__BW__ 4.0 5.0
 
 iperf3k	ns
@@ -100,18 +99,18 @@ lat	__LAT__ 200 150
 
 
 tr	UDP throughput over IPv6: host to guest
-iperf3s	guest 100${i}1 __THREADS__
+iperf3s	guest 10001
 # (datagram size) = (packet size) - 48: 40 bytes of IPv6 header, 8 of UDP header
 
 bw	-
 bw	-
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 2G -l 1232
+iperf3	BW ns ::1 10001 __TIME__ __OPTS__ -b 3G -l 1232
 bw	__BW__ 0.8 1.2
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 2G -l 1452
+iperf3	BW ns ::1 10001 __TIME__ __OPTS__ -b 4G -l 1452
 bw	__BW__ 1.0 1.5
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 3G -l 8952
+iperf3	BW ns ::1 10001 __TIME__ __OPTS__ -b 8G -l 8952
 bw	__BW__ 3.0 4.0
-iperf3	BW ns ::1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 3G -l 64372
+iperf3	BW ns ::1 10001 __TIME__ __OPTS__ -b 15G -l 64372
 bw	__BW__ 3.0 4.0
 
 iperf3k	guest
@@ -129,20 +128,20 @@ lat	__LAT__ 200 150
 
 
 tr	UDP throughput over IPv4: host to guest
-iperf3s	guest 100${i}1 __THREADS__
+iperf3s	guest 10001
 # (datagram size) = (packet size) - 28: 20 bytes of IPv4 header, 8 of UDP header
 
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 1G -l 228
+iperf3	BW ns 127.0.0.1 10001 __TIME__ __OPTS__ -b 1G -l 228
 bw	__BW__ 0.0 0.0
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 1G -l 548
+iperf3	BW ns 127.0.0.1 10001 __TIME__ __OPTS__ -b 2G -l 548
 bw	__BW__ 0.4 0.6
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 3G -l 1252
+iperf3	BW ns 127.0.0.1 10001 __TIME__ __OPTS__ -b 3G -l 1252
 bw	__BW__ 0.8 1.2
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 3G -l 1472
+iperf3	BW ns 127.0.0.1 10001 __TIME__ __OPTS__ -b 4G -l 1472
 bw	__BW__ 1.0 1.5
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 3G -l 8972
+iperf3	BW ns 127.0.0.1 10001 __TIME__ __OPTS__ -b 8G -l 8972
 bw	__BW__ 3.0 4.0
-iperf3	BW ns 127.0.0.1 100${i}1 __THREADS__ __TIME__ __OPTS__ -b 3G -l 65492
+iperf3	BW ns 127.0.0.1 10001 __TIME__ __OPTS__ -b 15G -l 65492
 bw	__BW__ 3.0 4.0
 
 iperf3k	guest
