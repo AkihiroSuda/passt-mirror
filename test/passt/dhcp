@@ -38,7 +38,7 @@ check	[ __MTU__ = 65520 ]
 test	DHCP: DNS
 gout	DNS sed -n 's/^nameserver \([0-9]*\.\)\(.*\)/\1\2/p' /etc/resolv.conf | tr '\n' ',' | sed 's/,$//;s/$/\n/'
 hout	HOST_DNS sed -n 's/^nameserver \([0-9]*\.\)\(.*\)/\1\2/p' /etc/resolv.conf | head -n3 | tr '\n' ',' | sed 's/,$//;s/$/\n/'
-check	[ "__DNS__" = "__HOST_DNS__" ] || [ "__DNS__" = "__HOST_GW__" -a "__HOST_DNS__" = "127.0.0.1" ]
+check	[ "__DNS__" = "__HOST_DNS__" ] || ( [ "__DNS__" = "__HOST_GW__" ] && expr "__HOST_DNS__" : "127[.]" )
 
 # FQDNs should be terminated by dots, but the guest DHCP client might omit them:
 # strip them first
