@@ -68,7 +68,7 @@ void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 	struct timespec tp;
 
 	if (debug_print) {
-		clock_gettime(CLOCK_REALTIME, &tp);
+		clock_gettime(CLOCK_MONOTONIC, &tp);
 		fprintf(stderr, logtime_fmt_and_arg(&tp));
 		fprintf(stderr, ": ");
 	}
@@ -382,7 +382,7 @@ void logfile_write(bool newline, int pri, const char *format, va_list ap)
 	char buf[BUFSIZ];
 	int n;
 
-	if (clock_gettime(CLOCK_REALTIME, &now))
+	if (clock_gettime(CLOCK_MONOTONIC, &now))
 		return;
 
 	n  = snprintf(buf, BUFSIZ, logtime_fmt_and_arg(&now));

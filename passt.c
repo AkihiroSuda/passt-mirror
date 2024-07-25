@@ -207,7 +207,7 @@ int main(int argc, char **argv)
 	struct timespec now;
 	struct sigaction sa;
 
-	clock_gettime(CLOCK_REALTIME, &log_start);
+	clock_gettime(CLOCK_MONOTONIC, &log_start);
 
 	arch_avx2_exec(argv);
 
