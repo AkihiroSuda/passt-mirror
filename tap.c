@@ -989,7 +989,7 @@ static void tap_sock_reset(struct ctx *c)
 void tap_handler_passt(struct ctx *c, uint32_t events,
 		       const struct timespec *now)
 {
-	ssize_t n, rem;
+	ssize_t n;
 	char *p;
 
 	if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
@@ -997,9 +997,7 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 		return;
 	}
 
-redo:
 	p = pkt_buf;
-	rem = 0;
 
 	tap_flush_pools();
 
@@ -1028,7 +1026,7 @@ redo:
 		 * needs to be blocking.
 		 */
 		if (l2len > n) {
-			rem = recv(c->fd_tap, p + n, l2len - n, 0);
+			ssize_t rem = recv(c->fd_tap, p + n, l2len - n, 0);
 			if ((n += rem) != l2len)
 				return;
 		}
@@ -1040,10 +1038,6 @@ redo:
 	}
 
 	tap_handler(c, now);
-
-	/* We can't use EPOLLET otherwise. */
-	if (rem)
-		goto redo;
 }
 
 /**
@@ -1228,7 +1222,7 @@ void tap_listen_handler(struct ctx *c, uint32_t events)
 		trace("tap: failed to set SO_SNDBUF to %i", v);
 
 	ref.fd = c->fd_tap;
-	ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+	ev.events = EPOLLIN | EPOLLRDHUP;
 	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
 }
@@ -1317,7 +1311,7 @@ void tap_sock_init(struct ctx *c)
 		else
 			ref.type = EPOLL_TYPE_TAP_PASTA;
 
-		ev.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+		ev.events = EPOLLIN | EPOLLRDHUP;
 		ev.data.u64 = ref.u64;
 		epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
 		return;
