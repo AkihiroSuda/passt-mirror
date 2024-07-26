@@ -989,6 +989,8 @@ static void tap_sock_reset(struct ctx *c)
 void tap_handler_passt(struct ctx *c, uint32_t events,
 		       const struct timespec *now)
 {
+	static const char *partial_frame;
+	static ssize_t partial_len = 0;
 	ssize_t n;
 	char *p;
 
@@ -997,11 +999,18 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 		return;
 	}
 
-	p = pkt_buf;
-
 	tap_flush_pools();
 
-	n = recv(c->fd_tap, p, TAP_BUF_FILL, MSG_DONTWAIT);
+	if (partial_len) {
+		/* We have a partial frame from an earlier pass.  Move it to the
+		 * start of the buffer, top up with new data, then process all
+		 * of it.
+		 */
+		memmove(pkt_buf, partial_frame, partial_len);
+	}
+
+	n = recv(c->fd_tap, pkt_buf + partial_len, TAP_BUF_BYTES - partial_len,
+		 MSG_DONTWAIT);
 	if (n < 0) {
 		if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
 			err_perror("Receive error on guest connection, reset");
@@ -1010,7 +1019,10 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 		return;
 	}
 
-	while (n > (ssize_t)sizeof(uint32_t)) {
+	p = pkt_buf;
+	n += partial_len;
+
+	while (n >= (ssize_t)sizeof(uint32_t)) {
 		uint32_t l2len = ntohl_unaligned(p);
 
 		if (l2len < sizeof(struct ethhdr) || l2len > ETH_MAX_MTU) {
@@ -1019,23 +1031,21 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 			return;
 		}
 
+		if (l2len + sizeof(uint32_t) > (size_t)n)
+			/* Leave this incomplete frame for later */
+			break;
+
 		p += sizeof(uint32_t);
 		n -= sizeof(uint32_t);
-
-		/* At most one packet might not fit in a single read, and this
-		 * needs to be blocking.
-		 */
-		if (l2len > n) {
-			ssize_t rem = recv(c->fd_tap, p + n, l2len - n, 0);
-			if ((n += rem) != l2len)
-				return;
-		}
 
 		tap_add_packet(c, l2len, p);
 
 		p += l2len;
 		n -= l2len;
 	}
+
+	partial_len = n;
+	partial_frame = p;
 
 	tap_handler(c, now);
 }
