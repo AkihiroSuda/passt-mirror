@@ -29,7 +29,11 @@ function passt_git_changelog_entry {
 	[ -z "${__from}" ] && __from="$(git rev-list --max-parents=0 HEAD)"
 
 	__date="$(git log --pretty="format:%cI" "${__to}" -1)"
-	__author="$(git log -1 --pretty="format:%an <%ae>" ${__to} -- contrib/fedora)"
+	__author="Stefano Brivio <sbrivio@redhat.com>"
+	# Use:
+	#   __author="$(git log -1 --pretty="format:%an <%ae>" ${__to} -- contrib/fedora)"
+	# if you want the author of changelog entries to match the latest
+	# author for contrib/fedora
 
 	printf "* %s %s - %s\n" "$(date "+%a %b %e %Y" -d "${__date}")" "${__author}" "$(git_version "${__to}")-1"
 
