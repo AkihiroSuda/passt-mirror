@@ -969,10 +969,10 @@ void tap_add_packet(struct ctx *c, ssize_t l2len, char *p)
  */
 static void tap_sock_reset(struct ctx *c)
 {
-	if (c->one_off) {
-		info("Client closed connection, exiting");
+	info("Client connection closed%s", c->one_off ? ", exiting" : "");
+
+	if (c->one_off)
 		exit(EXIT_SUCCESS);
-	}
 
 	/* Close the connected socket, wait for a new connection */
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
@@ -1005,8 +1005,10 @@ redo:
 
 	n = recv(c->fd_tap, p, TAP_BUF_FILL, MSG_DONTWAIT);
 	if (n < 0) {
-		if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)
+		if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
+			err_perror("Receive error on guest connection, reset");
 			tap_sock_reset(c);
+		}
 		return;
 	}
 
