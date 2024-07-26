@@ -1013,7 +1013,13 @@ redo:
 	}
 
 	while (n > (ssize_t)sizeof(uint32_t)) {
-		ssize_t l2len = ntohl(*(uint32_t *)p);
+		uint32_t l2len = ntohl(*(uint32_t *)p);
+
+		if (l2len < sizeof(struct ethhdr) || l2len > ETH_MAX_MTU) {
+			err("Bad frame size from guest, resetting connection");
+			tap_sock_reset(c);
+			return;
+		}
 
 		p += sizeof(uint32_t);
 		n -= sizeof(uint32_t);
@@ -1027,16 +1033,8 @@ redo:
 				return;
 		}
 
-		/* Complete the partial read above before discarding a malformed
-		 * frame, otherwise the stream will be inconsistent.
-		 */
-		if (l2len < (ssize_t)sizeof(struct ethhdr) ||
-		    l2len > (ssize_t)ETH_MAX_MTU)
-			goto next;
-
 		tap_add_packet(c, l2len, p);
 
-next:
 		p += l2len;
 		n -= l2len;
 	}
