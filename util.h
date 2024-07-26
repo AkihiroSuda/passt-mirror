@@ -10,8 +10,10 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <signal.h>
+#include <arpa/inet.h>
 
 #include "log.h"
 
@@ -115,6 +117,20 @@
 #define	htons_constant(x)	(__bswap_constant_16(x))
 #define	htonl_constant(x)	(__bswap_constant_32(x))
 #endif
+
+/**
+ * ntohl_unaligned() - Read 32-bit BE value from a possibly unaligned address
+ * @p:		Pointer to the BE value in memory
+ *
+ * Returns: Host-order value of 32-bit BE quantity at @p
+ */
+static inline uint32_t ntohl_unaligned(const void *p)
+{
+	uint32_t val;
+
+	memcpy(&val, p, sizeof(val));
+	return ntohl(val);
+}
 
 #define NS_FN_STACK_SIZE	(RLIMIT_STACK_VAL * 1024 / 8)
 int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,

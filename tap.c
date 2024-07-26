@@ -1011,7 +1011,7 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 	}
 
 	while (n > (ssize_t)sizeof(uint32_t)) {
-		uint32_t l2len = ntohl(*(uint32_t *)p);
+		uint32_t l2len = ntohl_unaligned(p);
 
 		if (l2len < sizeof(struct ethhdr) || l2len > ETH_MAX_MTU) {
 			err("Bad frame size from guest, resetting connection");
