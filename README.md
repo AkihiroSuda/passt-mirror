@@ -398,7 +398,7 @@ services:
   and nameserver using SLAAC
 * [DHCPv6 server](/passt/tree/dhcpv6.c): a simple
   implementation handing out one single IPv6 address to the guest or namespace,
-  namely, the the same address as the first one configured for the upstream host
+  namely, the same address as the first one configured for the upstream host
   interface, and passing the nameservers configured on the host
 
 ## Addresses
