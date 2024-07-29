@@ -56,7 +56,6 @@ void trace_init(int enable);
 void __openlog(const char *ident, int option, int facility);
 void logfile_init(const char *name, const char *path, size_t size);
 void passt_vsyslog(bool newline, int pri, const char *format, va_list ap);
-void logfile_write(bool newline, int pri, const char *format, va_list ap);
 void __setlogmask(int mask);
 
 #endif /* LOG_H */
