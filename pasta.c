@@ -50,6 +50,8 @@
 #include "netlink.h"
 #include "log.h"
 
+#define HOSTNAME_PREFIX		"pasta-"
+
 /* PID of child, in case we created a namespace */
 int pasta_child_pid;
 
@@ -177,6 +179,7 @@ struct pasta_spawn_cmd_arg {
 /* cppcheck-suppress [constParameterCallback, unmatchedSuppression] */
 static int pasta_spawn_cmd(void *arg)
 {
+	char hostname[HOST_NAME_MAX + 1] = HOSTNAME_PREFIX;
 	const struct pasta_spawn_cmd_arg *a;
 	sigset_t set;
 
@@ -186,6 +189,14 @@ static int pasta_spawn_cmd(void *arg)
 
 	if (write_file("/proc/sys/net/ipv4/ping_group_range", "0 0"))
 		warn("Cannot set ping_group_range, ICMP requests might fail");
+
+	if (!gethostname(hostname + sizeof(HOSTNAME_PREFIX) - 1,
+			 HOST_NAME_MAX + 1 - sizeof(HOSTNAME_PREFIX)) ||
+	    errno == ENAMETOOLONG) {
+		hostname[HOST_NAME_MAX] = '\0';
+		if (sethostname(hostname, strlen(hostname)))
+			warn("Unable to set pasta-prefixed hostname");
+	}
 
 	/* Wait for the parent to be ready: see main() */
 	sigemptyset(&set);
