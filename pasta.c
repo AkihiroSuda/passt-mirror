@@ -61,6 +61,7 @@ int pasta_child_pid;
  */
 void pasta_child_handler(int signal)
 {
+	int errno_save = errno;
 	siginfo_t infop;
 
 	(void)signal;
@@ -85,6 +86,8 @@ void pasta_child_handler(int signal)
 
 	waitid(P_ALL, 0, NULL, WEXITED | WNOHANG);
 	waitid(P_ALL, 0, NULL, WEXITED | WNOHANG);
+
+	errno = errno_save;
 }
 
 /**
