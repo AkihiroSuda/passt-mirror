@@ -21,6 +21,15 @@ struct udp_flow {
 	int s[SIDES];
 };
 
+struct udp_flow *udp_at_sidx(flow_sidx_t sidx);
+flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
+			       const union sockaddr_inany *s_in,
+			       const struct timespec *now);
+flow_sidx_t udp_flow_from_tap(const struct ctx *c,
+			      uint8_t pif, sa_family_t af,
+			      const void *saddr, const void *daddr,
+			      in_port_t srcport, in_port_t dstport,
+			      const struct timespec *now);
 bool udp_flow_timer(const struct ctx *c, struct udp_flow *uflow,
 		    const struct timespec *now);
 
