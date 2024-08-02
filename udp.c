@@ -432,7 +432,7 @@ cancel:
  * udp_flow_from_sock() - Find or create UDP flow for "listening" socket
  * @c:		Execution context
  * @ref:	epoll reference of the receiving socket
- * @meta:	Metadata buffer for the datagram
+ * @s_in:	Source socket address, filled in by recvmmsg()
  * @now:	Timestamp
  *
  * #syscalls fcntl
@@ -441,7 +441,7 @@ cancel:
  *         FLOW_SIDX_NONE if we couldn't find or create a flow.
  */
 static flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
-				      struct udp_meta_t *meta,
+				      const union sockaddr_inany *s_in,
 				      const struct timespec *now)
 {
 	struct udp_flow *uflow;
@@ -450,7 +450,7 @@ static flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 
 	ASSERT(ref.type == EPOLL_TYPE_UDP_LISTEN);
 
-	sidx = flow_lookup_sa(c, IPPROTO_UDP, ref.udp.pif, &meta->s_in, ref.udp.port);
+	sidx = flow_lookup_sa(c, IPPROTO_UDP, ref.udp.pif, s_in, ref.udp.port);
 	if ((uflow = udp_at_sidx(sidx))) {
 		uflow->ts = now->tv_sec;
 		return flow_sidx_opposite(sidx);
@@ -461,11 +461,11 @@ static flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 
 		debug("Couldn't allocate flow for UDP datagram from %s %s",
 		      pif_name(ref.udp.pif),
-		      sockaddr_ntop(&meta->s_in, sastr, sizeof(sastr)));
+		      sockaddr_ntop(s_in, sastr, sizeof(sastr)));
 		return FLOW_SIDX_NONE;
 	}
 
-	flow_initiate_sa(flow, ref.udp.pif, &meta->s_in, ref.udp.port);
+	flow_initiate_sa(flow, ref.udp.pif, s_in, ref.udp.port);
 	return udp_flow_new(c, flow, ref.fd, now);
 }
 
@@ -712,7 +712,7 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 	 * the array, or recalculating tosidx for a single entry, we have to
 	 * populate it one entry *ahead* of the loop counter.
 	 */
-	udp_meta[0].tosidx = udp_flow_from_sock(c, ref, &udp_meta[0], now);
+	udp_meta[0].tosidx = udp_flow_from_sock(c, ref, &udp_meta[0].s_in, now);
 	for (i = 0; i < n; ) {
 		flow_sidx_t batchsidx = udp_meta[i].tosidx;
 		uint8_t batchpif = pif_at_sidx(batchsidx);
@@ -730,7 +730,7 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 				break;
 
 			udp_meta[i].tosidx = udp_flow_from_sock(c, ref,
-								&udp_meta[i],
+								&udp_meta[i].s_in,
 								now);
 		} while (flow_sidx_eq(udp_meta[i].tosidx, batchsidx));
 
