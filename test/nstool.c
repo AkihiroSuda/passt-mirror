@@ -359,7 +359,7 @@ static void wait_for_child(pid_t pid)
 		if (rc != pid)
 			die("waitpid() on %d returned %d", pid, rc);
 		if (WIFSTOPPED(status)) {
-			/* Stop the parent to patch */
+			/* Stop the parent to match */
 			kill(getpid(), SIGSTOP);
 			/* We must have resumed, resume the child */
 			kill(pid, SIGCONT);
@@ -508,7 +508,7 @@ static void cmd_exec(int argc, char *argv[])
 	/* CHILD */
 	if (argc > optind + 1) {
 		exe = argv[optind + 1];
-		xargs = (const char * const*)(argv + optind + 1);
+		xargs = (const char *const *)(argv + optind + 1);
 	} else {
 		exe = getenv("SHELL");
 		if (!exe)
