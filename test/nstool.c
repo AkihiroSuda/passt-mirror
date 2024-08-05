@@ -345,17 +345,39 @@ static int openns(const char *fmt, ...)
 	return fd;
 }
 
+static pid_t sig_pid;
+static void sig_handler(int signum)
+{
+	int err;
+
+	err = kill(sig_pid, signum);
+	if (err)
+		die("Propagating %s: %s\n", strsignal(signum), strerror(errno));
+}
+
 static void wait_for_child(pid_t pid)
 {
-	int status;
+	struct sigaction sa = {
+		.sa_handler = sig_handler,
+		.sa_flags = SA_RESETHAND,
+	};
+	int status, err;
+
+	sig_pid = pid;
+	err = sigaction(SIGTERM, &sa, NULL);
+	if (err)
+		die("sigaction(SIGTERM): %s\n", strerror(errno));
 
 	/* Match the child's exit status, if possible */
 	for (;;) {
 		pid_t rc;
 
 		rc = waitpid(pid, &status, WUNTRACED);
-		if (rc < 0)
+		if (rc < 0) {
+			if (errno == EINTR)
+				continue;
 			die("waitpid() on %d: %s\n", pid, strerror(errno));
+		}
 		if (rc != pid)
 			die("waitpid() on %d returned %d", pid, rc);
 		if (WIFSTOPPED(status)) {
