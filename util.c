@@ -244,9 +244,9 @@ void sock_probe_mem(struct ctx *c)
  * @a:		Minuend timestamp
  * @b:		Subtrahend timestamp
  *
- * Return: difference in microseconds (wraps after 2^64 / 10^6s ~= 585k years)
+ * Return: difference in microseconds (wraps after 2^63 / 10^6s ~= 292k years)
  */
-long long timespec_diff_us(const struct timespec *a, const struct timespec *b)
+int64_t timespec_diff_us(const struct timespec *a, const struct timespec *b)
 {
 	if (a->tv_nsec < b->tv_nsec) {
 		return (b->tv_nsec - a->tv_nsec) / 1000 +
