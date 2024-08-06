@@ -50,19 +50,36 @@ bool		log_stderr = true;	/* Not daemonised, no shell spawned */
 #define LOGTIME_STRLEN	(LL_STRLEN + 5)
 
 /**
+ * logtime() - Get the current time for logging purposes
+ * @ts:		Buffer into which to store the timestamp
+ *
+ * Return: pointer to @now, or NULL if there was an error retrieving the time
+ */
+const struct timespec *logtime(struct timespec *ts)
+{
+	if (clock_gettime(CLOCK_MONOTONIC, ts))
+		return NULL;
+	return ts;
+}
+
+/**
  * logtime_fmt() - Format timestamp into a string for the log
  * @buf:	Buffer into which to format the time
  * @size:	Size of @buf
- * @ts:		Time to format
+ * @ts:		Time to format (or NULL on error)
  *
  * Return: number of characters written to @buf (excluding \0)
  */
 static int logtime_fmt(char *buf, size_t size, const struct timespec *ts)
 {
-	int64_t delta = timespec_diff_us(ts, &log_start);
+	if (ts) {
+		int64_t delta = timespec_diff_us(ts, &log_start);
 
-	return snprintf(buf, size, "%lli.%04lli", delta / 1000000LL,
-			(delta / 100LL) % 10000);
+		return snprintf(buf, size, "%lli.%04lli", delta / 1000000LL,
+				(delta / 100LL) % 10000);
+	}
+
+	return snprintf(buf, size, "<error>");
 }
 
 /* Prefixes for log file messages, indexed by priority */
@@ -213,14 +230,14 @@ static int logfile_rotate(int fd, const struct timespec *now)
  */
 static void logfile_write(bool newline, int pri, const char *format, va_list ap)
 {
-	struct timespec now;
+	const struct timespec *now;
+	struct timespec ts;
 	char buf[BUFSIZ];
 	int n;
 
-	if (clock_gettime(CLOCK_MONOTONIC, &now))
-		return;
+	now = logtime(&ts);
 
-	n  = logtime_fmt(buf, BUFSIZ, &now);
+	n  = logtime_fmt(buf, BUFSIZ, now);
 	n += snprintf(buf + n, BUFSIZ - n, ": %s", logfile_prefix[pri]);
 
 	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
@@ -228,7 +245,7 @@ static void logfile_write(bool newline, int pri, const char *format, va_list ap)
 	if (newline && format[strlen(format)] != '\n')
 		n += snprintf(buf + n, BUFSIZ - n, "\n");
 
-	if ((log_written + n >= log_size) && logfile_rotate(log_file, &now))
+	if ((log_written + n >= log_size) && logfile_rotate(log_file, now))
 		return;
 
 	if ((n = write(log_file, buf, n)) >= 0)
@@ -245,15 +262,15 @@ static void logfile_write(bool newline, int pri, const char *format, va_list ap)
 void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 {
 	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
-	struct timespec tp;
 
 	if (debug_print) {
-		char logtime[LOGTIME_STRLEN];
+		char timestr[LOGTIME_STRLEN];
+		const struct timespec *now;
+		struct timespec ts;
 
-		clock_gettime(CLOCK_MONOTONIC, &tp);
-
-		logtime_fmt(logtime, sizeof(logtime), &tp);
-		fprintf(stderr, "%s: ", logtime);
+		now = logtime(&ts);
+		logtime_fmt(timestr, sizeof(timestr), now);
+		fprintf(stderr, "%s: ", timestr);
 	}
 
 	if ((log_mask & LOG_MASK(LOG_PRI(pri))) || !log_conf_parsed) {
