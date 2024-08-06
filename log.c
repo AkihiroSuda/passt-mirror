@@ -44,7 +44,7 @@ struct timespec	log_start;		/* Start timestamp */
 
 int		log_trace;		/* --trace mode enabled */
 bool		log_conf_parsed;	/* Logging options already parsed */
-bool		log_runtime;		/* Daemonised, or ready in foreground */
+bool		log_stderr = true;	/* Not daemonised, no shell spawned */
 
 /**
  * logtime_fmt_and_arg() - Build format and arguments to print relative log time
@@ -257,7 +257,7 @@ void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 	}
 
 	if (debug_print || !log_conf_parsed ||
-	    (!log_runtime && (log_mask & LOG_MASK(LOG_PRI(pri))))) {
+	    (log_stderr && (log_mask & LOG_MASK(LOG_PRI(pri))))) {
 		(void)vfprintf(stderr, format, ap);
 		if (newline && format[strlen(format)] != '\n')
 			fprintf(stderr, "\n");
@@ -364,7 +364,7 @@ void passt_vsyslog(bool newline, int pri, const char *format, va_list ap)
 	if (newline && format[strlen(format)] != '\n')
 		n += snprintf(buf + n, BUFSIZ - n, "\n");
 
-	if (log_sock >= 0 && send(log_sock, buf, n, 0) != n && !log_runtime)
+	if (log_sock >= 0 && send(log_sock, buf, n, 0) != n && log_stderr)
 		fprintf(stderr, "Failed to send %i bytes to syslog\n", n);
 }
 

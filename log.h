@@ -43,7 +43,7 @@ void logmsg_perror(int pri, const char *format, ...)
 
 extern int log_trace;
 extern bool log_conf_parsed;
-extern bool log_runtime;
+extern bool log_stderr;
 extern struct timespec log_start;
 
 void trace_init(int enable);

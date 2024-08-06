@@ -290,15 +290,17 @@ int main(int argc, char **argv)
 	if (isolate_prefork(&c))
 		die("Failed to sandbox process, exiting");
 
-	if (!c.foreground)
+	if (!c.foreground) {
 		__daemon(c.pidfile_fd, devnull_fd);
-	else
+		log_stderr = false;
+	} else {
 		pidfile_write(c.pidfile_fd, getpid());
+	}
 
-	log_runtime = true;
-
-	if (pasta_child_pid)
+	if (pasta_child_pid) {
 		kill(pasta_child_pid, SIGUSR1);
+		log_stderr = false;
+	}
 
 	isolate_postfork(&c);
 
