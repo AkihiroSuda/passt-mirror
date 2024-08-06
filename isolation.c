@@ -29,7 +29,8 @@
  *
  * Executed immediately after startup, drops capabilities we don't
  * need at any point during execution (or which we gain back when we
- * need by joining other namespaces).
+ * need by joining other namespaces), and closes any leaked file we
+ * might have inherited from the parent process.
  *
  * 2. isolate_user()
  * =================
@@ -166,14 +167,17 @@ static void clamp_caps(void)
 }
 
 /**
- * isolate_initial() - Early, config independent self isolation
+ * isolate_initial() - Early, mostly config independent self isolation
+ * @argc:	Argument count
+ * @argv:	Command line options: only --fd (if present) is relevant here
  *
  * Should:
  *  - drop unneeded capabilities
+ *  - close all open files except for standard streams and the one from --fd
  * Musn't:
  *  - remove filesytem access (we need to access files during setup)
  */
-void isolate_initial(void)
+void isolate_initial(int argc, char **argv)
 {
 	uint64_t keep;
 
@@ -207,6 +211,8 @@ void isolate_initial(void)
 		keep |= BIT(CAP_SETFCAP) | BIT(CAP_SYS_PTRACE);
 
 	drop_caps_ep_except(keep);
+
+	close_open_files(argc, argv);
 }
 
 /**

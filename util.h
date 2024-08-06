@@ -183,6 +183,7 @@ int __daemon(int pidfile_fd, int devnull_fd);
 int fls(unsigned long x);
 int write_file(const char *path, const char *buf);
 int write_remainder(int fd, const struct iovec *iov, size_t iovcnt, size_t skip);
+void close_open_files(int argc, char **argv);
 
 /**
  * af_name() - Return name of an address family

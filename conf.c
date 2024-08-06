@@ -1245,6 +1245,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	const char *optstring;
 	size_t logsize = 0;
 	char *runas = NULL;
+	long fd_tap_opt;
 	int name, ret;
 	uid_t uid;
 	gid_t gid;
@@ -1260,6 +1261,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
 	c->udp.fwd_in.mode = c->udp.fwd_out.mode = FWD_UNSET;
 
+	optind = 1;
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
@@ -1424,11 +1426,13 @@ void conf(struct ctx *c, int argc, char **argv)
 			break;
 		case 'F':
 			errno = 0;
-			c->fd_tap = strtol(optarg, NULL, 0);
+			fd_tap_opt = strtol(optarg, NULL, 0);
 
-			if (c->fd_tap < 0 || errno)
+			if (errno ||
+			    fd_tap_opt <= STDERR_FILENO || fd_tap_opt > INT_MAX)
 				die("Invalid --fd: %s", optarg);
 
+			c->fd_tap = fd_tap_opt;
 			c->one_off = true;
 			*c->sock_path = 0;
 			break;

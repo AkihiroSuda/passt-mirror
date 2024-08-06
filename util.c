@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <linux/errqueue.h>
+#include <getopt.h>
 
 #include "util.h"
 #include "iov.h"
@@ -693,4 +694,44 @@ const char *str_ee_origin(const struct sock_extended_err *ee)
 		return desc[ee->ee_origin];
 
 	return "<invalid>";
+}
+
+/**
+ * close_open_files() - Close leaked files, but not --fd, stdin, stdout, stderr
+ * @argc:	Argument count
+ * @argv:	Command line options, as we need to skip any file given via --fd
+ */
+void close_open_files(int argc, char **argv)
+{
+	const struct option optfd[] = { { "fd", required_argument, NULL, 'F' },
+					{ 0 },
+				      };
+	long fd = -1;
+	int name, rc;
+
+	do {
+		name = getopt_long(argc, argv, ":F", optfd, NULL);
+
+		if (name == 'F') {
+			errno = 0;
+			fd = strtol(optarg, NULL, 0);
+
+			if (errno || fd <= STDERR_FILENO || fd > INT_MAX)
+				die("Invalid --fd: %s", optarg);
+		}
+	} while (name != -1);
+
+	if (fd == -1) {
+		rc = close_range(STDERR_FILENO + 1, ~0U, CLOSE_RANGE_UNSHARE);
+	} else if (fd == STDERR_FILENO + 1) { /* Still a single range */
+		rc = close_range(STDERR_FILENO + 2, ~0U, CLOSE_RANGE_UNSHARE);
+	} else {
+		rc = close_range(STDERR_FILENO + 1, fd - 1,
+				 CLOSE_RANGE_UNSHARE);
+		if (!rc)
+			rc = close_range(fd + 1, ~0U, CLOSE_RANGE_UNSHARE);
+	}
+
+	if (rc)
+		die_perror("Failed to close files leaked by parent");
 }

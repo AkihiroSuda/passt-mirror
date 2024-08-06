@@ -211,7 +211,7 @@ int main(int argc, char **argv)
 
 	arch_avx2_exec(argv);
 
-	isolate_initial();
+	isolate_initial(argc, argv);
 
 	c.pasta_netns_fd = c.fd_tap = c.pidfile_fd = -1;
 
