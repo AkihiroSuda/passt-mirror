@@ -46,14 +46,24 @@ int		log_trace;		/* --trace mode enabled */
 bool		log_conf_parsed;	/* Logging options already parsed */
 bool		log_stderr = true;	/* Not daemonised, no shell spawned */
 
+#define LL_STRLEN	(sizeof("-9223372036854775808"))
+#define LOGTIME_STRLEN	(LL_STRLEN + 5)
+
 /**
- * logtime_fmt_and_arg() - Build format and arguments to print relative log time
- * @x:		Current timestamp
+ * logtime_fmt() - Format timestamp into a string for the log
+ * @buf:	Buffer into which to format the time
+ * @size:	Size of @buf
+ * @ts:		Time to format
+ *
+ * Return: number of characters written to @buf (excluding \0)
  */
-#define logtime_fmt_and_arg(x)						\
-	"%lli.%04lli",							\
-	(timespec_diff_us((x), &log_start) / 1000000LL),		\
-	(timespec_diff_us((x), &log_start) / 100LL)
+static int logtime_fmt(char *buf, size_t size, const struct timespec *ts)
+{
+	int64_t delta = timespec_diff_us(ts, &log_start);
+
+	return snprintf(buf, size, "%lli.%04lli", delta / 1000000LL,
+			(delta / 100LL) % 10000);
+}
 
 /* Prefixes for log file messages, indexed by priority */
 const char *logfile_prefix[] = {
@@ -85,7 +95,7 @@ static void logfile_rotate_fallocate(int fd, const struct timespec *now)
 		return;
 
 	n =  snprintf(buf, BUFSIZ, "%s - log truncated at ", log_header);
-	n += snprintf(buf + n, BUFSIZ - n, logtime_fmt_and_arg(now));
+	n += logtime_fmt(buf + n, BUFSIZ - n, now);
 
 	/* Avoid partial lines by padding the header with spaces */
 	nl = memchr(buf + n + 1, '\n', BUFSIZ - n - 1);
@@ -117,8 +127,7 @@ static void logfile_rotate_move(int fd, const struct timespec *now)
 
 	header_len =  snprintf(buf, BUFSIZ, "%s - log truncated at ",
 			       log_header);
-	header_len += snprintf(buf + header_len, BUFSIZ - header_len,
-			       logtime_fmt_and_arg(now));
+	header_len += logtime_fmt(buf + header_len, BUFSIZ - header_len, now);
 
 	if (lseek(fd, 0, SEEK_SET) == -1)
 		return;
@@ -211,7 +220,7 @@ static void logfile_write(bool newline, int pri, const char *format, va_list ap)
 	if (clock_gettime(CLOCK_MONOTONIC, &now))
 		return;
 
-	n  = snprintf(buf, BUFSIZ, logtime_fmt_and_arg(&now));
+	n  = logtime_fmt(buf, BUFSIZ, &now);
 	n += snprintf(buf + n, BUFSIZ - n, ": %s", logfile_prefix[pri]);
 
 	n += vsnprintf(buf + n, BUFSIZ - n, format, ap);
@@ -239,9 +248,12 @@ void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 	struct timespec tp;
 
 	if (debug_print) {
+		char logtime[LOGTIME_STRLEN];
+
 		clock_gettime(CLOCK_MONOTONIC, &tp);
-		fprintf(stderr, logtime_fmt_and_arg(&tp));
-		fprintf(stderr, ": ");
+
+		logtime_fmt(logtime, sizeof(logtime), &tp);
+		fprintf(stderr, "%s: ", logtime);
 	}
 
 	if ((log_mask & LOG_MASK(LOG_PRI(pri))) || !log_conf_parsed) {
