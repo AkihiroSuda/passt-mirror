@@ -577,7 +577,7 @@ eintr:
 			if (conn->read[fromsidei] == conn->written[fromsidei])
 				break;
 
-			conn_event(c, conn, OUT_WAIT(fromsidei));
+			conn_event(c, conn, OUT_WAIT(!fromsidei));
 			break;
 		}
 
