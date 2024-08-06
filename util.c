@@ -592,10 +592,9 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
  *
  * #syscalls write writev
  */
-int write_remainder(int fd, const struct iovec *iov, int iovcnt, size_t skip)
+int write_remainder(int fd, const struct iovec *iov, size_t iovcnt, size_t skip)
 {
-	int i;
-	size_t offset;
+	size_t offset, i;
 
 	while ((i = iov_skip_bytes(iov, iovcnt, skip, &offset)) < iovcnt) {
 		ssize_t rc;
