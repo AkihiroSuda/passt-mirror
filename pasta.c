@@ -306,7 +306,7 @@ void pasta_ns_conf(struct ctx *c)
 		nl_link_up(nl_sock_ns, c->pasta_ifi, c->mtu);
 
 		if (c->ifi4) {
-			if (c->no_copy_addrs) {
+			if (c->ip4.no_copy_addrs) {
 				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
 						 AF_INET,
 						 &c->ip4.addr,
@@ -322,7 +322,7 @@ void pasta_ns_conf(struct ctx *c)
 				    strerror(-rc));
 			}
 
-			if (c->no_copy_routes) {
+			if (c->ip4.no_copy_routes) {
 				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
 						      AF_INET, &c->ip4.gw);
 			} else {
@@ -337,7 +337,7 @@ void pasta_ns_conf(struct ctx *c)
 		}
 
 		if (c->ifi6) {
-			if (c->no_copy_addrs) {
+			if (c->ip6.no_copy_addrs) {
 				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
 						 AF_INET6, &c->ip6.addr, 64);
 			} else {
@@ -351,7 +351,7 @@ void pasta_ns_conf(struct ctx *c)
 				    strerror(-rc));
 			}
 
-			if (c->no_copy_routes) {
+			if (c->ip6.no_copy_routes) {
 				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
 						      AF_INET6, &c->ip6.gw);
 			} else {

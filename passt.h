@@ -100,6 +100,8 @@ enum passt_modes {
  * @dns_host:		Use this DNS on the host for forwarding
  * @addr_out:		Optional source address for outbound traffic
  * @ifname_out:		Optional interface name to bind outbound sockets to
+ * @no_copy_routes:	Don't copy all routes when configuring target namespace
+ * @no_copy_addrs:	Don't copy all addresses when configuring namespace
  */
 struct ip4_ctx {
 	struct in_addr addr;
@@ -112,6 +114,9 @@ struct ip4_ctx {
 
 	struct in_addr addr_out;
 	char ifname_out[IFNAMSIZ];
+
+	bool no_copy_routes;
+	bool no_copy_addrs;
 };
 
 /**
@@ -126,6 +131,8 @@ struct ip4_ctx {
  * @dns_host:		Use this DNS on the host for forwarding
  * @addr_out:		Optional source address for outbound traffic
  * @ifname_out:		Optional interface name to bind outbound sockets to
+ * @no_copy_routes:	Don't copy all routes when configuring target namespace
+ * @no_copy_addrs:	Don't copy all addresses when configuring namespace
  */
 struct ip6_ctx {
 	struct in6_addr addr;
@@ -139,6 +146,9 @@ struct ip6_ctx {
 
 	struct in6_addr addr_out;
 	char ifname_out[IFNAMSIZ];
+
+	bool no_copy_routes;
+	bool no_copy_addrs;
 };
 
 #include <netinet/if_ether.h>
@@ -173,8 +183,6 @@ struct ip6_ctx {
  * @pasta_ifn:		Name of namespace interface for pasta
  * @pasta_ifi:		Index of namespace interface for pasta
  * @pasta_conf_ns:	Configure namespace after creating it
- * @no_copy_routes:	Don't copy all routes when configuring target namespace
- * @no_copy_addrs:	Don't copy all addresses when configuring namespace
  * @no_tcp:		Disable TCP operation
  * @tcp:		Context for TCP protocol handler
  * @no_tcp:		Disable UDP operation
@@ -233,8 +241,6 @@ struct ctx {
 	char pasta_ifn[IF_NAMESIZE];
 	unsigned int pasta_ifi;
 	int pasta_conf_ns;
-	int no_copy_routes;
-	int no_copy_addrs;
 
 	int no_tcp;
 	struct tcp_ctx tcp;

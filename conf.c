@@ -1379,14 +1379,16 @@ void conf(struct ctx *c, int argc, char **argv)
 				die("--no-copy-routes is for pasta mode only");
 
 			warn("--no-copy-routes will be dropped soon");
-			c->no_copy_routes = copy_routes_opt = true;
+			c->ip4.no_copy_routes = c->ip6.no_copy_routes = true;
+			copy_routes_opt = true;
 			break;
 		case 19:
 			if (c->mode != MODE_PASTA)
 				die("--no-copy-addrs is for pasta mode only");
 
 			warn("--no-copy-addrs will be dropped soon");
-			c->no_copy_addrs = copy_addrs_opt = true;
+			c->ip4.no_copy_addrs = c->ip6.no_copy_addrs = true;
+			copy_addrs_opt = true;
 			break;
 		case 20:
 			if (c->mode != MODE_PASTA)
@@ -1465,23 +1467,26 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			break;
 		case 'a':
-			if (c->mode == MODE_PASTA)
-				c->no_copy_addrs = 1;
-
 			if (inet_pton(AF_INET6, optarg, &c->ip6.addr)	&&
 			    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)	&&
 			    !IN6_IS_ADDR_LOOPBACK(&c->ip6.addr)		&&
 			    !IN6_IS_ADDR_V4MAPPED(&c->ip6.addr)		&&
 			    !IN6_IS_ADDR_V4COMPAT(&c->ip6.addr)		&&
-			    !IN6_IS_ADDR_MULTICAST(&c->ip6.addr))
+			    !IN6_IS_ADDR_MULTICAST(&c->ip6.addr)) {
+				if (c->mode == MODE_PASTA)
+					c->ip6.no_copy_addrs = true;
 				break;
+			}
 
 			if (inet_pton(AF_INET, optarg, &c->ip4.addr)	&&
 			    !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.addr)	&&
 			    !IN4_IS_ADDR_BROADCAST(&c->ip4.addr)	&&
 			    !IN4_IS_ADDR_LOOPBACK(&c->ip4.addr)		&&
-			    !IN4_IS_ADDR_MULTICAST(&c->ip4.addr))
+			    !IN4_IS_ADDR_MULTICAST(&c->ip4.addr)) {
+				if (c->mode == MODE_PASTA)
+					c->ip4.no_copy_addrs = true;
 				break;
+			}
 
 			die("Invalid address: %s", optarg);
 			break;
@@ -1495,19 +1500,22 @@ void conf(struct ctx *c, int argc, char **argv)
 			parse_mac(c->mac, optarg);
 			break;
 		case 'g':
-			if (c->mode == MODE_PASTA)
-				c->no_copy_routes = 1;
-
 			if (inet_pton(AF_INET6, optarg, &c->ip6.gw)     &&
 			    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.gw)	&&
-			    !IN6_IS_ADDR_LOOPBACK(&c->ip6.gw))
+			    !IN6_IS_ADDR_LOOPBACK(&c->ip6.gw)) {
+				if (c->mode == MODE_PASTA)
+					c->ip6.no_copy_routes = true;
 				break;
+			}
 
 			if (inet_pton(AF_INET, optarg, &c->ip4.gw)	&&
 			    !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.gw)	&&
 			    !IN4_IS_ADDR_BROADCAST(&c->ip4.gw)		&&
-			    !IN4_IS_ADDR_LOOPBACK(&c->ip4.gw))
+			    !IN4_IS_ADDR_LOOPBACK(&c->ip4.gw)) {
+				if (c->mode == MODE_PASTA)
+					c->ip4.no_copy_routes = true;
 				break;
+			}
 
 			die("Invalid gateway address: %s", optarg);
 			break;

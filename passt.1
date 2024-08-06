@@ -589,7 +589,7 @@ or sourced from the host, and bring up the tap interface.
 .BR \-\-no-copy-routes " " (DEPRECATED)
 With \-\-config-net, do not copy all the routes associated to the interface we
 derive addresses and routes from: set up only the default gateway. Implied by
--g, \-\-gateway.
+-g, \-\-gateway, for the corresponding IP version only.
 
 Default is to copy all the routing entries from the interface in the outer
 namespace to the target namespace, translating the output interface attribute to
@@ -604,7 +604,7 @@ below.
 .BR \-\-no-copy-addrs " " (DEPRECATED)
 With \-\-config-net, do not copy all the addresses associated to the interface
 we derive addresses and routes from: set up a single one. Implied by \-a,
-\-\-address.
+\-\-address, for the corresponding IP version only.
 
 Default is to copy all the addresses, except for link-local ones, from the
 interface from the outer namespace to the target namespace.
