@@ -225,17 +225,15 @@ static int logfile_rotate(int fd, const struct timespec *now)
  * logfile_write() - Write entry to log file, trigger rotation if full
  * @newline:	Append newline at the end of the message, if missing
  * @pri:	Facility and level map, same as priority for vsyslog()
+ * @now:	Timestamp
  * @format:	Same as vsyslog() format
  * @ap:		Same as vsyslog() ap
  */
-static void logfile_write(bool newline, int pri, const char *format, va_list ap)
+static void logfile_write(bool newline, int pri, const struct timespec *now,
+			  const char *format, va_list ap)
 {
-	const struct timespec *now;
-	struct timespec ts;
 	char buf[BUFSIZ];
 	int n;
-
-	now = logtime(&ts);
 
 	n  = logtime_fmt(buf, BUFSIZ, now);
 	n += snprintf(buf + n, BUFSIZ - n, ": %s", logfile_prefix[pri]);
@@ -262,13 +260,14 @@ static void logfile_write(bool newline, int pri, const char *format, va_list ap)
 void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 {
 	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
+	const struct timespec *now;
+	struct timespec ts;
+
+	now = logtime(&ts);
 
 	if (debug_print) {
 		char timestr[LOGTIME_STRLEN];
-		const struct timespec *now;
-		struct timespec ts;
 
-		now = logtime(&ts);
 		logtime_fmt(timestr, sizeof(timestr), now);
 		fprintf(stderr, "%s: ", timestr);
 	}
@@ -278,7 +277,7 @@ void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 
 		va_copy(ap2, ap); /* Don't clobber ap, we need it again */
 		if (log_file != -1)
-			logfile_write(newline, pri, format, ap2);
+			logfile_write(newline, pri, now, format, ap2);
 		else if (!(log_mask & LOG_MASK(LOG_DEBUG)))
 			passt_vsyslog(newline, pri, format, ap2);
 
