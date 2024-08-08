@@ -1253,9 +1253,9 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->mode == MODE_PASTA) {
 		c->no_dhcp_dns = c->no_dhcp_dns_search = 1;
 		fwd_default = FWD_AUTO;
-		optstring = "dqfel:hF:I:p:P:m:a:n:M:g:i:o:D:S:46t:u:T:U:";
+		optstring = "+dqfel:hF:I:p:P:m:a:n:M:g:i:o:D:S:46t:u:T:U:";
 	} else {
-		optstring = "dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:461t:u:";
+		optstring = "+dqfel:hs:F:p:P:m:a:n:M:g:i:o:D:S:461t:u:";
 	}
 
 	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
