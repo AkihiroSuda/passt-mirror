@@ -1235,10 +1235,10 @@ void conf(struct ctx *c, int argc, char **argv)
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
 	char userns[PATH_MAX] = { 0 }, netns[PATH_MAX] = { 0 };
 	bool copy_addrs_opt = false, copy_routes_opt = false;
-	struct in6_addr *dns6 = c->ip6.dns, dns6_tmp;
-	struct in_addr *dns4 = c->ip4.dns, dns4_tmp;
 	enum fwd_ports_mode fwd_default = FWD_NONE;
 	bool v4_only = false, v6_only = false;
+	struct in6_addr *dns6 = c->ip6.dns;
+	struct in_addr *dns4 = c->ip4.dns;
 	struct fqdn *dnss = c->dns_search;
 	unsigned int ifi4 = 0, ifi6 = 0;
 	const char *logfile = NULL;
@@ -1545,40 +1545,6 @@ void conf(struct ctx *c, int argc, char **argv)
 			die("Invalid or redundant outbound address: %s",
 			    optarg);
 			break;
-		case 'D':
-			if (!strcmp(optarg, "none")) {
-				c->no_dns = 1;
-
-				dns4 = &c->ip4.dns[0];
-				memset(c->ip4.dns, 0, sizeof(c->ip4.dns));
-				c->ip4.dns[0]    = (struct in_addr){ 0 };
-				c->ip4.dns_match = (struct in_addr){ 0 };
-				c->ip4.dns_host  = (struct in_addr){ 0 };
-
-				dns6 = &c->ip6.dns[0];
-				memset(c->ip6.dns, 0, sizeof(c->ip6.dns));
-				c->ip6.dns_match = (struct in6_addr){ 0 };
-				c->ip6.dns_host  = (struct in6_addr){ 0 };
-
-				break;
-			}
-
-			c->no_dns = 0;
-
-			if (dns4 - &c->ip4.dns[0] < ARRAY_SIZE(c->ip4.dns) &&
-			    inet_pton(AF_INET, optarg, &dns4_tmp)) {
-				add_dns4(c, &dns4_tmp, &dns4);
-				break;
-			}
-
-			if (dns6 - &c->ip6.dns[0] < ARRAY_SIZE(c->ip6.dns) &&
-			    inet_pton(AF_INET6, optarg, &dns6_tmp)) {
-				add_dns6(c, &dns6_tmp, &dns6);
-				break;
-			}
-
-			die("Cannot use DNS address %s", optarg);
-			break;
 		case 'S':
 			if (!strcmp(optarg, "none")) {
 				c->no_dns_search = 1;
@@ -1620,6 +1586,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		case 'u':
 		case 'T':
 		case 'U':
+		case 'D':
 			/* Handle these later, once addresses are configured */
 			break;
 		case 'h':
@@ -1677,16 +1644,55 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (c->ifi6 && IN6_IS_ADDR_UNSPECIFIED(&c->ip6.gw))
 		c->no_map_gw = 1;
 
-	/* Inbound port options can be parsed now (after IPv4/IPv6 settings) */
+	/* Inbound port options & DNS can be parsed now (after IPv4/IPv6
+	 * settings)
+	 */
 	udp_portmap_clear();
 	optind = 1;
 	do {
 		name = getopt_long(argc, argv, optstring, options, NULL);
 
-		if (name == 't')
+		if (name == 't') {
 			conf_ports(c, name, optarg, &c->tcp.fwd_in);
-		else if (name == 'u')
+		} else if (name == 'u') {
 			conf_ports(c, name, optarg, &c->udp.fwd_in);
+		} else if (name == 'D') {
+			struct in6_addr dns6_tmp;
+			struct in_addr dns4_tmp;
+
+			if (!strcmp(optarg, "none")) {
+				c->no_dns = 1;
+
+				dns4 = &c->ip4.dns[0];
+				memset(c->ip4.dns, 0, sizeof(c->ip4.dns));
+				c->ip4.dns[0]    = (struct in_addr){ 0 };
+				c->ip4.dns_match = (struct in_addr){ 0 };
+				c->ip4.dns_host  = (struct in_addr){ 0 };
+
+				dns6 = &c->ip6.dns[0];
+				memset(c->ip6.dns, 0, sizeof(c->ip6.dns));
+				c->ip6.dns_match = (struct in6_addr){ 0 };
+				c->ip6.dns_host  = (struct in6_addr){ 0 };
+
+				continue;
+			}
+
+			c->no_dns = 0;
+
+			if (dns4 - &c->ip4.dns[0] < ARRAY_SIZE(c->ip4.dns) &&
+			    inet_pton(AF_INET, optarg, &dns4_tmp)) {
+				add_dns4(c, &dns4_tmp, &dns4);
+				break;
+			}
+
+			if (dns6 - &c->ip6.dns[0] < ARRAY_SIZE(c->ip6.dns) &&
+			    inet_pton(AF_INET6, optarg, &dns6_tmp)) {
+				add_dns6(c, &dns6_tmp, &dns6);
+				break;
+			}
+
+			die("Cannot use DNS address %s", optarg);
+		}
 	} while (name != -1);
 
 	if (c->mode == MODE_PASTA)
