@@ -6,6 +6,7 @@
 #ifndef NDP_H
 #define NDP_H
 
-int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr);
+int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr,
+	const struct pool *p);
 
 #endif /* NDP_H */

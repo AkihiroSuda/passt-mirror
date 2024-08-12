@@ -808,12 +808,13 @@ resume:
 			if (l4len < sizeof(struct icmp6hdr))
 				continue;
 
-			if (ndp(c, (struct icmp6hdr *)l4h, saddr))
+			packet_add(pkt, l4len, l4h);
+
+			if (ndp(c, (struct icmp6hdr *)l4h, saddr, pkt))
 				continue;
 
 			tap_packet_debug(NULL, ip6h, NULL, proto, NULL, 1);
 
-			packet_add(pkt, l4len, l4h);
 			icmp_tap_handler(c, PIF_TAP, AF_INET6,
 					 saddr, daddr, pkt, now);
 			continue;
