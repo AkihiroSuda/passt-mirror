@@ -13,21 +13,21 @@
 #define LOGFILE_CUT_RATIO		30	/* When full, cut ~30% size */
 #define LOGFILE_SIZE_MIN		(5UL * MAX(BUFSIZ, PAGE_SIZE))
 
-void vlogmsg(bool newline, int pri, const char *format, va_list ap);
-void logmsg(bool newline, int pri, const char *format, ...)
-	__attribute__((format(printf, 3, 4)));
+void vlogmsg(bool newline, bool cont, int pri, const char *format, va_list ap);
+void logmsg(bool newline, bool cont, int pri, const char *format, ...)
+	__attribute__((format(printf, 4, 5)));
 void logmsg_perror(int pri, const char *format, ...)
 	__attribute__((format(printf, 2, 3)));
 
-#define err(...)		logmsg(true,	LOG_ERR,	__VA_ARGS__)
-#define warn(...)		logmsg(true,	LOG_WARNING,	__VA_ARGS__)
-#define info(...)		logmsg(true,	LOG_INFO,	__VA_ARGS__)
-#define debug(...)		logmsg(true,	LOG_DEBUG,	__VA_ARGS__)
+#define err(...)		logmsg(true, false, LOG_ERR,     __VA_ARGS__)
+#define warn(...)		logmsg(true, false, LOG_WARNING, __VA_ARGS__)
+#define info(...)		logmsg(true, false, LOG_INFO,    __VA_ARGS__)
+#define debug(...)		logmsg(true, false, LOG_DEBUG,   __VA_ARGS__)
 
-#define err_perror(...)		logmsg_perror(	LOG_ERR,	__VA_ARGS__)
-#define warn_perror(...)	logmsg_perror(	LOG_WARNING,	__VA_ARGS__)
-#define info_perror(...)	logmsg_perror(	LOG_INFO,	__VA_ARGS__)
-#define debug_perror(...)	logmsg_perror(	LOG_DEBUG,	__VA_ARGS__)
+#define err_perror(...)		logmsg_perror(      LOG_ERR,     __VA_ARGS__)
+#define warn_perror(...)	logmsg_perror(      LOG_WARNING, __VA_ARGS__)
+#define info_perror(...)	logmsg_perror(      LOG_INFO,    __VA_ARGS__)
+#define debug_perror(...)	logmsg_perror(      LOG_DEBUG,   __VA_ARGS__)
 
 #define die(...)							\
 	do {								\

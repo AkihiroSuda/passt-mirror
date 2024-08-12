@@ -253,11 +253,12 @@ static void logfile_write(bool newline, int pri, const struct timespec *now,
 /**
  * vlogmsg() - Print or send messages to log or output files as configured
  * @newline:	Append newline at the end of the message, if missing
+ * @cont:	Continuation of a previous message, on the same line
  * @pri:	Facility and level map, same as priority for vsyslog()
  * @format:	Message
  * @ap:		Variable argument list
  */
-void vlogmsg(bool newline, int pri, const char *format, va_list ap)
+void vlogmsg(bool newline, bool cont, int pri, const char *format, va_list ap)
 {
 	bool debug_print = (log_mask & LOG_MASK(LOG_DEBUG)) && log_file == -1;
 	const struct timespec *now;
@@ -265,7 +266,7 @@ void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 
 	now = logtime(&ts);
 
-	if (debug_print) {
+	if (debug_print && !cont) {
 		char timestr[LOGTIME_STRLEN];
 
 		logtime_fmt(timestr, sizeof(timestr), now);
@@ -295,15 +296,16 @@ void vlogmsg(bool newline, int pri, const char *format, va_list ap)
 /**
  * logmsg() - vlogmsg() wrapper for variable argument lists
  * @newline:	Append newline at the end of the message, if missing
+ * @cont:	Continuation of a previous message, on the same line
  * @pri:	Facility and level map, same as priority for vsyslog()
  * @format:	Message
  */
-void logmsg(bool newline, int pri, const char *format, ...)
+void logmsg(bool newline, bool cont, int pri, const char *format, ...)
 {
 	va_list ap;
 
 	va_start(ap, format);
-	vlogmsg(newline, pri, format, ap);
+	vlogmsg(newline, cont, pri, format, ap);
 	va_end(ap);
 }
 
@@ -318,10 +320,10 @@ void logmsg_perror(int pri, const char *format, ...)
 	va_list ap;
 
 	va_start(ap, format);
-	vlogmsg(false, pri, format, ap);
+	vlogmsg(false, false, pri, format, ap);
 	va_end(ap);
 
-	logmsg(true, pri, ": %s", strerror(errno_copy));
+	logmsg(true, true, pri, ": %s", strerror(errno_copy));
 }
 
 /**
