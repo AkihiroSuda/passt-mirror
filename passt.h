@@ -91,7 +91,7 @@ enum passt_modes {
 
 /**
  * struct ip4_ctx - IPv4 execution context
- * @addr:		IPv4 address for external, routable interface
+ * @addr:		IPv4 address assigned to guest
  * @addr_seen:		Latest IPv4 address seen as source from tap
  * @prefixlen:		IPv4 prefix length (netmask)
  * @gw:			Default IPv4 gateway
@@ -121,7 +121,7 @@ struct ip4_ctx {
 
 /**
  * struct ip6_ctx - IPv6 execution context
- * @addr:		IPv6 address for external, routable interface
+ * @addr:		IPv6 address assigned to guest
  * @addr_ll:		Link-local IPv6 address on external, routable interface
  * @addr_seen:		Latest IPv6 global/site address seen as source from tap
  * @addr_ll_seen:	Latest IPv6 link-local address seen as source from tap
