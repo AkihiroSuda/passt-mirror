@@ -674,6 +674,63 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 }
 
 /**
+ * nl_addr_set_ll_nodad() - Set IFA_F_NODAD on IPv6 link-local addresses
+ * @s:		Netlink socket
+ * @ifi:	Interface index in target namespace
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int nl_addr_set_ll_nodad(int s, unsigned int ifi)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct ifaddrmsg ifa;
+	} req = {
+		.ifa.ifa_family    = AF_INET6,
+		.ifa.ifa_index     = ifi,
+	};
+	uint32_t seq, last_seq = 0;
+	ssize_t status, ret = 0;
+	struct nlmsghdr *nh;
+	char buf[NLBUFSIZ];
+
+	seq = nl_send(s, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
+	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWADDR) {
+		struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
+		struct rtattr *rta;
+		size_t na;
+
+		if (ifa->ifa_index != ifi || ifa->ifa_scope != RT_SCOPE_LINK)
+			continue;
+
+		ifa->ifa_flags |= IFA_F_NODAD;
+
+		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
+		     rta = RTA_NEXT(rta, na)) {
+			/* If 32-bit flags are used, add IFA_F_NODAD there */
+			if (rta->rta_type == IFA_FLAGS)
+				*(uint32_t *)RTA_DATA(rta) |= IFA_F_NODAD;
+		}
+
+		last_seq = nl_send(s, nh, RTM_NEWADDR, NLM_F_REPLACE,
+				   nh->nlmsg_len);
+	}
+
+	if (status < 0)
+		ret = status;
+
+	for (seq = seq + 1; seq <= last_seq; seq++) {
+		nl_foreach(nh, status, s, buf, seq)
+			warn("netlink: Unexpected response message");
+
+		if (!ret && status < 0)
+			ret = status;
+	}
+
+	return ret;
+}
+
+/**
  * nl_addr_get() - Get most specific global address, given interface and family
  * @s:		Netlink socket
  * @ifi:	Interface index in outer network namespace

@@ -19,6 +19,7 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 		void *addr, int *prefix_len, void *addr_l);
 int nl_addr_set(int s, unsigned int ifi, sa_family_t af,
 		const void *addr, int prefix_len);
+int nl_addr_set_ll_nodad(int s, unsigned int ifi);
 int nl_addr_dup(int s_src, unsigned int ifi_src,
 		int s_dst, unsigned int ifi_dst, sa_family_t af);
 int nl_link_get_mac(int s, unsigned int ifi, void *mac);
