@@ -844,7 +844,7 @@ int nl_addr_get_ll(int s, unsigned int ifi, struct in6_addr *addr)
 }
 
 /**
- * nl_add_set() - Set IP addresses for given interface and address family
+ * nl_addr_set() - Set IP addresses for given interface and address family
  * @s:		Netlink socket
  * @ifi:	Interface index
  * @af:		Address family
