@@ -1682,13 +1682,13 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (dns4 - &c->ip4.dns[0] < ARRAY_SIZE(c->ip4.dns) &&
 			    inet_pton(AF_INET, optarg, &dns4_tmp)) {
 				add_dns4(c, &dns4_tmp, &dns4);
-				break;
+				continue;
 			}
 
 			if (dns6 - &c->ip6.dns[0] < ARRAY_SIZE(c->ip6.dns) &&
 			    inet_pton(AF_INET6, optarg, &dns6_tmp)) {
 				add_dns6(c, &dns6_tmp, &dns6);
-				break;
+				continue;
 			}
 
 			die("Cannot use DNS address %s", optarg);
