@@ -797,6 +797,53 @@ int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 }
 
 /**
+ * nl_addr_get_ll() - Get first IPv6 link-local address for a given interface
+ * @s:		Netlink socket
+ * @ifi:	Interface index in outer network namespace
+ * @addr:	Link-local address to fill
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int nl_addr_get_ll(int s, unsigned int ifi, struct in6_addr *addr)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct ifaddrmsg ifa;
+	} req = {
+		.ifa.ifa_family		= AF_INET6,
+		.ifa.ifa_index		= ifi,
+	};
+	struct nlmsghdr *nh;
+	bool found = false;
+	char buf[NLBUFSIZ];
+	ssize_t status;
+	uint32_t seq;
+
+	seq = nl_send(s, &req, RTM_GETADDR, NLM_F_DUMP, sizeof(req));
+	nl_foreach_oftype(nh, status, s, buf, seq, RTM_NEWADDR) {
+		struct ifaddrmsg *ifa = (struct ifaddrmsg *)NLMSG_DATA(nh);
+		struct rtattr *rta;
+		size_t na;
+
+		if (ifa->ifa_index != ifi || ifa->ifa_scope != RT_SCOPE_LINK ||
+		    found)
+			continue;
+
+		for (rta = IFA_RTA(ifa), na = IFA_PAYLOAD(nh); RTA_OK(rta, na);
+		     rta = RTA_NEXT(rta, na)) {
+			if (rta->rta_type != IFA_ADDRESS)
+				continue;
+
+			if (!found) {
+				memcpy(addr, RTA_DATA(rta), RTA_PAYLOAD(rta));
+				found = true;
+			}
+		}
+	}
+	return status;
+}
+
+/**
  * nl_add_set() - Set IP addresses for given interface and address family
  * @s:		Netlink socket
  * @ifi:	Interface index

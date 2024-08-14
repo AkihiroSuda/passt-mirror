@@ -340,6 +340,13 @@ void pasta_ns_conf(struct ctx *c)
 		}
 
 		if (c->ifi6) {
+			rc = nl_addr_get_ll(nl_sock_ns, c->pasta_ifi,
+					    &c->ip6.addr_ll_seen);
+			if (rc < 0) {
+				warn("Can't get LL address from namespace: %s",
+				    strerror(-rc));
+			}
+
 			rc = nl_addr_set_ll_nodad(nl_sock_ns, c->pasta_ifi);
 			if (rc < 0) {
 				warn("Can't set nodad for LL in namespace: %s",
