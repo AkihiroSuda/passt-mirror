@@ -24,6 +24,7 @@ int nl_addr_dup(int s_src, unsigned int ifi_src,
 int nl_link_get_mac(int s, unsigned int ifi, void *mac);
 int nl_link_set_mac(int s, unsigned int ifi, const void *mac);
 int nl_link_set_mtu(int s, unsigned int ifi, int mtu);
-int nl_link_up(int s, unsigned int ifi);
+int nl_link_set_flags(int s, unsigned int ifi,
+		      unsigned int set, unsigned int change);
 
 #endif /* NETLINK_H */

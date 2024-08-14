@@ -968,13 +968,16 @@ int nl_link_set_mtu(int s, unsigned int ifi, int mtu)
 }
 
 /**
- * nl_link_up() - Bring link up
+ * nl_link_set_flags() - Set link flags
  * @s:		Netlink socket
  * @ifi:	Interface index
+ * @set:	Device flags to set
+ * @change:	Mask of device flag changes
  *
  * Return: 0 on success, negative error code on failure
  */
-int nl_link_up(int s, unsigned int ifi)
+int nl_link_set_flags(int s, unsigned int ifi,
+		      unsigned int set, unsigned int change)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -982,8 +985,8 @@ int nl_link_up(int s, unsigned int ifi)
 	} req = {
 		.ifm.ifi_family	  = AF_UNSPEC,
 		.ifm.ifi_index	  = ifi,
-		.ifm.ifi_flags	  = IFF_UP,
-		.ifm.ifi_change	  = IFF_UP,
+		.ifm.ifi_flags	  = set,
+		.ifm.ifi_change	  = change,
 	};
 
 	return nl_do(s, &req, RTM_NEWLINK, 0, sizeof(req));
