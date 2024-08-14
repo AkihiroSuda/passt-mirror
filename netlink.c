@@ -682,7 +682,7 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
  * @prefix_len:	Mask or prefix length, to fill (for IPv4)
  * @addr_l:	Link-scoped address to fill (for IPv6)
  *
- * Return: 9 on success, negative error code on failure
+ * Return: 0 on success, negative error code on failure
  */
 int nl_addr_get(int s, unsigned int ifi, sa_family_t af,
 		void *addr, int *prefix_len, void *addr_l)
