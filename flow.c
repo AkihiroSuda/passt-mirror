@@ -561,12 +561,6 @@ static uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
 {
 	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
 
-	/* For the hash table to work, we need complete endpoint information,
-	 * and at least a forwarding port.
-	 */
-	ASSERT(pif != PIF_NONE && !inany_is_unspecified(&side->eaddr) &&
-	       side->eport != 0 && side->fport != 0);
-
 	inany_siphash_feed(&state, &side->faddr);
 	inany_siphash_feed(&state, &side->eaddr);
 
@@ -586,8 +580,16 @@ static uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
 static uint64_t flow_sidx_hash(const struct ctx *c, flow_sidx_t sidx)
 {
 	const struct flow_common *f = &flow_at_sidx(sidx)->f;
-	return flow_hash(c, FLOW_PROTO(f),
-			 f->pif[sidx.sidei], &f->side[sidx.sidei]);
+	const struct flowside *side = &f->side[sidx.sidei];
+	uint8_t pif = f->pif[sidx.sidei];
+
+	/* For the hash table to work, entries must have complete endpoint
+	 * information, and at least a forwarding port.
+	 */
+	ASSERT(pif != PIF_NONE && !inany_is_unspecified(&side->eaddr) &&
+	       side->eport != 0 && side->fport != 0);
+
+	return flow_hash(c, FLOW_PROTO(f), pif, side);
 }
 
 /**
