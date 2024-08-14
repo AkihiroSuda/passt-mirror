@@ -288,7 +288,7 @@ void pasta_ns_conf(struct ctx *c)
 {
 	int rc = 0;
 
-	rc = nl_link_up(nl_sock_ns, 1 /* lo */, 0);
+	rc = nl_link_up(nl_sock_ns, 1 /* lo */);
 	if (rc < 0)
 		die("Couldn't bring up loopback interface in namespace: %s",
 		    strerror(-rc));
@@ -303,7 +303,10 @@ void pasta_ns_conf(struct ctx *c)
 		    strerror(-rc));
 
 	if (c->pasta_conf_ns) {
-		nl_link_up(nl_sock_ns, c->pasta_ifi, c->mtu);
+		if (c->mtu != -1)
+			nl_link_set_mtu(nl_sock_ns, c->pasta_ifi, c->mtu);
+
+		nl_link_up(nl_sock_ns, c->pasta_ifi);
 
 		if (c->ifi4) {
 			if (c->ip4.no_copy_addrs) {

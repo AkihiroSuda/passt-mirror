@@ -942,14 +942,14 @@ int nl_link_set_mac(int s, unsigned int ifi, const void *mac)
 }
 
 /**
- * nl_link_up() - Bring link up
+ * nl_link_set_mtu() - Set link MTU
  * @s:		Netlink socket
  * @ifi:	Interface index
- * @mtu:	If non-zero, set interface MTU
+ * @mtu:	Interface MTU
  *
  * Return: 0 on success, negative error code on failure
  */
-int nl_link_up(int s, unsigned int ifi, int mtu)
+int nl_link_set_mtu(int s, unsigned int ifi, int mtu)
 {
 	struct req_t {
 		struct nlmsghdr nlh;
@@ -959,17 +959,32 @@ int nl_link_up(int s, unsigned int ifi, int mtu)
 	} req = {
 		.ifm.ifi_family	  = AF_UNSPEC,
 		.ifm.ifi_index	  = ifi,
-		.ifm.ifi_flags	  = IFF_UP,
-		.ifm.ifi_change	  = IFF_UP,
 		.rta.rta_type	  = IFLA_MTU,
 		.rta.rta_len	  = RTA_LENGTH(sizeof(unsigned int)),
 		.mtu		  = mtu,
 	};
-	ssize_t len = sizeof(req);
 
-	if (!mtu)
-		/* Shorten request to drop MTU attribute */
-		len = offsetof(struct req_t, rta);
+	return nl_do(s, &req, RTM_NEWLINK, 0, sizeof(req));
+}
 
-	return nl_do(s, &req, RTM_NEWLINK, 0, len);
+/**
+ * nl_link_up() - Bring link up
+ * @s:		Netlink socket
+ * @ifi:	Interface index
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int nl_link_up(int s, unsigned int ifi)
+{
+	struct req_t {
+		struct nlmsghdr nlh;
+		struct ifinfomsg ifm;
+	} req = {
+		.ifm.ifi_family	  = AF_UNSPEC,
+		.ifm.ifi_index	  = ifi,
+		.ifm.ifi_flags	  = IFF_UP,
+		.ifm.ifi_change	  = IFF_UP,
+	};
+
+	return nl_do(s, &req, RTM_NEWLINK, 0, sizeof(req));
 }
