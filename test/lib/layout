@@ -15,7 +15,7 @@
 
 # layout_pasta() - Panes for host, pasta, and separate one for namespace
 layout_pasta() {
-	sleep 3
+	sleep 1
 
 	tmux kill-pane -a -t 0
 	cmd_write 0 clear
@@ -46,7 +46,7 @@ layout_pasta() {
 
 # layout_passt() - Panes for host, passt, and guest
 layout_passt() {
-	sleep 3
+	sleep 1
 
 	tmux kill-pane -a -t 0
 	cmd_write 0 clear
@@ -77,7 +77,7 @@ layout_passt() {
 
 # layout_passt_in_pasta() - Host, passt within pasta, namespace and guest
 layout_passt_in_pasta() {
-	sleep 3
+	sleep 1
 
 	tmux kill-pane -a -t 0
 	cmd_write 0 clear
@@ -113,7 +113,7 @@ layout_passt_in_pasta() {
 
 # layout_two_guests() - Two guest panes, two passt panes, plus host and log
 layout_two_guests() {
-	sleep 3
+	sleep 1
 
 	tmux kill-pane -a -t 0
 	cmd_write 0 clear
@@ -152,7 +152,7 @@ layout_two_guests() {
 
 # layout_demo_pasta() - Four panes for pasta demo
 layout_demo_pasta() {
-	sleep 3
+	sleep 1
 
 	cmd_write 0 cd ${BASEPATH}
 	cmd_write 0 clear
@@ -188,7 +188,7 @@ layout_demo_pasta() {
 
 # layout_demo_passt() - Four panes for passt demo
 layout_demo_passt() {
-	sleep 3
+	sleep 1
 
 	cmd_write 0 cd ${BASEPATH}
 	cmd_write 0 clear
@@ -224,7 +224,7 @@ layout_demo_passt() {
 
 # layout_demo_podman() - Four panes for pasta demo with Podman
 layout_demo_podman() {
-	sleep 3
+	sleep 1
 
 	cmd_write 0 cd ${BASEPATH}
 	cmd_write 0 clear

@@ -97,7 +97,6 @@ display_delay() {
 switch_pane() {
 	tmux select-pane -t ${1}
 	PR_DELAY=${PR_DELAY_INIT}
-	display_delay "0.2"
 }
 
 # cmd_write() - Write a command to a pane, letter by letter, and execute it
@@ -199,7 +198,7 @@ pane_run() {
 # $1:	Pane name
 pane_wait() {
 	__lc="$(echo "${1}" | tr [A-Z] [a-z])"
-	sleep 0.1 || sleep 1
+	sleep 0.01 || sleep 1
 
 	__done=0
 	while
@@ -207,7 +206,7 @@ pane_wait() {
 		case ${__l} in
 		*"$ " | *"# ") return ;;
 		esac
-	do sleep 0.1 || sleep 1; done
+	do sleep 0.01 || sleep 1; done
 }
 
 # pane_parse() - Print last line, @EMPTY@ if command had no output
@@ -231,7 +230,7 @@ pane_status() {
 
 	__status="$(pane_parse "${1}")"
 	while ! [ "${__status}" -eq "${__status}" ] 2>/dev/null; do
-		sleep 1
+		sleep 0.01 || sleep 1
 		pane_run "${1}" 'echo $?'
 		pane_wait "${1}"
 		__status="$(pane_parse "${1}")"
@@ -383,6 +382,16 @@ info_check_failed() {
 	printf " < failed.\n" >> "${LOGFILE}"
 }
 
+# status_bar_blink() - Make status bar blink
+status_bar_blink() {
+	for i in `seq 1 3`; do
+		tmux set status-right-style 'bg=colour1 fg=colour196 bold'
+		sleep 0.1 || sleep 1
+		tmux set status-right-style 'bg=colour1 fg=colour233 bold'
+		sleep 0.1 || sleep 1
+	done
+}
+
 # info_passed() - Display, log, and make status bar blink when a test passes
 info_passed() {
 	switch_pane ${PANE_INFO}
@@ -391,12 +400,7 @@ info_passed() {
 	log "...passed."
 	log
 
-	for i in `seq 1 3`; do
-		tmux set status-right-style 'bg=colour1 fg=colour2 bold'
-		sleep "0.1"
-		tmux set status-right-style 'bg=colour1 fg=colour233 bold'
-		sleep "0.1"
-	done
+	[ ${FAST} -eq 1 ] || status_bar_blink
 }
 
 # info_failed() - Display, log, and make status bar blink when a test passes
@@ -407,12 +411,7 @@ info_failed() {
 	log "...failed."
 	log
 
-	for i in `seq 1 3`; do
-		tmux set status-right-style 'bg=colour1 fg=colour196 bold'
-		sleep "0.1"
-		tmux set status-right-style 'bg=colour1 fg=colour233 bold'
-		sleep "0.1"
-	done
+	[ ${FAST} -eq 1 ] || status_bar_blink
 
 	pause_continue \
 		"Press any key to pause test session"		\

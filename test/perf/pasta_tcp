@@ -22,7 +22,7 @@ ns	/sbin/sysctl -w net.ipv4.tcp_timestamps=0
 
 
 set	THREADS 4
-set	TIME 10
+set	TIME 1
 set	OMIT 0.1
 set	OPTS -Z -w 4M -l 1M -P __THREADS__ -O__OMIT__
 
@@ -46,13 +46,13 @@ iperf3k	host
 
 tl	TCP RR latency over IPv6: ns to host
 hostb	tcp_rr --nolog -P 10003 -C 10013 -6
-nsout	LAT tcp_rr --nolog -P 10003 -C 10013 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv6: ns to host
 hostb	tcp_crr --nolog -P 10003 -C 10013 -6
-nsout	LAT tcp_crr --nolog -P 10003 -C 10013 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 500 350
 
@@ -67,13 +67,13 @@ iperf3k	host
 
 tl	TCP RR latency over IPv4: ns to host
 hostb	tcp_rr --nolog -P 10003 -C 10013 -4
-nsout	LAT tcp_rr --nolog -P 10003 -C 10013 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv4: ns to host
 hostb	tcp_crr --nolog -P 10003 -C 10013 -4
-nsout	LAT tcp_crr --nolog -P 10003 -C 10013 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 500 350
 
@@ -87,13 +87,13 @@ iperf3k	ns
 
 tl	TCP RR latency over IPv6: host to ns
 nsb	tcp_rr --nolog -P 10002 -C 10012 -6
-hout	LAT tcp_rr --nolog -P 10002 -C 10012 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_rr --nolog -l1 -P 10002 -C 10012 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv6: host to ns
 nsb	tcp_crr --nolog -P 10002 -C 10012 -6
-hout	LAT tcp_crr --nolog -P 10002 -C 10012 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_crr --nolog -l1 -P 10002 -C 10012 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 1000 700
 
@@ -108,13 +108,13 @@ iperf3k	ns
 
 tl	TCP RR latency over IPv4: host to ns
 nsb	tcp_rr --nolog -P 10002 -C 10012 -4
-hout	LAT tcp_rr --nolog -P 10002 -C 10012 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_rr --nolog -l1 -P 10002 -C 10012 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 150 100
 
 tl	TCP CRR latency over IPv4: host to ns
 nsb	tcp_crr --nolog -P 10002 -C 10012 -4
-hout	LAT tcp_crr --nolog -P 10002 -C 10012 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_crr --nolog -l1 -P 10002 -C 10012 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 1000 700
 
@@ -156,7 +156,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_rr --nolog -P 10003 -C 10013 -6
-nsout	LAT tcp_rr --nolog -P 10003 -C 10013 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
@@ -165,7 +165,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_crr --nolog -P 10003 -C 10013 -6
-nsout	LAT tcp_crr --nolog -P 10003 -C 10013 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 1500 500
 
@@ -193,7 +193,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_rr --nolog -P 10003 -C 10013 -4
-nsout	LAT tcp_rr --nolog -P 10003 -C 10013 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
@@ -202,7 +202,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_crr --nolog -P 10003 -C 10013 -4
-nsout	LAT tcp_crr --nolog -P 10003 -C 10013 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 1500 500
 
@@ -224,7 +224,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_rr --nolog -P 10002 -C 10012 -6
-hout	LAT tcp_rr --nolog -P 10002 -C 10012 -6 -c -H __ADDR6__ | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_rr --nolog -l1 -P 10002 -C 10012 -6 -c -H __ADDR6__ | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 150 100
 
@@ -234,7 +234,7 @@ lat	-
 lat	-
 sleep	1
 nsb	tcp_crr --nolog -P 10002 -C 10012 -6
-hout	LAT tcp_crr --nolog -P 10002 -C 10012 -6 -c -H __ADDR6__ | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_crr --nolog -l1 -P 10002 -C 10012 -6 -c -H __ADDR6__ | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 5000 10000
 
@@ -256,7 +256,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_rr --nolog -P 10002 -C 10012 -4
-hout	LAT tcp_rr --nolog -P 10002 -C 10012 -4 -c -H __ADDR__ | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_rr --nolog -l1 -P 10002 -C 10012 -4 -c -H __ADDR__ | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 150 100
 
@@ -266,7 +266,7 @@ lat	-
 lat	-
 sleep	1
 nsb	tcp_crr --nolog -P 10002 -C 10012 -4
-hout	LAT tcp_crr --nolog -P 10002 -C 10012 -4 -c -H __ADDR__ | sed -n 's/^throughput=\(.*\)/\1/p'
+hout	LAT tcp_crr --nolog -l1 -P 10002 -C 10012 -4 -c -H __ADDR__ | sed -n 's/^throughput=\(.*\)/\1/p'
 nsw
 lat	__LAT__ 5000 10000
 

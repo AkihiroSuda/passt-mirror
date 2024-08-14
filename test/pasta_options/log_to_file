@@ -19,7 +19,7 @@ sleep	1
 endef
 
 def	flood_log_client
-host	tcp_crr --nolog -P 10001 -C 10002 -6 -c -H ::1
+host	tcp_crr --nolog -l1 -P 10001 -C 10002 -6 -c -H ::1
 endef
 
 def	check_log_size_mountns
@@ -42,7 +42,7 @@ pout	PID2 echo $!
 check	head -1 __LOG_FILE__ | grep '^pasta .* [(]__PID2__[)]$'
 
 test	Maximum log size
-passtb	./pasta --config-net -d -f -l __LOG_FILE__ --log-size $((100 * 1024)) -- sh -c 'while true; do tcp_crr --nolog -P 10001 -C 10002 -6; done'
+passtb	./pasta --config-net -d -f -l __LOG_FILE__ --log-size $((100 * 1024)) -- sh -c 'while true; do tcp_crr --nolog -l1 -P 10001 -C 10002 -6; done'
 sleep	1
 
 flood_log_client

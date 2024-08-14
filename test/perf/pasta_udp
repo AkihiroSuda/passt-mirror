@@ -21,7 +21,7 @@ hout	FREQ_CPUFREQ (echo "scale=1"; printf '( %i + 10^5 / 2 ) / 10^6\n' $(cat /sy
 hout	FREQ [ -n "__FREQ_CPUFREQ__" ] && echo __FREQ_CPUFREQ__ || echo __FREQ_PROCFS__
 
 set	THREADS 1
-set	TIME 10
+set	TIME 1
 set	OPTS -u -P __THREADS__
 
 info	Throughput in Gbps, latency in µs, one thread at __FREQ__ GHz

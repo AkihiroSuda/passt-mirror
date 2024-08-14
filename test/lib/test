@@ -33,7 +33,7 @@ test_iperf3k() {
 
 	pane_or_context_run "${__sctx}" 'kill -INT $(cat s.pid); rm s.pid'
 
-	sleep 3		# Wait for kernel to free up ports
+	sleep 1		# Wait for kernel to free up ports
 }
 
 # test_iperf3() - Ugly helper for iperf3 directive

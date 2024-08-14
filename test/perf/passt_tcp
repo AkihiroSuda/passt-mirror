@@ -38,7 +38,7 @@ hout	FREQ_CPUFREQ (echo "scale=1"; printf '( %i + 10^5 / 2 ) / 10^6\n' $(cat /sy
 hout	FREQ [ -n "__FREQ_CPUFREQ__" ] && echo __FREQ_CPUFREQ__ || echo __FREQ_PROCFS__
 
 set	THREADS 4
-set	TIME 10
+set	TIME 1
 set	OMIT 0.1
 set	OPTS -Z -P __THREADS__ -l 1M -O__OMIT__
 
@@ -75,7 +75,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_rr --nolog -6
-gout	LAT tcp_rr --nolog -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_rr --nolog -l1 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 200 150
 
 tl	TCP CRR latency over IPv6: guest to host
@@ -85,7 +85,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_crr --nolog -6
-gout	LAT tcp_crr --nolog -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_crr --nolog -l1 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 500 400
 
 tr	TCP throughput over IPv4: guest to host
@@ -119,7 +119,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_rr --nolog -4
-gout	LAT tcp_rr --nolog -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_rr --nolog -l1 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 200 150
 
 tl	TCP CRR latency over IPv4: guest to host
@@ -129,7 +129,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_crr --nolog -4
-gout	LAT tcp_crr --nolog -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_crr --nolog -l1 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 500 400
 
 tr	TCP throughput over IPv6: host to guest
@@ -153,7 +153,7 @@ lat	-
 lat	-
 guestb	tcp_rr --nolog -P 10001 -C 10011 -6
 sleep	1
-nsout	LAT tcp_rr --nolog -P 10001 -C 10011 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10001 -C 10011 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 200 150
 
 tl	TCP CRR latency over IPv6: host to guest
@@ -164,7 +164,7 @@ lat	-
 lat	-
 guestb	tcp_crr --nolog -P 10001 -C 10011 -6
 sleep	1
-nsout	LAT tcp_crr --nolog -P 10001 -C 10011 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10001 -C 10011 -6 -c -H ::1 | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 500 350
 
 
@@ -189,7 +189,7 @@ lat	-
 lat	-
 guestb	tcp_rr --nolog -P 10001 -C 10011 -4
 sleep	1
-nsout	LAT tcp_rr --nolog -P 10001 -C 10011 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10001 -C 10011 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 200 150
 
 tl	TCP CRR latency over IPv6: host to guest
@@ -200,7 +200,7 @@ lat	-
 lat	-
 guestb	tcp_crr --nolog -P 10001 -C 10011 -4
 sleep	1
-nsout	LAT tcp_crr --nolog -P 10001 -C 10011 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10001 -C 10011 -4 -c -H 127.0.0.1 | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 500 300
 
 te
