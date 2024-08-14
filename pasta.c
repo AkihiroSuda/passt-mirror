@@ -303,10 +303,15 @@ void pasta_ns_conf(struct ctx *c)
 		    strerror(-rc));
 
 	if (c->pasta_conf_ns) {
+		unsigned int flags = IFF_UP;
+
 		if (c->mtu != -1)
 			nl_link_set_mtu(nl_sock_ns, c->pasta_ifi, c->mtu);
 
-		nl_link_set_flags(nl_sock_ns, c->pasta_ifi, IFF_UP, IFF_UP);
+		if (c->ifi6) /* Avoid duplicate address detection on link up */
+			flags |= IFF_NOARP;
+
+		nl_link_set_flags(nl_sock_ns, c->pasta_ifi, flags, flags);
 
 		if (c->ifi4) {
 			if (c->ip4.no_copy_addrs) {
@@ -352,6 +357,10 @@ void pasta_ns_conf(struct ctx *c)
 				warn("Can't set nodad for LL in namespace: %s",
 				    strerror(-rc));
 			}
+
+			/* We dodged DAD: re-enable neighbour solicitations */
+			nl_link_set_flags(nl_sock_ns, c->pasta_ifi,
+					  0, IFF_NOARP);
 
 			if (c->ip6.no_copy_addrs) {
 				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
