@@ -28,10 +28,11 @@ on a system, i.e. common utilities such as a shell are not included here.
 
 Example for Debian, and possibly most Debian-based distributions:
 
-    build-essential git jq strace iperf3 qemu-system-x86 tmux sipcalc bats bc
-    catatonit clang-tidy cppcheck go isc-dhcp-common psmisc linux-cpupower socat
-    netcat-openbsd fakeroot lz4 lm-sensors qemu-system-arm qemu-system-ppc
-    qemu-system-misc qemu-system-x86 valgrind
+    bats bc build-essential catatonit clang-tidy conmon cppcheck crun fakeroot
+    git go iperf3 isc-dhcp-common jq libgpgme-dev libseccomp-dev linux-cpupower
+    lm-sensors lz4 netavark netcat-openbsd psmisc qemu-efi-aarch64
+    qemu-system-arm qemu-system-misc qemu-system-ppc qemu-system-x86
+    qemu-system-x86 sipcalc socat strace tmux uidmap valgrind
 
 NOTE: the tests need a qemu version >= 7.2, or one that contains commit
 13c6be96618c ("net: stream: add unix socket"): this change introduces support
