@@ -17,6 +17,8 @@ INITRAMFS="${BASEPATH}/mbuto.img"
 VCPUS="$( [ $(nproc) -ge 8 ] && echo 6 || echo $(( $(nproc) / 2 + 1 )) )"
 __mem_kib="$(sed -n 's/MemTotal:[ ]*\([0-9]*\) kB/\1/p' /proc/meminfo)"
 VMEM="$((${__mem_kib} / 1024 / 4))"
+QEMU_ARCH="$(uname -m)"
+[ "${QEMU_ARCH}" = "i686" ] && QEMU_ARCH=i386
 
 # setup_build() - Set up pane layout for build tests
 setup_build() {
@@ -53,7 +55,7 @@ setup_passt() {
 	wait_for [ -f "${STATESETUP}/passt.pid" ]
 
 	GUEST_CID=94557
-	context_run_bg qemu 'qemu-system-$(uname -m)'			   \
+	context_run_bg qemu 'qemu-system-'"${QEMU_ARCH}"		   \
 		' -machine accel=kvm'                                      \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                    \
 		' -kernel ' "/boot/vmlinuz-$(uname -r)"			   \
@@ -153,7 +155,7 @@ setup_passt_in_ns() {
 	wait_for [ -f "${STATESETUP}/passt.pid" ]
 
 	GUEST_CID=94557
-	context_run_bg qemu 'qemu-system-$(uname -m)'			   \
+	context_run_bg qemu 'qemu-system-'"${QEMU_ARCH}"		   \
 		' -machine accel=kvm'                                      \
 		' -M accel=kvm:tcg'                                        \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                    \
@@ -225,7 +227,7 @@ setup_two_guests() {
 	wait_for [ -f "${STATESETUP}/passt_2.pid" ]
 
 	GUEST_1_CID=94557
-	context_run_bg qemu_1 'qemu-system-$(uname -m)'			     \
+	context_run_bg qemu_1 'qemu-system-'"${QEMU_ARCH}"		     \
 		' -M accel=kvm:tcg'                                          \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                      \
 		' -kernel ' "/boot/vmlinuz-$(uname -r)"			     \
@@ -238,7 +240,7 @@ setup_two_guests() {
 		" -device vhost-vsock-pci,guest-cid=$GUEST_1_CID"
 
 	GUEST_2_CID=94558
-	context_run_bg qemu_2 'qemu-system-$(uname -m)'			     \
+	context_run_bg qemu_2 'qemu-system-'"${QEMU_ARCH}"		     \
 		' -M accel=kvm:tcg'                                          \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                      \
 		' -kernel ' "/boot/vmlinuz-$(uname -r)"			     \
