@@ -6,3 +6,12 @@
    ...
    fun:tcp_sock_consume
 }
+
+# same as above, for architectures with the recv() system call (at least i686):
+{
+   passt_recv_MSG_TRUNC_into_NULL_buffer
+   Memcheck:Param
+   socketcall.recv(buf)
+   ...
+   fun:tcp_sock_consume
+}
