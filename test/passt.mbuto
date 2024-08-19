@@ -13,7 +13,8 @@
 PROGS="${PROGS:-ash,dash,bash ip mount ls insmod mkdir ln cat chmod lsmod
        modprobe find grep mknod mv rm umount jq iperf3 dhclient hostname
        sed tr chown sipcalc cut socat dd strace ping tail killall sleep sysctl
-       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp}"
+       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp
+       /usr/lib/openssh/sshd-session}"
 
 KMODS="${KMODS:- virtio_net virtio_pci vmw_vsock_virtio_transport}"
 
