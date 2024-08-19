@@ -2144,7 +2144,7 @@ cancel:
  * @c:		Execution context
  * @ref:	epoll reference of timer (not connection)
  *
- * #syscalls timerfd_gettime i686:timerfd_gettime64
+ * #syscalls timerfd_gettime arm:timerfd_gettime64 i686:timerfd_gettime64
  */
 void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
 {
