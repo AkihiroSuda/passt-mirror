@@ -14,6 +14,9 @@
 #include <string.h>
 #include <signal.h>
 #include <arpa/inet.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <linux/close_range.h>
 
 #include "log.h"
 
@@ -159,6 +162,25 @@ struct ctx;
 
 /* cppcheck-suppress funcArgNamesDifferent */
 __attribute__ ((weak)) int ffsl(long int i) { return __builtin_ffsl(i); }
+
+#ifdef CLOSE_RANGE_UNSHARE	/* Linux kernel >= 5.9 */
+/* glibc < 2.34 and musl as of 1.2.5 need these */
+#ifndef SYS_close_range
+#define SYS_close_range		436
+#endif
+__attribute__ ((weak))
+/* cppcheck-suppress funcArgNamesDifferent */
+int close_range(unsigned int first, unsigned int last, int flags) {
+	return syscall(SYS_close_range, first, last, flags);
+}
+#else
+/* No reasonable fallback option */
+/* cppcheck-suppress funcArgNamesDifferent */
+int close_range(unsigned int first, unsigned int last, int flags) {
+	return 0;
+}
+#endif
+
 int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	       const void *sa, socklen_t sl,
 	       const char *ifname, bool v6only, uint32_t data);
