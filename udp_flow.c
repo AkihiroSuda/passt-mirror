@@ -174,7 +174,7 @@ cancel:
  * @s_in:	Source socket address, filled in by recvmmsg()
  * @now:	Timestamp
  *
- * #syscalls fcntl
+ * #syscalls fcntl arm:fcntl64 ppc64:fcntl64 i686:fcntl64
  *
  * Return: sidx for the destination side of the flow for this packet, or
  *         FLOW_SIDX_NONE if we couldn't find or create a flow.

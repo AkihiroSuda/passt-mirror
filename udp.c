@@ -460,7 +460,7 @@ static bool udp_sock_recverr(int s)
  * @events:	epoll events bitmap
  * @mmh		mmsghdr array to receive into
  *
- * #syscalls recvmmsg
+ * #syscalls recvmmsg i686:recvmmsg_time64
  */
 static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 			 struct mmsghdr *mmh)

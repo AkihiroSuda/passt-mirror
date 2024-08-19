@@ -13,7 +13,7 @@
  *
  * #syscalls:pasta clone waitid exit exit_group rt_sigprocmask
  * #syscalls:pasta rt_sigreturn|sigreturn
- * #syscalls:pasta arm:sigreturn ppc64:sigreturn s390x:sigreturn
+ * #syscalls:pasta arm:sigreturn ppc64:sigreturn s390x:sigreturn i686:sigreturn
  */
 
 #include <sched.h>

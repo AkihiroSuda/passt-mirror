@@ -98,7 +98,7 @@ const char *logfile_prefix[] = {
  * @fd:		Log file descriptor
  * @now:	Current timestamp
  *
- * #syscalls lseek ppc64le:_llseek ppc64:_llseek arm:_llseek
+ * #syscalls lseek ppc64le:_llseek ppc64:_llseek arm:_llseek i686:_llseek
  */
 static void logfile_rotate_fallocate(int fd, const struct timespec *now)
 {

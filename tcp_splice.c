@@ -28,7 +28,7 @@
  * - FIN_SENT_0:		FIN (write shutdown) sent to accepted socket
  * - FIN_SENT_1:		FIN (write shutdown) sent to target socket
  *
- * #syscalls:pasta pipe2|pipe fcntl arm:fcntl64 ppc64:fcntl64
+ * #syscalls:pasta pipe2|pipe fcntl arm:fcntl64 ppc64:fcntl64 i686:fcntl64
  */
 
 #include <sched.h>
