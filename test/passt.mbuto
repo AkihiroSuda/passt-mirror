@@ -78,7 +78,7 @@ EOF
 EOF
 	chmod 600 /root/.ssh/authorized_keys
 	chmod 700 /root
-	socat VSOCK-LISTEN:22,fork EXEC:"sshd -i -e" 2> /var/log/vsock-ssh.log &
+	socat VSOCK-LISTEN:22,fork EXEC:"/sbin/sshd -i -e" 2> /var/log/vsock-ssh.log &
 	sh +m
 '
 
