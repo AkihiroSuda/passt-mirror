@@ -728,7 +728,7 @@ void close_open_files(int argc, char **argv)
 	int name, rc;
 
 	do {
-		name = getopt_long(argc, argv, "+:F", optfd, NULL);
+		name = getopt_long(argc, argv, "-:F:", optfd, NULL);
 
 		if (name == 'F') {
 			errno = 0;
