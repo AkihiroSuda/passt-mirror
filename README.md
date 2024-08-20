@@ -338,7 +338,9 @@ speeding up local connections, and usually requiring NAT. _pasta_:
   [_slirp4netns_ replacement](/passt/tree/slirp4netns.sh)
 * ✅ out-of-tree patch for
   [Kata Containers](/passt/tree/contrib/kata-containers) available
-* ⌚ drop-in replacement for VPNKit (rootless Docker)
+* ✅ rootless Docker
+  [network back-end](https://docs.docker.com/engine/security/rootless/#networking-errors)
+  via moby/rootlesskit
 
 ### Availability
 * official packages for:
