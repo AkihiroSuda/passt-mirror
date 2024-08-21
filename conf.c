@@ -721,6 +721,9 @@ static unsigned int conf_ip6(unsigned int ifi,
 
 	ip6->addr_seen = ip6->addr;
 
+	if (IN6_IS_ADDR_LINKLOCAL(&ip6->gw))
+		ip6->our_tap_ll = ip6->gw;
+
 	if (MAC_IS_ZERO(mac)) {
 		rc = nl_link_get_mac(nl_sock, ifi, mac);
 		if (rc < 0) {

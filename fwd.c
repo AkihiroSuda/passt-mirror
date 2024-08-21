@@ -317,10 +317,7 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 	} else if (inany_is_loopback6(&tgt->oaddr) ||
 		   inany_equals6(&tgt->oaddr, &c->ip6.addr_seen) ||
 		   inany_equals6(&tgt->oaddr, &c->ip6.addr)) {
-		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
-			tgt->oaddr.a6 = c->ip6.gw;
-		else
-			tgt->oaddr.a6 = c->ip6.our_tap_ll;
+		tgt->oaddr.a6 = c->ip6.our_tap_ll;
 	}
 
 	if (inany_v4(&tgt->oaddr)) {
