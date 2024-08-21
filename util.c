@@ -199,8 +199,7 @@ int sock_l4(const struct ctx *c, sa_family_t af, enum epoll_type type,
 		if (bind_addr) {
 			addr6.sin6_addr = *(struct in6_addr *)bind_addr;
 
-			if (!memcmp(bind_addr, &c->ip6.addr_ll,
-			    sizeof(c->ip6.addr_ll)))
+			if (IN6_IS_ADDR_LINKLOCAL(bind_addr))
 				addr6.sin6_scope_id = c->ifi6;
 		}
 		return sock_l4_sa(c, type, &addr6, sizeof(addr6), ifname,
