@@ -612,12 +612,10 @@ static int conf_ip4_prefix(const char *arg)
  * conf_ip4() - Verify or detect IPv4 support, get relevant addresses
  * @ifi:	Host interface to attempt (0 to determine one)
  * @ip4:	IPv4 context (will be written)
- * @mac:	MAC address to use (written if unset)
  *
  * Return:	Interface index for IPv4, or 0 on failure.
  */
-static unsigned int conf_ip4(unsigned int ifi,
-			     struct ip4_ctx *ip4, unsigned char *mac)
+static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 {
 	if (!ifi)
 		ifi = nl_get_ext_if(nl_sock, AF_INET);
@@ -660,19 +658,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 
 	ip4->addr_seen = ip4->addr;
 
-	if (MAC_IS_ZERO(mac)) {
-		int rc = nl_link_get_mac(nl_sock, ifi, mac);
-		if (rc < 0) {
-			char ifname[IFNAMSIZ];
-
-			err("Couldn't discover MAC address for %s: %s",
-			    if_indextoname(ifi, ifname), strerror(-rc));
-			return 0;
-		}
-
-		if (MAC_IS_ZERO(mac))
-			memcpy(mac, MAC_LAA, ETH_ALEN);
-	}
+	ip4->our_tap_addr = ip4->gw;
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr))
 		return 0;
@@ -684,12 +670,10 @@ static unsigned int conf_ip4(unsigned int ifi,
  * conf_ip6() - Verify or detect IPv6 support, get relevant addresses
  * @ifi:	Host interface to attempt (0 to determine one)
  * @ip6:	IPv6 context (will be written)
- * @mac:	MAC address to use (written if unset)
  *
  * Return:	Interface index for IPv6, or 0 on failure.
  */
-static unsigned int conf_ip6(unsigned int ifi,
-			     struct ip6_ctx *ip6, unsigned char *mac)
+static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 {
 	int prefix_len = 0;
 	int rc;
@@ -723,19 +707,6 @@ static unsigned int conf_ip6(unsigned int ifi,
 
 	if (IN6_IS_ADDR_LINKLOCAL(&ip6->gw))
 		ip6->our_tap_ll = ip6->gw;
-
-	if (MAC_IS_ZERO(mac)) {
-		rc = nl_link_get_mac(nl_sock, ifi, mac);
-		if (rc < 0) {
-			char ifname[IFNAMSIZ];
-			err("Couldn't discover MAC address for %s: %s",
-			    if_indextoname(ifi, ifname), strerror(-rc));
-			return 0;
-		}
-
-		if (MAC_IS_ZERO(mac))
-			memcpy(mac, MAC_LAA, ETH_ALEN);
-	}
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->our_tap_ll))
@@ -1287,6 +1258,7 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	c->tcp.fwd_in.mode = c->tcp.fwd_out.mode = FWD_UNSET;
 	c->udp.fwd_in.mode = c->udp.fwd_out.mode = FWD_UNSET;
+	memcpy(c->our_tap_mac, MAC_OUR_LAA, ETH_ALEN);
 
 	optind = 1;
 	do {
@@ -1657,9 +1629,9 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	nl_sock_init(c, false);
 	if (!v6_only)
-		c->ifi4 = conf_ip4(ifi4, &c->ip4, c->our_tap_mac);
+		c->ifi4 = conf_ip4(ifi4, &c->ip4);
 	if (!v4_only)
-		c->ifi6 = conf_ip6(ifi6, &c->ip6, c->our_tap_mac);
+		c->ifi6 = conf_ip6(ifi6, &c->ip6);
 	if ((!c->ifi4 && !c->ifi6) ||
 	    (*c->ip4.ifname_out && !c->ifi4) ||
 	    (*c->ip6.ifname_out && !c->ifi6))

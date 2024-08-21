@@ -96,7 +96,6 @@
 #define PORT_IS_EPHEMERAL(port) ((port) >= PORT_EPHEMERAL_MIN)
 
 #define MAC_ZERO		((uint8_t [ETH_ALEN]){ 0 })
-#define MAC_LAA			((uint8_t [ETH_ALEN]){ BIT(1), 0, 0, 0, 0, 0 })
 #define MAC_IS_ZERO(addr)	(!memcmp((addr), MAC_ZERO, ETH_ALEN))
 
 #ifndef __bswap_constant_16

@@ -26,6 +26,13 @@ union epoll_ref;
 #include "tcp.h"
 #include "udp.h"
 
+/* Default address for our end on the tap interface.  Bit 0 of byte 0 must be 0
+ * (unicast) and bit 1 of byte 1 must be 1 (locally administered).  Otherwise
+ * it's arbitrary.
+ */
+#define MAC_OUR_LAA	\
+	((uint8_t [ETH_ALEN]){0x9a, 0x55, 0x9a, 0x55, 0x9a, 0x55})
+
 /**
  * union epoll_ref - Breakdown of reference for epoll fd bookkeeping
  * @type:	Type of fd (tells us what to do with events)
