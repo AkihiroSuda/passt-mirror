@@ -127,18 +127,18 @@ static struct timespec flow_timer_run;
  * @af:		Address family (AF_INET or AF_INET6)
  * @eaddr:	Endpoint address (pointer to in_addr or in6_addr)
  * @eport:	Endpoint port
- * @faddr:	Forwarding address (pointer to in_addr or in6_addr)
- * @fport:	Forwarding port
+ * @oaddr:	Our address (pointer to in_addr or in6_addr)
+ * @oport:	Our port
  */
 static void flowside_from_af(struct flowside *side, sa_family_t af,
 			     const void *eaddr, in_port_t eport,
-			     const void *faddr, in_port_t fport)
+			     const void *oaddr, in_port_t oport)
 {
-	if (faddr)
-		inany_from_af(&side->faddr, af, faddr);
+	if (oaddr)
+		inany_from_af(&side->oaddr, af, oaddr);
 	else
-		side->faddr = inany_any6;
-	side->fport = fport;
+		side->oaddr = inany_any6;
+	side->oport = oport;
 
 	if (eaddr)
 		inany_from_af(&side->eaddr, af, eaddr);
@@ -193,8 +193,8 @@ static int flowside_sock_splice(void *arg)
  * @tgt:	Target flowside
  * @data:	epoll reference portion for protocol handlers
  *
- * Return: socket fd of protocol @proto bound to the forwarding address and port
- *         from @tgt (if specified).
+ * Return: socket fd of protocol @proto bound to our address and port from @tgt
+ *         (if specified).
  */
 int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 		     const struct flowside *tgt, uint32_t data)
@@ -205,11 +205,11 @@ int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
 
 	ASSERT(pif_is_socket(pif));
 
-	pif_sockaddr(c, &sa, &sl, pif, &tgt->faddr, tgt->fport);
+	pif_sockaddr(c, &sa, &sl, pif, &tgt->oaddr, tgt->oport);
 
 	switch (pif) {
 	case PIF_HOST:
-		if (inany_is_loopback(&tgt->faddr))
+		if (inany_is_loopback(&tgt->oaddr))
 			ifname = NULL;
 		else if (sa.sa_family == AF_INET)
 			ifname = c->ip4.ifname_out;
@@ -309,11 +309,11 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 			  pif_name(f->pif[INISIDE]),
 			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
 			  ini->eport,
-			  inany_ntop(&ini->faddr, fstr0, sizeof(fstr0)),
-			  ini->fport,
+			  inany_ntop(&ini->oaddr, fstr0, sizeof(fstr0)),
+			  ini->oport,
 			  pif_name(f->pif[TGTSIDE]),
-			  inany_ntop(&tgt->faddr, fstr1, sizeof(fstr1)),
-			  tgt->fport,
+			  inany_ntop(&tgt->oaddr, fstr1, sizeof(fstr1)),
+			  tgt->oport,
 			  inany_ntop(&tgt->eaddr, estr1, sizeof(estr1)),
 			  tgt->eport);
 	else if (MAX(state, oldstate) >= FLOW_STATE_INI)
@@ -321,8 +321,8 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 			  pif_name(f->pif[INISIDE]),
 			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
 			  ini->eport,
-			  inany_ntop(&ini->faddr, fstr0, sizeof(fstr0)),
-			  ini->fport);
+			  inany_ntop(&ini->oaddr, fstr0, sizeof(fstr0)),
+			  ini->oport);
 }
 
 /**
@@ -347,7 +347,7 @@ static void flow_initiate_(union flow *flow, uint8_t pif)
  * flow_initiate_af() - Move flow to INI, setting INISIDE details
  * @flow:	Flow to change state
  * @pif:	pif of the initiating side
- * @af:		Address family of @eaddr and @faddr
+ * @af:		Address family of @saddr and @daddr
  * @saddr:	Source address (pointer to in_addr or in6_addr)
  * @sport:	Endpoint port
  * @daddr:	Destination address (pointer to in_addr or in6_addr)
@@ -384,10 +384,10 @@ const struct flowside *flow_initiate_sa(union flow *flow, uint8_t pif,
 
 	inany_from_sockaddr(&ini->eaddr, &ini->eport, ssa);
 	if (inany_v4(&ini->eaddr))
-		ini->faddr = inany_any4;
+		ini->oaddr = inany_any4;
 	else
-		ini->faddr = inany_any6;
-	ini->fport = dport;
+		ini->oaddr = inany_any6;
+	ini->oport = dport;
 	flow_initiate_(flow, pif);
 	return ini;
 }
@@ -432,8 +432,8 @@ const struct flowside *flow_target(const struct ctx *c, union flow *flow,
 			 pif_name(f->pif[INISIDE]),
 			 inany_ntop(&ini->eaddr, estr, sizeof(estr)),
 			 ini->eport,
-			 inany_ntop(&ini->faddr, fstr, sizeof(fstr)),
-			 ini->fport);
+			 inany_ntop(&ini->oaddr, fstr, sizeof(fstr)),
+			 ini->oport);
 	}
 
 	if (tgtpif == PIF_NONE)
@@ -561,12 +561,12 @@ static uint64_t flow_hash(const struct ctx *c, uint8_t proto, uint8_t pif,
 {
 	struct siphash_state state = SIPHASH_INIT(c->hash_secret);
 
-	inany_siphash_feed(&state, &side->faddr);
+	inany_siphash_feed(&state, &side->oaddr);
 	inany_siphash_feed(&state, &side->eaddr);
 
 	return siphash_final(&state, 38, (uint64_t)proto << 40 |
 			     (uint64_t)pif << 32 |
-			     (uint64_t)side->fport << 16 |
+			     (uint64_t)side->oport << 16 |
 			     (uint64_t)side->eport);
 }
 
@@ -587,7 +587,7 @@ static uint64_t flow_sidx_hash(const struct ctx *c, flow_sidx_t sidx)
 	 * information, and at least a forwarding port.
 	 */
 	ASSERT(pif != PIF_NONE && !inany_is_unspecified(&side->eaddr) &&
-	       side->eport != 0 && side->fport != 0);
+	       side->eport != 0 && side->oport != 0);
 
 	return flow_hash(c, FLOW_PROTO(f), pif, side);
 }
@@ -709,20 +709,20 @@ static flow_sidx_t flowside_lookup(const struct ctx *c, uint8_t proto,
  * @pif:	Interface of the flow
  * @af:		Address family, AF_INET or AF_INET6
  * @eaddr:	Guest side endpoint address (guest local address)
- * @faddr:	Guest side forwarding address (guest remote address)
+ * @oaddr:	Our guest side address (guest remote address)
  * @eport:	Guest side endpoint port (guest local port)
- * @fport:	Guest side forwarding port (guest remote port)
+ * @oport:	Our guest side port (guest remote port)
  *
  * Return: sidx of the matching flow & side, FLOW_SIDX_NONE if not found
  */
 flow_sidx_t flow_lookup_af(const struct ctx *c,
 			   uint8_t proto, uint8_t pif, sa_family_t af,
-			   const void *eaddr, const void *faddr,
-			   in_port_t eport, in_port_t fport)
+			   const void *eaddr, const void *oaddr,
+			   in_port_t eport, in_port_t oport)
 {
 	struct flowside side;
 
-	flowside_from_af(&side, af, eaddr, eport, faddr, fport);
+	flowside_from_af(&side, af, eaddr, eport, oaddr, oport);
 	return flowside_lookup(c, proto, pif, &side);
 }
 
@@ -732,22 +732,22 @@ flow_sidx_t flow_lookup_af(const struct ctx *c,
  * @proto:	Protocol of the flow (IP L4 protocol number)
  * @pif:	Interface of the flow
  * @esa:	Socket address of the endpoint
- * @fport:	Forwarding port number
+ * @oport:	Our port number
  *
  * Return: sidx of the matching flow & side, FLOW_SIDX_NONE if not found
  */
 flow_sidx_t flow_lookup_sa(const struct ctx *c, uint8_t proto, uint8_t pif,
-			   const void *esa, in_port_t fport)
+			   const void *esa, in_port_t oport)
 {
 	struct flowside side = {
-		.fport = fport,
+		.oport = oport,
 	};
 
 	inany_from_sockaddr(&side.eaddr, &side.eport, esa);
 	if (inany_v4(&side.eaddr))
-		side.faddr = inany_any4;
+		side.oaddr = inany_any4;
 	else
-		side.faddr = inany_any6;
+		side.oaddr = inany_any6;
 
 	return flowside_lookup(c, proto, pif, &side);
 }

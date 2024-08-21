@@ -361,8 +361,8 @@ static const char *tcp_flag_str[] __attribute((__unused__)) = {
 static int tcp_sock_init_ext	[NUM_PORTS][IP_VERSIONS];
 static int tcp_sock_ns		[NUM_PORTS][IP_VERSIONS];
 
-/* Table of guest side forwarding addresses with very low RTT (assumed
- * to be local to the host), LRU
+/* Table of our guest side addresses with very low RTT (assumed to be local to
+ * the host), LRU
  */
 static union inany_addr low_rtt_dst[LOW_RTT_TABLE_SIZE];
 
@@ -663,7 +663,7 @@ static int tcp_rtt_dst_low(const struct tcp_tap_conn *conn)
 	int i;
 
 	for (i = 0; i < LOW_RTT_TABLE_SIZE; i++)
-		if (inany_equals(&tapside->faddr, low_rtt_dst + i))
+		if (inany_equals(&tapside->oaddr, low_rtt_dst + i))
 			return 1;
 
 	return 0;
@@ -686,7 +686,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 		return;
 
 	for (i = 0; i < LOW_RTT_TABLE_SIZE; i++) {
-		if (inany_equals(&tapside->faddr, low_rtt_dst + i))
+		if (inany_equals(&tapside->oaddr, low_rtt_dst + i))
 			return;
 		if (hole == -1 && IN6_IS_ADDR_UNSPECIFIED(low_rtt_dst + i))
 			hole = i;
@@ -698,7 +698,7 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 	if (hole == -1)
 		return;
 
-	low_rtt_dst[hole++] = tapside->faddr;
+	low_rtt_dst[hole++] = tapside->oaddr;
 	if (hole == LOW_RTT_TABLE_SIZE)
 		hole = 0;
 	inany_from_af(low_rtt_dst + hole, AF_INET6, &in6addr_any);
@@ -881,7 +881,7 @@ static void tcp_fill_header(struct tcphdr *th,
 {
 	const struct flowside *tapside = TAPFLOW(conn);
 
-	th->source = htons(tapside->fport);
+	th->source = htons(tapside->oport);
 	th->dest = htons(tapside->eport);
 	th->seq = htonl(seq);
 	th->ack_seq = htonl(conn->seq_ack_to_tap);
@@ -913,7 +913,7 @@ static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
 				uint32_t seq)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
-	const struct in_addr *src4 = inany_v4(&tapside->faddr);
+	const struct in_addr *src4 = inany_v4(&tapside->oaddr);
 	const struct in_addr *dst4 = inany_v4(&tapside->eaddr);
 	size_t l4len = dlen + sizeof(*th);
 	size_t l3len = l4len + sizeof(*iph);
@@ -957,7 +957,7 @@ static size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
 	size_t l4len = dlen + sizeof(*th);
 
 	ip6h->payload_len = htons(l4len);
-	ip6h->saddr = tapside->faddr.a6;
+	ip6h->saddr = tapside->oaddr.a6;
 	ip6h->daddr = tapside->eaddr.a6;
 
 	ip6h->hop_limit = 255;
@@ -992,7 +992,7 @@ size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 			       const uint16_t *check, uint32_t seq)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
-	const struct in_addr *a4 = inany_v4(&tapside->faddr);
+	const struct in_addr *a4 = inany_v4(&tapside->oaddr);
 
 	if (a4) {
 		return tcp_fill_headers4(conn, iov[TCP_IOV_TAP].iov_base,
@@ -1417,15 +1417,15 @@ static void tcp_bind_outbound(const struct ctx *c,
 	socklen_t sl;
 
 
-	pif_sockaddr(c, &bind_sa, &sl, PIF_HOST, &tgt->faddr, tgt->fport);
-	if (!inany_is_unspecified(&tgt->faddr) || tgt->fport) {
+	pif_sockaddr(c, &bind_sa, &sl, PIF_HOST, &tgt->oaddr, tgt->oport);
+	if (!inany_is_unspecified(&tgt->oaddr) || tgt->oport) {
 		if (bind(s, &bind_sa.sa, sl)) {
 			char sstr[INANY_ADDRSTRLEN];
 
 			flow_dbg(conn,
 				 "Can't bind TCP outbound socket to %s:%hu: %s",
-				 inany_ntop(&tgt->faddr, sstr, sizeof(sstr)),
-				 tgt->fport, strerror(errno));
+				 inany_ntop(&tgt->oaddr, sstr, sizeof(sstr)),
+				 tgt->oport, strerror(errno));
 		}
 	}
 
@@ -1497,12 +1497,12 @@ static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
 	conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 
 	if (!inany_is_unicast(&ini->eaddr) || ini->eport == 0 ||
-	    !inany_is_unicast(&ini->faddr) || ini->fport == 0) {
+	    !inany_is_unicast(&ini->oaddr) || ini->oport == 0) {
 		char sstr[INANY_ADDRSTRLEN], dstr[INANY_ADDRSTRLEN];
 
 		debug("Invalid endpoint in TCP SYN: %s:%hu -> %s:%hu",
 		      inany_ntop(&ini->eaddr, sstr, sizeof(sstr)), ini->eport,
-		      inany_ntop(&ini->faddr, dstr, sizeof(dstr)), ini->fport);
+		      inany_ntop(&ini->oaddr, dstr, sizeof(dstr)), ini->oport);
 		goto cancel;
 	}
 
@@ -2100,7 +2100,8 @@ void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
 		goto cancel;
 
 	/* FIXME: When listening port has a specific bound address, record that
-	 * as the forwarding address */
+	 * as our address
+	 */
 	ini = flow_initiate_sa(flow, ref.tcp_listen.pif, &sa,
 			       ref.tcp_listen.port);
 

@@ -140,14 +140,14 @@ extern const uint8_t flow_proto[];
 /**
  * struct flowside - Address information for one side of a flow
  * @eaddr:	Endpoint address (remote address from passt's PoV)
- * @faddr:	Forwarding address (local address from passt's PoV)
+ * @oaddr:	Our address (local address from passt's PoV)
  * @eport:	Endpoint port
- * @fport:	Forwarding port
+ * @oport:	Our port
  */
 struct flowside {
-	union inany_addr	faddr;
+	union inany_addr	oaddr;
 	union inany_addr	eaddr;
-	in_port_t		fport;
+	in_port_t		oport;
 	in_port_t		eport;
 };
 
@@ -162,8 +162,8 @@ static inline bool flowside_eq(const struct flowside *left,
 {
 	return inany_equals(&left->eaddr, &right->eaddr) &&
 	       left->eport == right->eport &&
-	       inany_equals(&left->faddr, &right->faddr) &&
-	       left->fport == right->fport;
+	       inany_equals(&left->oaddr, &right->oaddr) &&
+	       left->oport == right->oport;
 }
 
 int flowside_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
@@ -240,10 +240,10 @@ uint64_t flow_hash_insert(const struct ctx *c, flow_sidx_t sidx);
 void flow_hash_remove(const struct ctx *c, flow_sidx_t sidx);
 flow_sidx_t flow_lookup_af(const struct ctx *c,
 			   uint8_t proto, uint8_t pif, sa_family_t af,
-			   const void *eaddr, const void *faddr,
-			   in_port_t eport, in_port_t fport);
+			   const void *eaddr, const void *oaddr,
+			   in_port_t eport, in_port_t oport);
 flow_sidx_t flow_lookup_sa(const struct ctx *c, uint8_t proto, uint8_t pif,
-			   const void *esa, in_port_t fport);
+			   const void *esa, in_port_t oport);
 
 union flow;
 

@@ -167,7 +167,7 @@ void fwd_scan_ports_init(struct ctx *c)
 static bool is_dns_flow(uint8_t proto, const struct flowside *ini)
 {
 	return ((proto == IPPROTO_UDP) || (proto == IPPROTO_TCP)) &&
-		((ini->fport == 53) || (ini->fport == 853));
+		((ini->oport == 53) || (ini->oport == 853));
 }
 
 /**
@@ -184,33 +184,33 @@ uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 			 const struct flowside *ini, struct flowside *tgt)
 {
 	if (is_dns_flow(proto, ini) &&
-	    inany_equals4(&ini->faddr, &c->ip4.dns_match))
+	    inany_equals4(&ini->oaddr, &c->ip4.dns_match))
 		tgt->eaddr = inany_from_v4(c->ip4.dns_host);
 	else if (is_dns_flow(proto, ini) &&
-		   inany_equals6(&ini->faddr, &c->ip6.dns_match))
+		   inany_equals6(&ini->oaddr, &c->ip6.dns_match))
 		tgt->eaddr.a6 = c->ip6.dns_host;
-	else if (!c->no_map_gw && inany_equals4(&ini->faddr, &c->ip4.gw))
+	else if (!c->no_map_gw && inany_equals4(&ini->oaddr, &c->ip4.gw))
 		tgt->eaddr = inany_loopback4;
-	else if (!c->no_map_gw && inany_equals6(&ini->faddr, &c->ip6.gw))
+	else if (!c->no_map_gw && inany_equals6(&ini->oaddr, &c->ip6.gw))
 		tgt->eaddr = inany_loopback6;
 	else
-		tgt->eaddr = ini->faddr;
+		tgt->eaddr = ini->oaddr;
 
-	tgt->eport = ini->fport;
+	tgt->eport = ini->oport;
 
 	/* The relevant addr_out controls the host side source address.  This
 	 * may be unspecified, which allows the kernel to pick an address.
 	 */
 	if (inany_v4(&tgt->eaddr))
-		tgt->faddr = inany_from_v4(c->ip4.addr_out);
+		tgt->oaddr = inany_from_v4(c->ip4.addr_out);
 	else
-		tgt->faddr.a6 = c->ip6.addr_out;
+		tgt->oaddr.a6 = c->ip6.addr_out;
 
 	/* Let the kernel pick a host side source port */
-	tgt->fport = 0;
+	tgt->oport = 0;
 	if (proto == IPPROTO_UDP) {
 		/* But for UDP we preserve the source port */
-		tgt->fport = ini->eport;
+		tgt->oport = ini->eport;
 	}
 
 	return PIF_HOST;
@@ -230,13 +230,13 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 			    const struct flowside *ini, struct flowside *tgt)
 {
 	if (!inany_is_loopback(&ini->eaddr) ||
-	    (!inany_is_loopback(&ini->faddr) && !inany_is_unspecified(&ini->faddr))) {
+	    (!inany_is_loopback(&ini->oaddr) && !inany_is_unspecified(&ini->oaddr))) {
 		char estr[INANY_ADDRSTRLEN], fstr[INANY_ADDRSTRLEN];
 
 		debug("Non loopback address on %s: [%s]:%hu -> [%s]:%hu",
 		      pif_name(PIF_SPLICE),
 		      inany_ntop(&ini->eaddr, estr, sizeof(estr)), ini->eport,
-		      inany_ntop(&ini->faddr, fstr, sizeof(fstr)), ini->fport);
+		      inany_ntop(&ini->oaddr, fstr, sizeof(fstr)), ini->oport);
 		return PIF_NONE;
 	}
 
@@ -248,20 +248,20 @@ uint8_t fwd_nat_from_splice(const struct ctx *c, uint8_t proto,
 	/* Preserve the specific loopback adddress used, but let the kernel pick
 	 * a source port on the target side
 	 */
-	tgt->faddr = ini->eaddr;
-	tgt->fport = 0;
+	tgt->oaddr = ini->eaddr;
+	tgt->oport = 0;
 
-	tgt->eport = ini->fport;
+	tgt->eport = ini->oport;
 	if (proto == IPPROTO_TCP)
 		tgt->eport += c->tcp.fwd_out.delta[tgt->eport];
 	else if (proto == IPPROTO_UDP)
 		tgt->eport += c->udp.fwd_out.delta[tgt->eport];
 
 	/* Let the kernel pick a host side source port */
-	tgt->fport = 0;
+	tgt->oport = 0;
 	if (proto == IPPROTO_UDP)
 		/* But for UDP preserve the source port */
-		tgt->fport = ini->eport;
+		tgt->oport = ini->eport;
 
 	return PIF_HOST;
 }
@@ -280,7 +280,7 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 			  const struct flowside *ini, struct flowside *tgt)
 {
 	/* Common for spliced and non-spliced cases */
-	tgt->eport = ini->fport;
+	tgt->eport = ini->oport;
 	if (proto == IPPROTO_TCP)
 		tgt->eport += c->tcp.fwd_in.delta[tgt->eport];
 	else if (proto == IPPROTO_UDP)
@@ -293,11 +293,11 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		/* Preserve the specific loopback adddress used, but let the
 		 * kernel pick a source port on the target side
 		 */
-		tgt->faddr = ini->eaddr;
-		tgt->fport = 0;
+		tgt->oaddr = ini->eaddr;
+		tgt->oport = 0;
 		if (proto == IPPROTO_UDP)
 			/* But for UDP preserve the source port */
-			tgt->fport = ini->eport;
+			tgt->oport = ini->eport;
 
 		if (inany_v4(&ini->eaddr))
 			tgt->eaddr = inany_loopback4;
@@ -307,26 +307,26 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		return PIF_SPLICE;
 	}
 
-	tgt->faddr = ini->eaddr;
-	tgt->fport = ini->eport;
+	tgt->oaddr = ini->eaddr;
+	tgt->oport = ini->eport;
 
-	if (inany_is_loopback4(&tgt->faddr) ||
-	    inany_is_unspecified4(&tgt->faddr) ||
-	    inany_equals4(&tgt->faddr, &c->ip4.addr_seen)) {
-		tgt->faddr = inany_from_v4(c->ip4.gw);
-	} else if (inany_is_loopback6(&tgt->faddr) ||
-		   inany_equals6(&tgt->faddr, &c->ip6.addr_seen) ||
-		   inany_equals6(&tgt->faddr, &c->ip6.addr)) {
+	if (inany_is_loopback4(&tgt->oaddr) ||
+	    inany_is_unspecified4(&tgt->oaddr) ||
+	    inany_equals4(&tgt->oaddr, &c->ip4.addr_seen)) {
+		tgt->oaddr = inany_from_v4(c->ip4.gw);
+	} else if (inany_is_loopback6(&tgt->oaddr) ||
+		   inany_equals6(&tgt->oaddr, &c->ip6.addr_seen) ||
+		   inany_equals6(&tgt->oaddr, &c->ip6.addr)) {
 		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
-			tgt->faddr.a6 = c->ip6.gw;
+			tgt->oaddr.a6 = c->ip6.gw;
 		else
-			tgt->faddr.a6 = c->ip6.addr_ll;
+			tgt->oaddr.a6 = c->ip6.addr_ll;
 	}
 
-	if (inany_v4(&tgt->faddr)) {
+	if (inany_v4(&tgt->oaddr)) {
 		tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
 	} else {
-		if (inany_is_linklocal6(&tgt->faddr))
+		if (inany_is_linklocal6(&tgt->oaddr))
 			tgt->eaddr.a6 = c->ip6.addr_ll_seen;
 		else
 			tgt->eaddr.a6 = c->ip6.addr_seen;

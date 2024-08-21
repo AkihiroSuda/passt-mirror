@@ -321,7 +321,7 @@ static void udp_splice_send(const struct ctx *c, size_t start, size_t n,
 static size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
 			      const struct flowside *toside, size_t dlen)
 {
-	const struct in_addr *src = inany_v4(&toside->faddr);
+	const struct in_addr *src = inany_v4(&toside->oaddr);
 	const struct in_addr *dst = inany_v4(&toside->eaddr);
 	size_t l4len = dlen + sizeof(bp->uh);
 	size_t l3len = l4len + sizeof(*ip4h);
@@ -333,7 +333,7 @@ static size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
 	ip4h->saddr = src->s_addr;
 	ip4h->check = csum_ip4_header(l3len, IPPROTO_UDP, *src, *dst);
 
-	bp->uh.source = htons(toside->fport);
+	bp->uh.source = htons(toside->oport);
 	bp->uh.dest = htons(toside->eport);
 	bp->uh.len = htons(l4len);
 	csum_udp4(&bp->uh, *src, *dst, bp->data, dlen);
@@ -357,15 +357,15 @@ static size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
 
 	ip6h->payload_len = htons(l4len);
 	ip6h->daddr = toside->eaddr.a6;
-	ip6h->saddr = toside->faddr.a6;
+	ip6h->saddr = toside->oaddr.a6;
 	ip6h->version = 6;
 	ip6h->nexthdr = IPPROTO_UDP;
 	ip6h->hop_limit = 255;
 
-	bp->uh.source = htons(toside->fport);
+	bp->uh.source = htons(toside->oport);
 	bp->uh.dest = htons(toside->eport);
 	bp->uh.len = ip6h->payload_len;
-	csum_udp6(&bp->uh, &toside->faddr.a6, &toside->eaddr.a6, bp->data, dlen);
+	csum_udp6(&bp->uh, &toside->oaddr.a6, &toside->eaddr.a6, bp->data, dlen);
 
 	return l4len;
 }
@@ -384,7 +384,7 @@ static void udp_tap_prepare(const struct mmsghdr *mmh, unsigned idx,
 	struct udp_meta_t *bm = &udp_meta[idx];
 	size_t l4len;
 
-	if (!inany_v4(&toside->eaddr) || !inany_v4(&toside->faddr)) {
+	if (!inany_v4(&toside->eaddr) || !inany_v4(&toside->oaddr)) {
 		l4len = udp_update_hdr6(&bm->ip6h, bp, toside, mmh[idx].msg_len);
 		tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip6h) +
 			       sizeof(udp6_eth_hdr));

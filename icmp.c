@@ -125,13 +125,13 @@ void icmp_sock_handler(const struct ctx *c, union epoll_ref ref)
 		 ini->eport, seq);
 
 	if (pingf->f.type == FLOW_PING4) {
-		const struct in_addr *saddr = inany_v4(&ini->faddr);
+		const struct in_addr *saddr = inany_v4(&ini->oaddr);
 		const struct in_addr *daddr = inany_v4(&ini->eaddr);
 
 		ASSERT(saddr && daddr); /* Must have IPv4 addresses */
 		tap_icmp4_send(c, *saddr, *daddr, buf, n);
 	} else if (pingf->f.type == FLOW_PING6) {
-		const struct in6_addr *saddr = &ini->faddr.a6;
+		const struct in6_addr *saddr = &ini->oaddr.a6;
 		const struct in6_addr *daddr = &ini->eaddr.a6;
 
 		tap_icmp6_send(c, saddr, daddr, buf, n);
