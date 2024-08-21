@@ -363,6 +363,9 @@ static unsigned add_dns4(struct ctx *c, const struct in_addr *addr,
 {
 	unsigned added = 0;
 
+	if (idx >= ARRAY_SIZE(c->ip4.dns))
+		return 0;
+
 	/* Guest or container can only access local addresses via redirect */
 	if (IN4_IS_ADDR_LOOPBACK(addr)) {
 		if (!c->no_map_gw) {
@@ -394,6 +397,9 @@ static unsigned add_dns4(struct ctx *c, const struct in_addr *addr,
 static unsigned add_dns6(struct ctx *c, struct in6_addr *addr, unsigned idx)
 {
 	unsigned added = 0;
+
+	if (idx >= ARRAY_SIZE(c->ip6.dns))
+		return 0;
 
 	/* Guest or container can only access local addresses via redirect */
 	if (IN6_IS_ADDR_LOOPBACK(addr)) {
@@ -453,12 +459,10 @@ static void get_dns(struct ctx *c)
 			if (end)
 				*end = 0;
 
-			if (!dns4_set && dns4_idx < ARRAY_SIZE(c->ip4.dns) - 1
-			    && inet_pton(AF_INET, p + 1, &dns4_tmp))
+			if (!dns4_set && inet_pton(AF_INET, p + 1, &dns4_tmp))
 				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
 
-			if (!dns6_set && dns6_idx < ARRAY_SIZE(c->ip6.dns) - 1
-			    && inet_pton(AF_INET6, p + 1, &dns6_tmp))
+			if (!dns6_set && inet_pton(AF_INET6, p + 1, &dns6_tmp))
 				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
 		} else if (!dnss_set && strstr(line, "search ") == line &&
 			   s == c->dns_search) {
@@ -1682,14 +1686,12 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			c->no_dns = 0;
 
-			if (dns4_idx < ARRAY_SIZE(c->ip4.dns) &&
-			    inet_pton(AF_INET, optarg, &dns4_tmp)) {
+			if (inet_pton(AF_INET, optarg, &dns4_tmp)) {
 				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
 				continue;
 			}
 
-			if (dns6_idx < ARRAY_SIZE(c->ip6.dns) &&
-			    inet_pton(AF_INET6, optarg, &dns6_tmp)) {
+			if (inet_pton(AF_INET6, optarg, &dns6_tmp)) {
 				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
 				continue;
 			}
