@@ -104,15 +104,18 @@ enum passt_modes {
  * @no_copy_addrs:	Don't copy all addresses when configuring namespace
  */
 struct ip4_ctx {
+	/* PIF_TAP addresses */
 	struct in_addr addr;
 	struct in_addr addr_seen;
 	int prefix_len;
 	struct in_addr gw;
 	struct in_addr dns[MAXNS + 1];
 	struct in_addr dns_match;
-	struct in_addr dns_host;
 
+	/* PIF_HOST addresses */
+	struct in_addr dns_host;
 	struct in_addr addr_out;
+
 	char ifname_out[IFNAMSIZ];
 
 	bool no_copy_routes;
@@ -122,12 +125,12 @@ struct ip4_ctx {
 /**
  * struct ip6_ctx - IPv6 execution context
  * @addr:		IPv6 address assigned to guest
- * @our_tap_ll:		Link-local IPv6 address for passt's use on tap
  * @addr_seen:		Latest IPv6 global/site address seen as source from tap
  * @addr_ll_seen:	Latest IPv6 link-local address seen as source from tap
  * @gw:			Default IPv6 gateway
  * @dns:		DNS addresses for DHCPv6 and NDP, zero-terminated
  * @dns_match:		Forward DNS query if sent to this address
+ * @our_tap_ll:		Link-local IPv6 address for passt's use on tap
  * @dns_host:		Use this DNS on the host for forwarding
  * @addr_out:		Optional source address for outbound traffic
  * @ifname_out:		Optional interface name to bind outbound sockets to
@@ -135,16 +138,19 @@ struct ip4_ctx {
  * @no_copy_addrs:	Don't copy all addresses when configuring namespace
  */
 struct ip6_ctx {
+	/* PIF_TAP addresses */
 	struct in6_addr addr;
-	struct in6_addr our_tap_ll;
 	struct in6_addr addr_seen;
 	struct in6_addr addr_ll_seen;
 	struct in6_addr gw;
 	struct in6_addr dns[MAXNS + 1];
 	struct in6_addr dns_match;
-	struct in6_addr dns_host;
+	struct in6_addr our_tap_ll;
 
+	/* PIF_HOST addresses */
+	struct in6_addr dns_host;
 	struct in6_addr addr_out;
+
 	char ifname_out[IFNAMSIZ];
 
 	bool no_copy_routes;
