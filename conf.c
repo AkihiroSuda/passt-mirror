@@ -427,7 +427,6 @@ static void get_dns(struct ctx *c)
 	struct lineread resolvconf;
 	struct in6_addr dns6_tmp;
 	struct in_addr dns4_tmp;
-	unsigned int added = 0;
 	ssize_t line_len;
 	char *line, *end;
 	const char *p;
@@ -455,16 +454,12 @@ static void get_dns(struct ctx *c)
 				*end = 0;
 
 			if (!dns4_set && dns4_idx < ARRAY_SIZE(c->ip4.dns) - 1
-			    && inet_pton(AF_INET, p + 1, &dns4_tmp)) {
+			    && inet_pton(AF_INET, p + 1, &dns4_tmp))
 				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
-				added++;
-			}
 
 			if (!dns6_set && dns6_idx < ARRAY_SIZE(c->ip6.dns) - 1
-			    && inet_pton(AF_INET6, p + 1, &dns6_tmp)) {
+			    && inet_pton(AF_INET6, p + 1, &dns6_tmp))
 				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
-				added++;
-			}
 		} else if (!dnss_set && strstr(line, "search ") == line &&
 			   s == c->dns_search) {
 			end = strpbrk(line, "\n");
@@ -491,7 +486,7 @@ static void get_dns(struct ctx *c)
 
 out:
 	if (!dns_set) {
-		if (!added)
+		if (!(dns4_idx + dns6_idx))
 			warn("Couldn't get any nameserver address");
 
 		if (c->no_dhcp_dns)
