@@ -574,8 +574,10 @@ void dhcpv6_init(const struct ctx *c)
 	resp.server_id.duid_time		= duid_time;
 	resp_not_on_link.server_id.duid_time	= duid_time;
 
-	memcpy(resp.server_id.duid_lladdr,		c->mac, sizeof(c->mac));
-	memcpy(resp_not_on_link.server_id.duid_lladdr,	c->mac, sizeof(c->mac));
+	memcpy(resp.server_id.duid_lladdr,
+	       c->our_tap_mac, sizeof(c->our_tap_mac));
+	memcpy(resp_not_on_link.server_id.duid_lladdr,
+	       c->our_tap_mac, sizeof(c->our_tap_mac));
 
 	resp.ia_addr.addr	= c->ip6.addr;
 }

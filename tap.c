@@ -118,8 +118,8 @@ static void *tap_push_l2h(const struct ctx *c, void *buf, uint16_t proto)
 	struct ethhdr *eh = (struct ethhdr *)buf;
 
 	/* TODO: ARP table lookup */
-	memcpy(eh->h_dest, c->mac_guest, ETH_ALEN);
-	memcpy(eh->h_source, c->mac, ETH_ALEN);
+	memcpy(eh->h_dest, c->guest_mac, ETH_ALEN);
+	memcpy(eh->h_source, c->our_tap_mac, ETH_ALEN);
 	eh->h_proto = ntohs(proto);
 	return eh + 1;
 }
@@ -946,9 +946,9 @@ void tap_add_packet(struct ctx *c, ssize_t l2len, char *p)
 
 	eh = (struct ethhdr *)p;
 
-	if (memcmp(c->mac_guest, eh->h_source, ETH_ALEN)) {
-		memcpy(c->mac_guest, eh->h_source, ETH_ALEN);
-		proto_update_l2_buf(c->mac_guest, NULL);
+	if (memcmp(c->guest_mac, eh->h_source, ETH_ALEN)) {
+		memcpy(c->guest_mac, eh->h_source, ETH_ALEN);
+		proto_update_l2_buf(c->guest_mac, NULL);
 	}
 
 	switch (ntohs(eh->h_proto)) {
@@ -1337,6 +1337,6 @@ void tap_sock_init(struct ctx *c)
 		 * sends us packets.  Use the broadcast address so that our
 		 * first packets will reach it.
 		 */
-		memset(&c->mac_guest, 0xff, sizeof(c->mac_guest));
+		memset(&c->guest_mac, 0xff, sizeof(c->guest_mac));
 	}
 }

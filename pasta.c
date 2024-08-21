@@ -294,10 +294,10 @@ void pasta_ns_conf(struct ctx *c)
 		    strerror(-rc));
 
 	/* Get or set MAC in target namespace */
-	if (MAC_IS_ZERO(c->mac_guest))
-		nl_link_get_mac(nl_sock_ns, c->pasta_ifi, c->mac_guest);
+	if (MAC_IS_ZERO(c->guest_mac))
+		nl_link_get_mac(nl_sock_ns, c->pasta_ifi, c->guest_mac);
 	else
-		rc = nl_link_set_mac(nl_sock_ns, c->pasta_ifi, c->mac_guest);
+		rc = nl_link_set_mac(nl_sock_ns, c->pasta_ifi, c->guest_mac);
 	if (rc < 0)
 		die("Couldn't set MAC address in namespace: %s",
 		    strerror(-rc));
@@ -392,7 +392,7 @@ void pasta_ns_conf(struct ctx *c)
 		}
 	}
 
-	proto_update_l2_buf(c->mac_guest, NULL);
+	proto_update_l2_buf(c->guest_mac, NULL);
 }
 
 /**

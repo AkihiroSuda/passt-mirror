@@ -247,7 +247,7 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr,
 
 		memcpy(&na.target_addr, &ns->target_addr,
 		       sizeof(na.target_addr));
-		memcpy(na.target_l2_addr.mac, c->mac, ETH_ALEN);
+		memcpy(na.target_l2_addr.mac, c->our_tap_mac, ETH_ALEN);
 
 	} else if (ih->icmp6_type == RS) {
 		size_t dns_s_len = 0;
@@ -331,7 +331,7 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr,
 		}
 
 dns_done:
-		memcpy(&ra.source_ll.mac, c->mac, ETH_ALEN);
+		memcpy(&ra.source_ll.mac, c->our_tap_mac, ETH_ALEN);
 	} else {
 		return 1;
 	}

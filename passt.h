@@ -172,8 +172,8 @@ struct ip6_ctx {
  * @epollfd:		File descriptor for epoll instance
  * @fd_tap_listen:	File descriptor for listening AF_UNIX socket, if any
  * @fd_tap:		AF_UNIX socket, tuntap device, or pre-opened socket
- * @mac:		Host MAC address
- * @mac_guest:		MAC address of guest or namespace, seen or configured
+ * @our_tap_mac:	Pasta/passt's MAC on the tap link
+ * @guest_mac:		MAC address of guest or namespace, seen or configured
  * @hash_secret:	128-bit secret for siphash functions
  * @ifi4:		Index of template interface for IPv4, 0 if IPv4 disabled
  * @ip:			IPv4 configuration
@@ -226,8 +226,8 @@ struct ctx {
 	int epollfd;
 	int fd_tap_listen;
 	int fd_tap;
-	unsigned char mac[ETH_ALEN];
-	unsigned char mac_guest[ETH_ALEN];
+	unsigned char our_tap_mac[ETH_ALEN];
+	unsigned char guest_mac[ETH_ALEN];
 	uint64_t hash_secret[2];
 
 	unsigned int ifi4;

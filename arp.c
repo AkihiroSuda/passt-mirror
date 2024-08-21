@@ -72,7 +72,7 @@ int arp(const struct ctx *c, const struct pool *p)
 
 	ah->ar_op = htons(ARPOP_REPLY);
 	memcpy(am->tha,		am->sha,	sizeof(am->tha));
-	memcpy(am->sha,		c->mac,		sizeof(am->sha));
+	memcpy(am->sha,		c->our_tap_mac,	sizeof(am->sha));
 
 	memcpy(swap,		am->tip,	sizeof(am->tip));
 	memcpy(am->tip,		am->sip,	sizeof(am->tip));
@@ -80,7 +80,7 @@ int arp(const struct ctx *c, const struct pool *p)
 
 	l2len = sizeof(*eh) + sizeof(*ah) + sizeof(*am);
 	memcpy(eh->h_dest,	eh->h_source,	sizeof(eh->h_dest));
-	memcpy(eh->h_source,	c->mac,		sizeof(eh->h_source));
+	memcpy(eh->h_source,	c->our_tap_mac,	sizeof(eh->h_source));
 
 	tap_send_single(c, eh, l2len);
 

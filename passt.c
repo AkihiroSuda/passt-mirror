@@ -272,7 +272,7 @@ int main(int argc, char **argv)
 	if ((!c.no_udp && udp_init(&c)) || (!c.no_tcp && tcp_init(&c)))
 		exit(EXIT_FAILURE);
 
-	proto_update_l2_buf(c.mac_guest, c.mac);
+	proto_update_l2_buf(c.guest_mac, c.our_tap_mac);
 
 	if (c.ifi4 && !c.no_dhcp)
 		dhcp_init();

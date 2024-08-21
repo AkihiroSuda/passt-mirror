@@ -956,7 +956,7 @@ static void conf_print(const struct ctx *c)
 		info("Namespace interface: %s", c->pasta_ifn);
 
 	info("MAC:");
-	info("    host: %s", eth_ntop(c->mac, bufmac, sizeof(bufmac)));
+	info("    host: %s", eth_ntop(c->our_tap_mac, bufmac, sizeof(bufmac)));
 
 	if (c->ifi4) {
 		if (!c->no_dhcp) {
@@ -1289,7 +1289,7 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (c->mode != MODE_PASTA)
 				die("--ns-mac-addr is for pasta mode only");
 
-			parse_mac(c->mac_guest, optarg);
+			parse_mac(c->guest_mac, optarg);
 			break;
 		case 5:
 			if (c->mode != MODE_PASTA)
@@ -1500,7 +1500,7 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			break;
 		case 'M':
-			parse_mac(c->mac, optarg);
+			parse_mac(c->our_tap_mac, optarg);
 			break;
 		case 'g':
 			if (inet_pton(AF_INET6, optarg, &c->ip6.gw)     &&
@@ -1629,9 +1629,9 @@ void conf(struct ctx *c, int argc, char **argv)
 
 	nl_sock_init(c, false);
 	if (!v6_only)
-		c->ifi4 = conf_ip4(ifi4, &c->ip4, c->mac);
+		c->ifi4 = conf_ip4(ifi4, &c->ip4, c->our_tap_mac);
 	if (!v4_only)
-		c->ifi6 = conf_ip6(ifi6, &c->ip6, c->mac);
+		c->ifi6 = conf_ip6(ifi6, &c->ip6, c->our_tap_mac);
 	if ((!c->ifi4 && !c->ifi6) ||
 	    (*c->ip4.ifname_out && !c->ifi4) ||
 	    (*c->ip6.ifname_out && !c->ifi6))
