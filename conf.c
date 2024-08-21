@@ -422,6 +422,29 @@ static unsigned add_dns6(struct ctx *c, struct in6_addr *addr, unsigned idx)
 }
 
 /**
+ * add_dns_resolv() - Possibly add ns from host resolv.conf to configuration
+ * @c:		Execution context
+ * @nameserver:	Nameserver address string from /etc/resolv.conf
+ * @idx4:	Pointer to index of current entry in array of IPv4 resolvers
+ * @idx6:	Pointer to index of current entry in array of IPv6 resolvers
+ *
+ * @idx4 or @idx6 may be NULL, in which case resolvers of the corresponding type
+ * are ignored.
+ */
+static void add_dns_resolv(struct ctx *c, const char *nameserver,
+			   unsigned *idx4, unsigned *idx6)
+{
+	struct in6_addr ns6;
+	struct in_addr ns4;
+
+	if (idx4 && inet_pton(AF_INET, nameserver, &ns4))
+		*idx4 += add_dns4(c, &ns4, *idx4);
+
+	if (idx6 && inet_pton(AF_INET6, nameserver, &ns6))
+		*idx6 += add_dns6(c, &ns6, *idx6);
+}
+
+/**
  * get_dns() - Get nameserver addresses from local /etc/resolv.conf
  * @c:		Execution context
  */
@@ -431,8 +454,6 @@ static void get_dns(struct ctx *c)
 	unsigned dns4_idx = 0, dns6_idx = 0;
 	struct fqdn *s = c->dns_search;
 	struct lineread resolvconf;
-	struct in6_addr dns6_tmp;
-	struct in_addr dns4_tmp;
 	ssize_t line_len;
 	char *line, *end;
 	const char *p;
@@ -459,11 +480,9 @@ static void get_dns(struct ctx *c)
 			if (end)
 				*end = 0;
 
-			if (!dns4_set && inet_pton(AF_INET, p + 1, &dns4_tmp))
-				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
-
-			if (!dns6_set && inet_pton(AF_INET6, p + 1, &dns6_tmp))
-				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
+			add_dns_resolv(c, p + 1,
+				       dns4_set ? NULL : &dns4_idx,
+				       dns6_set ? NULL : &dns6_idx);
 		} else if (!dnss_set && strstr(line, "search ") == line &&
 			   s == c->dns_search) {
 			end = strpbrk(line, "\n");
