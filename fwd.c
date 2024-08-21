@@ -268,9 +268,9 @@ uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 	else if (is_dns_flow(proto, ini) &&
 		   inany_equals6(&ini->oaddr, &c->ip6.dns_match))
 		tgt->eaddr.a6 = c->ip6.dns_host;
-	else if (!c->no_map_gw && inany_equals4(&ini->oaddr, &c->ip4.gw))
+	else if (inany_equals4(&ini->oaddr, &c->ip4.map_host_loopback))
 		tgt->eaddr = inany_loopback4;
-	else if (!c->no_map_gw && inany_equals6(&ini->oaddr, &c->ip6.gw))
+	else if (inany_equals6(&ini->oaddr, &c->ip6.map_host_loopback))
 		tgt->eaddr = inany_loopback6;
 	else
 		tgt->eaddr = ini->oaddr;

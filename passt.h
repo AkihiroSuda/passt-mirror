@@ -101,7 +101,9 @@ enum passt_modes {
  * @addr:		IPv4 address assigned to guest
  * @addr_seen:		Latest IPv4 address seen as source from tap
  * @prefixlen:		IPv4 prefix length (netmask)
- * @gw:			Default IPv4 gateway
+ * @guest_gw:		IPv4 gateway as seen by the guest
+ * @map_host_loopback:	Outbound connections to this address are NATted to the
+ *                      host's 127.0.0.1
  * @dns:		DNS addresses for DHCP, zero-terminated
  * @dns_match:		Forward DNS query if sent to this address
  * @our_tap_addr:	IPv4 address for passt's use on tap
@@ -116,7 +118,8 @@ struct ip4_ctx {
 	struct in_addr addr;
 	struct in_addr addr_seen;
 	int prefix_len;
-	struct in_addr gw;
+	struct in_addr guest_gw;
+	struct in_addr map_host_loopback;
 	struct in_addr dns[MAXNS + 1];
 	struct in_addr dns_match;
 	struct in_addr our_tap_addr;
@@ -136,7 +139,9 @@ struct ip4_ctx {
  * @addr:		IPv6 address assigned to guest
  * @addr_seen:		Latest IPv6 global/site address seen as source from tap
  * @addr_ll_seen:	Latest IPv6 link-local address seen as source from tap
- * @gw:			Default IPv6 gateway
+ * @guest_gw:		IPv6 gateway as seen by the guest
+ * @map_host_loopback:	Outbound connections to this address are NATted to the
+ *                      host's [::1]
  * @dns:		DNS addresses for DHCPv6 and NDP, zero-terminated
  * @dns_match:		Forward DNS query if sent to this address
  * @our_tap_ll:		Link-local IPv6 address for passt's use on tap
@@ -151,7 +156,8 @@ struct ip6_ctx {
 	struct in6_addr addr;
 	struct in6_addr addr_seen;
 	struct in6_addr addr_ll_seen;
-	struct in6_addr gw;
+	struct in6_addr guest_gw;
+	struct in6_addr map_host_loopback;
 	struct in6_addr dns[MAXNS + 1];
 	struct in6_addr dns_match;
 	struct in6_addr our_tap_ll;
@@ -213,7 +219,6 @@ struct ip6_ctx {
  * @no_dhcpv6:		Disable DHCPv6 server
  * @no_ndp:		Disable NDP handler altogether
  * @no_ra:		Disable router advertisements
- * @no_map_gw:		Don't map connections, untracked UDP to gateway to host
  * @low_wmem:		Low probed net.core.wmem_max
  * @low_rmem:		Low probed net.core.rmem_max
  */
@@ -273,7 +278,6 @@ struct ctx {
 	int no_dhcpv6;
 	int no_ndp;
 	int no_ra;
-	int no_map_gw;
 
 	int low_wmem;
 	int low_rmem;

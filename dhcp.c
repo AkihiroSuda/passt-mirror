@@ -346,19 +346,21 @@ int dhcp(const struct ctx *c, const struct pool *p)
 	m->yiaddr = c->ip4.addr;
 	mask.s_addr = htonl(0xffffffff << (32 - c->ip4.prefix_len));
 	memcpy(opts[1].s,  &mask,                sizeof(mask));
-	memcpy(opts[3].s,  &c->ip4.gw,           sizeof(c->ip4.gw));
+	memcpy(opts[3].s,  &c->ip4.guest_gw,     sizeof(c->ip4.guest_gw));
 	memcpy(opts[54].s, &c->ip4.our_tap_addr, sizeof(c->ip4.our_tap_addr));
 
 	/* If the gateway is not on the assigned subnet, send an option 121
 	 * (Classless Static Routing) adding a dummy route to it.
 	 */
 	if ((c->ip4.addr.s_addr & mask.s_addr)
-	    != (c->ip4.gw.s_addr & mask.s_addr)) {
+	    != (c->ip4.guest_gw.s_addr & mask.s_addr)) {
 		/* a.b.c.d/32:0.0.0.0, 0:a.b.c.d */
 		opts[121].slen = 14;
 		opts[121].s[0] = 32;
-		memcpy(opts[121].s + 1,  &c->ip4.gw, sizeof(c->ip4.gw));
-		memcpy(opts[121].s + 10, &c->ip4.gw, sizeof(c->ip4.gw));
+		memcpy(opts[121].s + 1,
+		       &c->ip4.guest_gw, sizeof(c->ip4.guest_gw));
+		memcpy(opts[121].s + 10,
+		       &c->ip4.guest_gw, sizeof(c->ip4.guest_gw));
 	}
 
 	if (c->mtu != -1) {

@@ -332,7 +332,8 @@ void pasta_ns_conf(struct ctx *c)
 
 			if (c->ip4.no_copy_routes) {
 				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
-						      AF_INET, &c->ip4.gw);
+						      AF_INET,
+						      &c->ip4.guest_gw);
 			} else {
 				rc = nl_route_dup(nl_sock, c->ifi4, nl_sock_ns,
 						  c->pasta_ifi, AF_INET);
@@ -378,7 +379,8 @@ void pasta_ns_conf(struct ctx *c)
 
 			if (c->ip6.no_copy_routes) {
 				rc = nl_route_set_def(nl_sock_ns, c->pasta_ifi,
-						      AF_INET6, &c->ip6.gw);
+						      AF_INET6,
+						      &c->ip6.guest_gw);
 			} else {
 				rc = nl_route_dup(nl_sock, c->ifi6,
 						  nl_sock_ns, c->pasta_ifi,

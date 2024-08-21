@@ -410,12 +410,12 @@ static void add_dns_resolv(struct ctx *c, const char *nameserver,
 		 * redirect
 		 */
 		if (IN4_IS_ADDR_LOOPBACK(&ns4)) {
-			if (c->no_map_gw)
+			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
 				return;
 
-			ns4 = c->ip4.gw;
+			ns4 = c->ip4.map_host_loopback;
 			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match))
-				c->ip4.dns_match = c->ip4.gw;
+				c->ip4.dns_match = c->ip4.map_host_loopback;
 		}
 
 		*idx4 += add_dns4(c, &ns4, *idx4);
@@ -429,13 +429,13 @@ static void add_dns_resolv(struct ctx *c, const char *nameserver,
 		 * redirect
 		 */
 		if (IN6_IS_ADDR_LOOPBACK(&ns6)) {
-			if (c->no_map_gw)
+			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
 				return;
 
-			ns6 = c->ip6.gw;
+			ns6 = c->ip6.map_host_loopback;
 
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
-				c->ip6.dns_match = c->ip6.gw;
+				c->ip6.dns_match = c->ip6.map_host_loopback;
 		}
 
 		*idx6 += add_dns6(c, &ns6, *idx6);
@@ -625,8 +625,9 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 		return 0;
 	}
 
-	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->gw)) {
-		int rc = nl_route_get_def(nl_sock, ifi, AF_INET, &ip4->gw);
+	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->guest_gw)) {
+		int rc = nl_route_get_def(nl_sock, ifi, AF_INET,
+					  &ip4->guest_gw);
 		if (rc < 0) {
 			err("Couldn't discover IPv4 gateway address: %s",
 			    strerror(-rc));
@@ -658,7 +659,7 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 
 	ip4->addr_seen = ip4->addr;
 
-	ip4->our_tap_addr = ip4->gw;
+	ip4->our_tap_addr = ip4->guest_gw;
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&ip4->addr))
 		return 0;
@@ -686,8 +687,8 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 		return 0;
 	}
 
-	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->gw)) {
-		rc = nl_route_get_def(nl_sock, ifi, AF_INET6, &ip6->gw);
+	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->guest_gw)) {
+		rc = nl_route_get_def(nl_sock, ifi, AF_INET6, &ip6->guest_gw);
 		if (rc < 0) {
 			err("Couldn't discover IPv6 gateway address: %s",
 			    strerror(-rc));
@@ -705,8 +706,8 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 
 	ip6->addr_seen = ip6->addr;
 
-	if (IN6_IS_ADDR_LINKLOCAL(&ip6->gw))
-		ip6->our_tap_ll = ip6->gw;
+	if (IN6_IS_ADDR_LINKLOCAL(&ip6->guest_gw))
+		ip6->our_tap_ll = ip6->guest_gw;
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
 	    IN6_IS_ADDR_UNSPECIFIED(&ip6->our_tap_ll))
@@ -969,7 +970,8 @@ static void conf_print(const struct ctx *c)
 			info("    mask: %s",
 			     inet_ntop(AF_INET, &mask,        buf4, sizeof(buf4)));
 			info("    router: %s",
-			     inet_ntop(AF_INET, &c->ip4.gw,   buf4, sizeof(buf4)));
+			     inet_ntop(AF_INET, &c->ip4.guest_gw,
+				       buf4, sizeof(buf4)));
 		}
 
 		for (i = 0; !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns[i]); i++) {
@@ -999,7 +1001,7 @@ static void conf_print(const struct ctx *c)
 		info("    assign: %s",
 		     inet_ntop(AF_INET6, &c->ip6.addr, buf6, sizeof(buf6)));
 		info("    router: %s",
-		     inet_ntop(AF_INET6, &c->ip6.gw,   buf6, sizeof(buf6)));
+		     inet_ntop(AF_INET6, &c->ip6.guest_gw, buf6, sizeof(buf6)));
 		info("    our link-local: %s",
 		     inet_ntop(AF_INET6, &c->ip6.our_tap_ll,
 			       buf6, sizeof(buf6)));
@@ -1173,7 +1175,7 @@ fail:
  */
 void conf(struct ctx *c, int argc, char **argv)
 {
-	int netns_only = 0;
+	int netns_only = 0, no_map_gw = 0;
 	const struct option options[] = {
 		{"debug",	no_argument,		NULL,		'd' },
 		{"quiet",	no_argument,		NULL,		'q' },
@@ -1202,7 +1204,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"no-dhcpv6",	no_argument,		&c->no_dhcpv6,	1 },
 		{"no-ndp",	no_argument,		&c->no_ndp,	1 },
 		{"no-ra",	no_argument,		&c->no_ra,	1 },
-		{"no-map-gw",	no_argument,		&c->no_map_gw,	1 },
+		{"no-map-gw",	no_argument,		&no_map_gw,	1 },
 		{"ipv4-only",	no_argument,		NULL,		'4' },
 		{"ipv6-only",	no_argument,		NULL,		'6' },
 		{"one-off",	no_argument,		NULL,		'1' },
@@ -1503,18 +1505,18 @@ void conf(struct ctx *c, int argc, char **argv)
 			parse_mac(c->our_tap_mac, optarg);
 			break;
 		case 'g':
-			if (inet_pton(AF_INET6, optarg, &c->ip6.gw)     &&
-			    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.gw)	&&
-			    !IN6_IS_ADDR_LOOPBACK(&c->ip6.gw)) {
+			if (inet_pton(AF_INET6, optarg, &c->ip6.guest_gw) &&
+			    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.guest_gw)	&&
+			    !IN6_IS_ADDR_LOOPBACK(&c->ip6.guest_gw)) {
 				if (c->mode == MODE_PASTA)
 					c->ip6.no_copy_routes = true;
 				break;
 			}
 
-			if (inet_pton(AF_INET, optarg, &c->ip4.gw)	&&
-			    !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.gw)	&&
-			    !IN4_IS_ADDR_BROADCAST(&c->ip4.gw)		&&
-			    !IN4_IS_ADDR_LOOPBACK(&c->ip4.gw)) {
+			if (inet_pton(AF_INET, optarg, &c->ip4.guest_gw) &&
+			    !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.guest_gw)	&&
+			    !IN4_IS_ADDR_BROADCAST(&c->ip4.guest_gw)	&&
+			    !IN4_IS_ADDR_LOOPBACK(&c->ip4.guest_gw)) {
 				if (c->mode == MODE_PASTA)
 					c->ip4.no_copy_routes = true;
 				break;
@@ -1637,11 +1639,14 @@ void conf(struct ctx *c, int argc, char **argv)
 	    (*c->ip6.ifname_out && !c->ifi6))
 		die("External interface not usable");
 
-	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.gw))
-		c->no_map_gw = c->no_dhcp = 1;
+	if (c->ifi4 && !no_map_gw)
+		c->ip4.map_host_loopback = c->ip4.guest_gw;
 
-	if (c->ifi6 && IN6_IS_ADDR_UNSPECIFIED(&c->ip6.gw))
-		c->no_map_gw = 1;
+	if (c->ifi6 && !no_map_gw)
+		c->ip6.map_host_loopback = c->ip6.guest_gw;
+
+	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.guest_gw))
+		c->no_dhcp = 1;
 
 	/* Inbound port options & DNS can be parsed now (after IPv4/IPv6
 	 * settings)
