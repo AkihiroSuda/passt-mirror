@@ -171,6 +171,85 @@ static bool is_dns_flow(uint8_t proto, const struct flowside *ini)
 }
 
 /**
+ * fwd_guest_accessible4() - Is IPv4 address guest-accessible
+ * @c:		Execution context
+ * @addr:	Host visible IPv4 address
+ *
+ * Return: true if @addr on the host is accessible to the guest without
+ *         translation, false otherwise
+ */
+static bool fwd_guest_accessible4(const struct ctx *c,
+				    const struct in_addr *addr)
+{
+	if (IN4_IS_ADDR_LOOPBACK(addr))
+		return false;
+
+	/* In socket interfaces 0.0.0.0 generally means "any" or unspecified,
+	 * however on the wire it can mean "this host on this network".  Since
+	 * that has a different meaning for host and guest, we can't let it
+	 * through untranslated.
+	 */
+	if (IN4_IS_ADDR_UNSPECIFIED(addr))
+		return false;
+
+	/* For IPv4, addr_seen is initialised to addr, so is always a valid
+	 * address
+	 */
+	if (IN4_ARE_ADDR_EQUAL(addr, &c->ip4.addr) ||
+	    IN4_ARE_ADDR_EQUAL(addr, &c->ip4.addr_seen))
+		return false;
+
+	return true;
+}
+
+/**
+ * fwd_guest_accessible6() - Is IPv6 address guest-accessible
+ * @c:		Execution context
+ * @addr:	Host visible IPv6 address
+ *
+ * Return: true if @addr on the host is accessible to the guest without
+ *         translation, false otherwise
+ */
+static bool fwd_guest_accessible6(const struct ctx *c,
+				  const struct in6_addr *addr)
+{
+	if (IN6_IS_ADDR_LOOPBACK(addr))
+		return false;
+
+	if (IN6_ARE_ADDR_EQUAL(addr, &c->ip6.addr))
+		return false;
+
+	/* For IPv6, addr_seen starts unspecified, because we don't know what LL
+	 * address the guest will take until we see it.  Only check against it
+	 * if it has been set to a real address.
+	 */
+	if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr_seen) &&
+	    IN6_ARE_ADDR_EQUAL(addr, &c->ip6.addr_seen))
+		return false;
+
+	return true;
+}
+
+/**
+ * fwd_guest_accessible() - Is IPv[46] address guest-accessible
+ * @c:		Execution context
+ * @addr:	Host visible IPv[46] address
+ *
+ * Return: true if @addr on the host is accessible to the guest without
+ *         translation, false otherwise
+ */
+static bool fwd_guest_accessible(const struct ctx *c,
+				 const union inany_addr *addr)
+{
+	const struct in_addr *a4 = inany_v4(addr);
+
+	if (a4)
+		return fwd_guest_accessible4(c, a4);
+
+	return fwd_guest_accessible6(c, &addr->a6);
+}
+
+/**
  * fwd_nat_from_tap() - Determine to forward a flow from the tap interface
  * @c:		Execution context
  * @proto:	Protocol (IP L4 protocol number)
@@ -307,18 +386,15 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		return PIF_SPLICE;
 	}
 
-	tgt->oaddr = ini->eaddr;
-	tgt->oport = ini->eport;
-
-	if (inany_is_loopback4(&tgt->oaddr) ||
-	    inany_is_unspecified4(&tgt->oaddr) ||
-	    inany_equals4(&tgt->oaddr, &c->ip4.addr_seen)) {
-		tgt->oaddr = inany_from_v4(c->ip4.gw);
-	} else if (inany_is_loopback6(&tgt->oaddr) ||
-		   inany_equals6(&tgt->oaddr, &c->ip6.addr_seen) ||
-		   inany_equals6(&tgt->oaddr, &c->ip6.addr)) {
-		tgt->oaddr.a6 = c->ip6.our_tap_ll;
+	if (!fwd_guest_accessible(c, &ini->eaddr)) {
+		if (inany_v4(&ini->eaddr))
+			tgt->oaddr = inany_from_v4(c->ip4.gw);
+		else
+			tgt->oaddr.a6 = c->ip6.our_tap_ll;
+	} else {
+		tgt->oaddr = ini->eaddr;
 	}
+	tgt->oport = ini->eport;
 
 	if (inany_v4(&tgt->oaddr)) {
 		tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
