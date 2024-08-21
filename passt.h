@@ -122,7 +122,7 @@ struct ip4_ctx {
 /**
  * struct ip6_ctx - IPv6 execution context
  * @addr:		IPv6 address assigned to guest
- * @addr_ll:		Link-local IPv6 address on external, routable interface
+ * @our_tap_ll:		Link-local IPv6 address for passt's use on tap
  * @addr_seen:		Latest IPv6 global/site address seen as source from tap
  * @addr_ll_seen:	Latest IPv6 link-local address seen as source from tap
  * @gw:			Default IPv6 gateway
@@ -136,7 +136,7 @@ struct ip4_ctx {
  */
 struct ip6_ctx {
 	struct in6_addr addr;
-	struct in6_addr addr_ll;
+	struct in6_addr our_tap_ll;
 	struct in6_addr addr_seen;
 	struct in6_addr addr_ll_seen;
 	struct in6_addr gw;

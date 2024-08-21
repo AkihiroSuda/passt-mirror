@@ -344,7 +344,7 @@ dns_done:
 	if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
 		rsaddr = &c->ip6.gw;
 	else
-		rsaddr = &c->ip6.addr_ll;
+		rsaddr = &c->ip6.our_tap_ll;
 
 	if (ih->icmp6_type == NS) {
 		dlen = sizeof(struct ndp_na);

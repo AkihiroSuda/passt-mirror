@@ -320,7 +320,7 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
 			tgt->oaddr.a6 = c->ip6.gw;
 		else
-			tgt->oaddr.a6 = c->ip6.addr_ll;
+			tgt->oaddr.a6 = c->ip6.our_tap_ll;
 	}
 
 	if (inany_v4(&tgt->oaddr)) {

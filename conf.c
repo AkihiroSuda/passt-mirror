@@ -713,7 +713,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 
 	rc = nl_addr_get(nl_sock, ifi, AF_INET6,
 			 IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ? &ip6->addr : NULL,
-			 &prefix_len, &ip6->addr_ll);
+			 &prefix_len, &ip6->our_tap_ll);
 	if (rc < 0) {
 		err("Couldn't discover IPv6 address: %s", strerror(-rc));
 		return 0;
@@ -735,7 +735,7 @@ static unsigned int conf_ip6(unsigned int ifi,
 	}
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ||
-	    IN6_IS_ADDR_UNSPECIFIED(&ip6->addr_ll))
+	    IN6_IS_ADDR_UNSPECIFIED(&ip6->our_tap_ll))
 		return 0;
 
 	return ifi;
@@ -1027,7 +1027,8 @@ static void conf_print(const struct ctx *c)
 		info("    router: %s",
 		     inet_ntop(AF_INET6, &c->ip6.gw,   buf6, sizeof(buf6)));
 		info("    our link-local: %s",
-		     inet_ntop(AF_INET6, &c->ip6.addr_ll, buf6, sizeof(buf6)));
+		     inet_ntop(AF_INET6, &c->ip6.our_tap_ll,
+			       buf6, sizeof(buf6)));
 
 dns6:
 		for (i = 0; !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns[i]); i++) {

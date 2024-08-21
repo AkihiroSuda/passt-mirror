@@ -456,7 +456,7 @@ int dhcpv6(struct ctx *c, const struct pool *p,
 	if (IN6_IS_ADDR_LINKLOCAL(&c->ip6.gw))
 		src = &c->ip6.gw;
 	else
-		src = &c->ip6.addr_ll;
+		src = &c->ip6.our_tap_ll;
 
 	mh = packet_get(p, 0, sizeof(*uh), sizeof(*mh), NULL);
 	if (!mh)
