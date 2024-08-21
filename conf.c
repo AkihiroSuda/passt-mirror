@@ -354,54 +354,65 @@ bind_all_fail:
  * add_dns4() - Possibly add the IPv4 address of a DNS resolver to configuration
  * @c:		Execution context
  * @addr:	Address found in /etc/resolv.conf
- * @conf:	Pointer to reference of current entry in array of IPv4 resolvers
+ * @idx:	Index of free entry in array of IPv4 resolvers
+ *
+ * Return: Number of entries added (0 or 1)
  */
-static void add_dns4(struct ctx *c, const struct in_addr *addr,
-		     struct in_addr **conf)
+static unsigned add_dns4(struct ctx *c, const struct in_addr *addr,
+			 unsigned idx)
 {
+	unsigned added = 0;
+
 	/* Guest or container can only access local addresses via redirect */
 	if (IN4_IS_ADDR_LOOPBACK(addr)) {
 		if (!c->no_map_gw) {
-			**conf = c->ip4.gw;
-			(*conf)++;
+			c->ip4.dns[idx] = c->ip4.gw;
+			added++;
 
 			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match))
 				c->ip4.dns_match = c->ip4.gw;
 		}
 	} else {
-		**conf = *addr;
-		(*conf)++;
+		c->ip4.dns[idx] = *addr;
+		added++;
 	}
 
 	if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_host))
 		c->ip4.dns_host = *addr;
+
+	return added;
 }
 
 /**
  * add_dns6() - Possibly add the IPv6 address of a DNS resolver to configuration
  * @c:		Execution context
  * @addr:	Address found in /etc/resolv.conf
- * @conf:	Pointer to reference of current entry in array of IPv6 resolvers
+ * @idx:	Index of free entry in array of IPv6 resolvers
+ *
+ * Return: Number of entries added (0 or 1)
  */
-static void add_dns6(struct ctx *c,
-		     struct in6_addr *addr, struct in6_addr **conf)
+static unsigned add_dns6(struct ctx *c, struct in6_addr *addr, unsigned idx)
 {
+	unsigned added = 0;
+
 	/* Guest or container can only access local addresses via redirect */
 	if (IN6_IS_ADDR_LOOPBACK(addr)) {
 		if (!c->no_map_gw) {
-			**conf = c->ip6.gw;
-			(*conf)++;
+			c->ip6.dns[idx] = c->ip6.gw;
+			added++;
 
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
 				c->ip6.dns_match = *addr;
 		}
 	} else {
-		**conf = *addr;
-		(*conf)++;
+		c->ip6.dns[idx] = *addr;
+		added++;
 	}
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_host))
 		c->ip6.dns_host = *addr;
+
+	return added;
 }
 
 /**
@@ -410,18 +421,19 @@ static void add_dns6(struct ctx *c,
  */
 static void get_dns(struct ctx *c)
 {
-	struct in6_addr *dns6 = &c->ip6.dns[0], dns6_tmp;
-	struct in_addr *dns4 = &c->ip4.dns[0], dns4_tmp;
 	int dns4_set, dns6_set, dnss_set, dns_set, fd;
+	unsigned dns4_idx = 0, dns6_idx = 0;
 	struct fqdn *s = c->dns_search;
 	struct lineread resolvconf;
+	struct in6_addr dns6_tmp;
+	struct in_addr dns4_tmp;
 	unsigned int added = 0;
 	ssize_t line_len;
 	char *line, *end;
 	const char *p;
 
-	dns4_set = !c->ifi4 || !IN4_IS_ADDR_UNSPECIFIED(dns4);
-	dns6_set = !c->ifi6 || !IN6_IS_ADDR_UNSPECIFIED(dns6);
+	dns4_set = !c->ifi4 || !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns[0]);
+	dns6_set = !c->ifi6 || !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns[0]);
 	dnss_set = !!*s->n || c->no_dns_search;
 	dns_set = (dns4_set && dns6_set) || c->no_dns;
 
@@ -442,17 +454,15 @@ static void get_dns(struct ctx *c)
 			if (end)
 				*end = 0;
 
-			if (!dns4_set &&
-			    dns4 - &c->ip4.dns[0] < ARRAY_SIZE(c->ip4.dns) - 1
+			if (!dns4_set && dns4_idx < ARRAY_SIZE(c->ip4.dns) - 1
 			    && inet_pton(AF_INET, p + 1, &dns4_tmp)) {
-				add_dns4(c, &dns4_tmp, &dns4);
+				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
 				added++;
 			}
 
-			if (!dns6_set &&
-			    dns6 - &c->ip6.dns[0] < ARRAY_SIZE(c->ip6.dns) - 1
+			if (!dns6_set && dns6_idx < ARRAY_SIZE(c->ip6.dns) - 1
 			    && inet_pton(AF_INET6, p + 1, &dns6_tmp)) {
-				add_dns6(c, &dns6_tmp, &dns6);
+				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
 				added++;
 			}
 		} else if (!dnss_set && strstr(line, "search ") == line &&
@@ -1236,8 +1246,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	bool copy_addrs_opt = false, copy_routes_opt = false;
 	enum fwd_ports_mode fwd_default = FWD_NONE;
 	bool v4_only = false, v6_only = false;
-	struct in6_addr *dns6 = c->ip6.dns;
-	struct in_addr *dns4 = c->ip4.dns;
+	unsigned dns4_idx = 0, dns6_idx = 0;
 	struct fqdn *dnss = c->dns_search;
 	unsigned int ifi4 = 0, ifi6 = 0;
 	const char *logfile = NULL;
@@ -1662,13 +1671,13 @@ void conf(struct ctx *c, int argc, char **argv)
 			if (!strcmp(optarg, "none")) {
 				c->no_dns = 1;
 
-				dns4 = &c->ip4.dns[0];
+				dns4_idx = 0;
 				memset(c->ip4.dns, 0, sizeof(c->ip4.dns));
 				c->ip4.dns[0]    = (struct in_addr){ 0 };
 				c->ip4.dns_match = (struct in_addr){ 0 };
 				c->ip4.dns_host  = (struct in_addr){ 0 };
 
-				dns6 = &c->ip6.dns[0];
+				dns6_idx = 0;
 				memset(c->ip6.dns, 0, sizeof(c->ip6.dns));
 				c->ip6.dns_match = (struct in6_addr){ 0 };
 				c->ip6.dns_host  = (struct in6_addr){ 0 };
@@ -1678,15 +1687,15 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			c->no_dns = 0;
 
-			if (dns4 - &c->ip4.dns[0] < ARRAY_SIZE(c->ip4.dns) &&
+			if (dns4_idx < ARRAY_SIZE(c->ip4.dns) &&
 			    inet_pton(AF_INET, optarg, &dns4_tmp)) {
-				add_dns4(c, &dns4_tmp, &dns4);
+				dns4_idx += add_dns4(c, &dns4_tmp, dns4_idx);
 				continue;
 			}
 
-			if (dns6 - &c->ip6.dns[0] < ARRAY_SIZE(c->ip6.dns) &&
+			if (dns6_idx < ARRAY_SIZE(c->ip6.dns) &&
 			    inet_pton(AF_INET6, optarg, &dns6_tmp)) {
-				add_dns6(c, &dns6_tmp, &dns6);
+				dns6_idx += add_dns6(c, &dns6_tmp, dns6_idx);
 				continue;
 			}
 
