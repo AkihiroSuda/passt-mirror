@@ -820,6 +820,9 @@ static void usage(const char *name, FILE *f, int status)
 		"  --map-host-loopback ADDR	Translate ADDR to refer to host\n"
 	        "    can be specified zero to two times (for IPv4 and IPv6)\n"
 		"    default: gateway address\n"
+		"  --map-guest-addr ADDR	Translate ADDR to guest's address\n"
+	        "    can be specified zero to two times (for IPv4 and IPv6)\n"
+		"    default: none\n"
 		"  --dns-forward ADDR	Forward DNS queries sent to ADDR\n"
 		"    can be specified zero to two times (for IPv4 and IPv6)\n"
 		"    default: don't forward DNS queries\n"
@@ -1136,29 +1139,32 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 }
 
 /**
- * conf_nat() - Parse --map-host-loopback option
- * @c:		Execution context
- * @arg:	String argument to --map-host-loopback
- * @no_map_gw:	--no-map-gw flag, updated for "none" argument
+ * conf_nat() - Parse --map-host-loopback or --map-guest-addr option
+ * @arg:	String argument to option
+ * @addr4:	IPv4 to update with parsed address
+ * @addr6:	IPv6 to update with parsed address
+ * @no_map_gw:	--no-map-gw flag, or NULL, updated for "none" argument
  */
-static void conf_nat(struct ctx *c, const char *arg, int *no_map_gw)
+static void conf_nat(const char *arg, struct in_addr *addr4,
+		     struct in6_addr *addr6, int *no_map_gw)
 {
 	if (strcmp(arg, "none") == 0) {
-		c->ip4.map_host_loopback = in4addr_any;
-		c->ip6.map_host_loopback = in6addr_any;
-		*no_map_gw = 1;
+		*addr4 = in4addr_any;
+		*addr6 = in6addr_any;
+		if (no_map_gw)
+			*no_map_gw = 1;
 	}
 
-	if (inet_pton(AF_INET6, arg, &c->ip6.map_host_loopback) &&
-	    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback)	&&
-	    !IN6_IS_ADDR_LOOPBACK(&c->ip6.map_host_loopback)	&&
-	    !IN6_IS_ADDR_MULTICAST(&c->ip6.map_host_loopback))
+	if (inet_pton(AF_INET6, arg, addr6)	&&
+	    !IN6_IS_ADDR_UNSPECIFIED(addr6)	&&
+	    !IN6_IS_ADDR_LOOPBACK(addr6)	&&
+	    !IN6_IS_ADDR_MULTICAST(addr6))
 		return;
 
-	if (inet_pton(AF_INET, arg, &c->ip4.map_host_loopback)	&&
-	    !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback)	&&
-	    !IN4_IS_ADDR_LOOPBACK(&c->ip4.map_host_loopback)	&&
-	    !IN4_IS_ADDR_MULTICAST(&c->ip4.map_host_loopback))
+	if (inet_pton(AF_INET, arg, addr4)	&&
+	    !IN4_IS_ADDR_UNSPECIFIED(addr4)	&&
+	    !IN4_IS_ADDR_LOOPBACK(addr4)	&&
+	    !IN4_IS_ADDR_MULTICAST(addr4))
 		return;
 
 	die("Invalid address to remap to host: %s", optarg);
@@ -1274,6 +1280,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"no-copy-addrs", no_argument,		NULL,		19 },
 		{"netns-only",	no_argument,		NULL,		20 },
 		{"map-host-loopback", required_argument, NULL,		21 },
+		{"map-guest-addr", required_argument,	NULL,		22 },
 		{ 0 },
 	};
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
@@ -1444,7 +1451,12 @@ void conf(struct ctx *c, int argc, char **argv)
 			*userns = 0;
 			break;
 		case 21:
-			conf_nat(c, optarg, &no_map_gw);
+			conf_nat(optarg, &c->ip4.map_host_loopback,
+				 &c->ip6.map_host_loopback, &no_map_gw);
+			break;
+		case 22:
+			conf_nat(optarg, &c->ip4.map_guest_addr,
+				 &c->ip6.map_guest_addr, NULL);
 			break;
 		case 'd':
 			c->debug = 1;

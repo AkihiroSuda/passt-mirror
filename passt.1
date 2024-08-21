@@ -349,6 +349,21 @@ default route, or if there is no default route, for any of the enabled address
 families.
 
 .TP
+.BR \-\-map-guest-addr " " \fIaddr
+Translate \fIaddr\fR in the guest to be equal to the guest's assigned
+address on the host.  That is, packets from the guest to \fIaddr\fR
+will be redirected to the address assigned to the guest with \fB-a\fR,
+or by default the host's global address.  This allows the guest to
+access services availble on the host's global address, even though its
+own address shadows that of the host.
+
+If \fIaddr\fR is 'none', no address is mapped.  Only one IPv4 and one
+IPv6 address can be translated, and if the option is specified
+multiple times, the last one for each address type takes effect.
+
+Default is no mapping.
+
+.TP
 .BR \-4 ", " \-\-ipv4-only
 Enable IPv4-only operation. IPv6 traffic will be ignored.
 By default, IPv6 operation is enabled as long as at least an IPv6 route and an

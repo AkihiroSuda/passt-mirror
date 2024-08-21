@@ -272,6 +272,10 @@ uint8_t fwd_nat_from_tap(const struct ctx *c, uint8_t proto,
 		tgt->eaddr = inany_loopback4;
 	else if (inany_equals6(&ini->oaddr, &c->ip6.map_host_loopback))
 		tgt->eaddr = inany_loopback6;
+	else if (inany_equals4(&ini->oaddr, &c->ip4.map_guest_addr))
+		tgt->eaddr = inany_from_v4(c->ip4.addr);
+	else if (inany_equals6(&ini->oaddr, &c->ip6.map_guest_addr))
+		tgt->eaddr.a6 = c->ip6.addr;
 	else
 		tgt->eaddr = ini->oaddr;
 
@@ -393,6 +397,12 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback) &&
 		   inany_equals6(&ini->eaddr, &in6addr_loopback)) {
 		tgt->oaddr.a6 = c->ip6.map_host_loopback;
+	} else if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_guest_addr) &&
+		   inany_equals4(&ini->eaddr, &c->ip4.addr)) {
+		tgt->oaddr = inany_from_v4(c->ip4.map_guest_addr);
+	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_guest_addr) &&
+		   inany_equals6(&ini->eaddr, &c->ip6.addr)) {
+		tgt->oaddr.a6 = c->ip6.map_guest_addr;
 	} else if (!fwd_guest_accessible(c, &ini->eaddr)) {
 		if (inany_v4(&ini->eaddr)) {
 			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.our_tap_addr))
