@@ -386,7 +386,14 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 		return PIF_SPLICE;
 	}
 
-	if (!fwd_guest_accessible(c, &ini->eaddr)) {
+	if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback) &&
+	    inany_equals4(&ini->eaddr, &in4addr_loopback)) {
+		/* Specifically 127.0.0.1, not 127.0.0.0/8 */
+		tgt->oaddr = inany_from_v4(c->ip4.map_host_loopback);
+	} else if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback) &&
+		   inany_equals6(&ini->eaddr, &in6addr_loopback)) {
+		tgt->oaddr.a6 = c->ip6.map_host_loopback;
+	} else if (!fwd_guest_accessible(c, &ini->eaddr)) {
 		if (inany_v4(&ini->eaddr)) {
 			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.our_tap_addr))
 				/* No source address we can use */
