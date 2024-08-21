@@ -408,7 +408,7 @@ static unsigned add_dns6(struct ctx *c, struct in6_addr *addr, unsigned idx)
 			added++;
 
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
-				c->ip6.dns_match = *addr;
+				c->ip6.dns_match = c->ip6.gw;
 		}
 	} else {
 		c->ip6.dns[idx] = *addr;
