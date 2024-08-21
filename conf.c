@@ -720,7 +720,6 @@ static unsigned int conf_ip6(unsigned int ifi,
 	}
 
 	ip6->addr_seen = ip6->addr;
-	ip6->addr_ll_seen = ip6->addr_ll;
 
 	if (MAC_IS_ZERO(mac)) {
 		rc = nl_link_get_mac(nl_sock, ifi, mac);
