@@ -921,7 +921,8 @@ pasta_opts:
  */
 static void conf_print(const struct ctx *c)
 {
-	char buf4[INET_ADDRSTRLEN], buf6[INET6_ADDRSTRLEN], ifn[IFNAMSIZ];
+	char buf4[INET_ADDRSTRLEN], buf6[INET6_ADDRSTRLEN];
+	char bufmac[ETH_ADDRSTRLEN], ifn[IFNAMSIZ];
 	int i;
 
 	info("Template interface: %s%s%s%s%s",
@@ -955,9 +956,7 @@ static void conf_print(const struct ctx *c)
 		info("Namespace interface: %s", c->pasta_ifn);
 
 	info("MAC:");
-	info("    host: %02x:%02x:%02x:%02x:%02x:%02x",
-	     c->mac[0], c->mac[1], c->mac[2],
-	     c->mac[3], c->mac[4], c->mac[5]);
+	info("    host: %s", eth_ntop(c->mac, bufmac, sizeof(bufmac)));
 
 	if (c->ifi4) {
 		if (!c->no_dhcp) {

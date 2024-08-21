@@ -276,6 +276,7 @@ static void opt_set_dns_search(const struct ctx *c, size_t max_len)
 int dhcp(const struct ctx *c, const struct pool *p)
 {
 	size_t mlen, dlen, offset = 0, opt_len, opt_off = 0;
+	char macstr[ETH_ADDRSTRLEN];
 	const struct ethhdr *eh;
 	const struct iphdr *iph;
 	const struct udphdr *uh;
@@ -340,9 +341,7 @@ int dhcp(const struct ctx *c, const struct pool *p)
 		return -1;
 	}
 
-	info("    from %02x:%02x:%02x:%02x:%02x:%02x",
-	     m->chaddr[0], m->chaddr[1], m->chaddr[2],
-	     m->chaddr[3], m->chaddr[4], m->chaddr[5]);
+	info("    from %s", eth_ntop(m->chaddr, macstr, sizeof(macstr)));
 
 	m->yiaddr = c->ip4.addr;
 	mask.s_addr = htonl(0xffffffff << (32 - c->ip4.prefix_len));

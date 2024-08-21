@@ -215,9 +215,12 @@ static inline const char *af_name(sa_family_t af)
 
 #define SOCKADDR_STRLEN		MAX(SOCKADDR_INET_STRLEN, SOCKADDR_INET6_STRLEN)
 
+#define ETH_ADDRSTRLEN		(sizeof("00:11:22:33:44:55"))
+
 struct sock_extended_err;
 
 const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size);
+const char *eth_ntop(const unsigned char *mac, char *dst, size_t size);
 const char *str_ee_origin(const struct sock_extended_err *ee);
 
 /**

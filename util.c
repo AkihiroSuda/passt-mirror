@@ -676,6 +676,25 @@ const char *sockaddr_ntop(const void *sa, char *dst, socklen_t size)
 	return dst;
 }
 
+/** eth_ntop() - Convert an Ethernet MAC address to text format
+ * @mac:	MAC address
+ * @dst:	Output buffer, minimum ETH_ADDRSTRLEN bytes
+ * @size:	Size of buffer at @dst
+ *
+ * Return: On success, a non-null pointer to @dst, NULL on failure
+ */
+const char *eth_ntop(const unsigned char *mac, char *dst, size_t size)
+{
+	int len;
+
+	len = snprintf(dst, size, "%02x:%02x:%02x:%02x:%02x:%02x",
+		       mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	if (len < 0 || (size_t)len >= size)
+		return NULL;
+
+	return dst;
+}
+
 /** str_ee_origin() - Convert socket extended error origin to a string
  * @ee:		Socket extended error structure
  *
