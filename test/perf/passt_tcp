@@ -15,6 +15,9 @@ gtools	/sbin/sysctl ip jq nproc seq sleep iperf3 tcp_rr tcp_crr # From neper
 nstools	/sbin/sysctl ip jq nproc seq sleep iperf3 tcp_rr tcp_crr
 htools	bc head sed seq
 
+set	MAP_NS4 192.0.2.2
+set	MAP_NS6 2001:db8:9a55::2
+
 test	passt: throughput and latency
 
 guest	/sbin/sysctl -w net.core.rmem_max=536870912
@@ -29,8 +32,6 @@ ns	/sbin/sysctl -w net.ipv4.tcp_rmem="4096 524288 134217728"
 ns	/sbin/sysctl -w net.ipv4.tcp_wmem="4096 524288 134217728"
 ns	/sbin/sysctl -w net.ipv4.tcp_timestamps=0
 
-gout	GW ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
-gout	GW6 ip -j -6 route show|jq -rM '.[] | select(.dst == "default").gateway'
 gout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
 
 hout	FREQ_PROCFS (echo "scale=1"; sed -n 's/cpu MHz.*: \([0-9]*\)\..*$/(\1+10^2\/2)\/10^3/p' /proc/cpuinfo) | bc -l | head -n1
@@ -54,16 +55,16 @@ iperf3s	ns 10002
 bw	-
 bw	-
 guest	ip link set dev __IFNAME__ mtu 1280
-iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __MAP_NS6__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.2 1.5
 guest	ip link set dev __IFNAME__ mtu 1500
-iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __MAP_NS6__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.6 1.8
 guest	ip link set dev __IFNAME__ mtu 9000
-iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 8M
+iperf3	BW guest __MAP_NS6__ 10002 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 4.0 5.0
 guest	ip link set dev __IFNAME__ mtu 65520
-iperf3	BW guest __GW6__%__IFNAME__ 10002 __TIME__ __OPTS__ -w 16M
+iperf3	BW guest __MAP_NS6__ 10002 __TIME__ __OPTS__ -w 16M
 bw	__BW__ 7.0 8.0
 
 iperf3k	ns
@@ -75,7 +76,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_rr --nolog -6
-gout	LAT tcp_rr --nolog -l1 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_rr --nolog -l1 -6 -c -H __MAP_NS6__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 200 150
 
 tl	TCP CRR latency over IPv6: guest to host
@@ -85,29 +86,29 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_crr --nolog -6
-gout	LAT tcp_crr --nolog -l1 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_crr --nolog -l1 -6 -c -H __MAP_NS6__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 500 400
 
 tr	TCP throughput over IPv4: guest to host
 iperf3s	ns 10002
 
 guest	ip link set dev __IFNAME__ mtu 256
-iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 1M
+iperf3	BW guest __MAP_NS4__ 10002 __TIME__ __OPTS__ -w 1M
 bw	__BW__ 0.2 0.3
 guest	ip link set dev __IFNAME__ mtu 576
-iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 1M
+iperf3	BW guest __MAP_NS4__ 10002 __TIME__ __OPTS__ -w 1M
 bw	__BW__ 0.5 0.8
 guest	ip link set dev __IFNAME__ mtu 1280
-iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __MAP_NS4__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.2 1.5
 guest	ip link set dev __IFNAME__ mtu 1500
-iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 4M
+iperf3	BW guest __MAP_NS4__ 10002 __TIME__ __OPTS__ -w 4M
 bw	__BW__ 1.6 1.8
 guest	ip link set dev __IFNAME__ mtu 9000
-iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 8M
+iperf3	BW guest __MAP_NS4__ 10002 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 4.0 5.0
 guest	ip link set dev __IFNAME__ mtu 65520
-iperf3	BW guest __GW__ 10002 __TIME__ __OPTS__ -w 16M
+iperf3	BW guest __MAP_NS4__ 10002 __TIME__ __OPTS__ -w 16M
 bw	__BW__ 7.0 8.0
 
 iperf3k	ns
@@ -123,7 +124,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_rr --nolog -4
-gout	LAT tcp_rr --nolog -l1 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_rr --nolog -l1 -4 -c -H __MAP_NS4__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 200 150
 
 tl	TCP CRR latency over IPv4: guest to host
@@ -133,7 +134,7 @@ lat	-
 lat	-
 lat	-
 nsb	tcp_crr --nolog -4
-gout	LAT tcp_crr --nolog -l1 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+gout	LAT tcp_crr --nolog -l1 -4 -c -H __MAP_NS4__ | sed -n 's/^throughput=\(.*\)/\1/p'
 lat	__LAT__ 500 400
 
 tr	TCP throughput over IPv6: host to guest

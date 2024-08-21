@@ -14,6 +14,9 @@
 htools	head ip seq bc sleep iperf3 tcp_rr tcp_crr jq sed
 nstools	/sbin/sysctl nproc ip seq sleep iperf3 tcp_rr tcp_crr jq sed
 
+set	MAP_HOST4 192.0.2.1
+set	MAP_HOST6 2001:db8:9a55::1
+
 test	pasta: throughput and latency (local connections)
 
 ns	/sbin/sysctl -w net.ipv4.tcp_rmem="131072 524288 134217728"
@@ -122,8 +125,6 @@ te
 
 test	pasta: throughput and latency (connections via tap)
 
-nsout	GW ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
-nsout	GW6 ip -j -6 route show|jq -rM '.[] | select(.dst == "default").gateway'
 nsout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
 set	THREADS 2
 set	OPTS -Z -P __THREADS__ -i1 -O__OMIT__
@@ -137,16 +138,16 @@ tr	TCP throughput over IPv6: ns to host
 iperf3s	host 10003
 
 ns	ip link set dev __IFNAME__ mtu 1500
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -w 512k
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -w 512k
 bw	__BW__ 0.2 0.4
 ns	ip link set dev __IFNAME__ mtu 4000
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -w 1M
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -w 1M
 bw	__BW__ 0.3 0.5
 ns	ip link set dev __IFNAME__ mtu 16384
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -w 8M
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 1.5 2.0
 ns	ip link set dev __IFNAME__ mtu 65520
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -w 8M
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 2.0 2.5
 
 iperf3k	host
@@ -156,7 +157,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_rr --nolog -P 10003 -C 10013 -6
-nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -6 -c -H __MAP_HOST6__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
@@ -165,7 +166,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_crr --nolog -P 10003 -C 10013 -6
-nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -6 -c -H __MAP_HOST6__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 1500 500
 
@@ -174,16 +175,16 @@ tr	TCP throughput over IPv4: ns to host
 iperf3s	host 10003
 
 ns	ip link set dev __IFNAME__ mtu 1500
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -w 512k
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -w 512k
 bw	__BW__ 0.2 0.4
 ns	ip link set dev __IFNAME__ mtu 4000
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -w 1M
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -w 1M
 bw	__BW__ 0.3 0.5
 ns	ip link set dev __IFNAME__ mtu 16384
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -w 8M
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 1.5 2.0
 ns	ip link set dev __IFNAME__ mtu 65520
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -w 8M
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -w 8M
 bw	__BW__ 2.0 2.5
 
 iperf3k	host
@@ -193,7 +194,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_rr --nolog -P 10003 -C 10013 -4
-nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_rr --nolog -l1 -P 10003 -C 10013 -4 -c -H __MAP_HOST4__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 150 100
 
@@ -202,7 +203,7 @@ lat	-
 lat	-
 lat	-
 hostb	tcp_crr --nolog -P 10003 -C 10013 -4
-nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT tcp_crr --nolog -l1 -P 10003 -C 10013 -4 -c -H __MAP_HOST4__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 1500 500
 

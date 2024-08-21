@@ -124,7 +124,12 @@ setup_passt_in_ns() {
 	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
 
-	context_run_bg pasta "./pasta ${__opts} -t 10001,10002,10011,10012 -T 10003,10013 -u 10001,10002,10011,10012 -U 10003,10013 -P ${STATESETUP}/pasta.pid --config-net ${NSTOOL} hold ${STATESETUP}/ns.hold"
+        __map_host4=192.0.2.1
+        __map_host6=2001:db8:9a55::1
+        __map_ns4=192.0.2.2
+        __map_ns6=2001:db8:9a55::2
+
+	context_run_bg pasta "./pasta ${__opts} -t 10001,10002,10011,10012 -T 10003,10013 -u 10001,10002,10011,10012 -U 10003,10013 -P ${STATESETUP}/pasta.pid --map-host-loopback ${__map_host4} --map-host-loopback ${__map_host6} --config-net ${NSTOOL} hold ${STATESETUP}/ns.hold"
 	wait_for [ -f "${STATESETUP}/pasta.pid" ]
 
 	context_setup_nstool qemu ${STATESETUP}/ns.hold
@@ -139,11 +144,11 @@ setup_passt_in_ns() {
 	if [ ${VALGRIND} -eq 1 ]; then
 		context_run passt "make clean"
 		context_run passt "make valgrind"
-		context_run_bg passt "valgrind --max-stackframe=$((4 * 1024 * 1024)) --trace-children=yes --vgdb=no --error-exitcode=1 --suppressions=test/valgrind.supp ./passt -f ${__opts} -s ${STATESETUP}/passt.socket -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid"
+		context_run_bg passt "valgrind --max-stackframe=$((4 * 1024 * 1024)) --trace-children=yes --vgdb=no --error-exitcode=1 --suppressions=test/valgrind.supp ./passt -f ${__opts} -s ${STATESETUP}/passt.socket -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid --map-host-loopback ${__map_ns4} --map-host-loopback ${__map_ns6}"
 	else
 		context_run passt "make clean"
 		context_run passt "make"
-		context_run_bg passt "./passt -f ${__opts} -s ${STATESETUP}/passt.socket -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid"
+		context_run_bg passt "./passt -f ${__opts} -s ${STATESETUP}/passt.socket -t 10001,10011,10021,10031 -u 10001,10011,10021,10031 -P ${STATESETUP}/passt.pid --map-host-loopback ${__map_ns4} --map-host-loopback ${__map_ns6}"
 	fi
 	wait_for [ -f "${STATESETUP}/passt.pid" ]
 

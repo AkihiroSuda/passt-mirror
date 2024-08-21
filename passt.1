@@ -328,6 +328,20 @@ Disable Router Advertisements. Router Solicitations coming from guest or target
 namespace will be ignored.
 
 .TP
+.BR \-\-map-host-loopback " " \fIaddr
+Translate \fIaddr\fR to refer to the host. Packets from the guest to
+\fIaddr\fR will be redirected to the host.  On the host such packets
+will appear to have both source and destination of 127.0.0.1 or ::1.
+
+If \fIaddr\fR is 'none', no address is mapped (this implies
+\fB--no-map-gw\fR).  Only one IPv4 and one IPv6 address can be
+translated, if the option is specified multiple times, the last one
+takes effect.
+
+Default is to translate the guest's default gateway address, unless
+\fB--no-map-gw\fR is given, in which case no address is mapped.
+
+.TP
 .BR \-\-no-map-gw
 Don't remap TCP connections and untracked UDP traffic, with the gateway address
 as destination, to the host. Implied if there is no gateway on the selected

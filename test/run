@@ -101,7 +101,7 @@ run() {
 	VALGRIND=1
 	setup passt_in_ns
 	test passt/ndp
-	test passt/dhcp
+	test passt_in_ns/dhcp
 	test passt_in_ns/icmp
 	test passt_in_ns/tcp
 	test passt_in_ns/udp
@@ -115,7 +115,7 @@ run() {
 	VALGRIND=0
 	setup passt_in_ns
 	test passt/ndp
-	test passt/dhcp
+	test passt_in_ns/dhcp
 	test perf/passt_tcp
 	test perf/passt_udp
 	test perf/pasta_tcp

@@ -817,6 +817,9 @@ static void usage(const char *name, FILE *f, int status)
 		fprintf(f, "  --no-dhcp-search	No list in DHCP/DHCPv6/NDP\n");
 
 	fprintf(f,
+		"  --map-host-loopback ADDR	Translate ADDR to refer to host\n"
+	        "    can be specified zero to two times (for IPv4 and IPv6)\n"
+		"    default: gateway address\n"
 		"  --dns-forward ADDR	Forward DNS queries sent to ADDR\n"
 		"    can be specified zero to two times (for IPv4 and IPv6)\n"
 		"    default: don't forward DNS queries\n"
@@ -959,6 +962,11 @@ static void conf_print(const struct ctx *c)
 	info("    host: %s", eth_ntop(c->our_tap_mac, bufmac, sizeof(bufmac)));
 
 	if (c->ifi4) {
+		if (!IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
+			info("    NAT to host 127.0.0.1: %s",
+			     inet_ntop(AF_INET, &c->ip4.map_host_loopback,
+				       buf4, sizeof(buf4)));
+
 		if (!c->no_dhcp) {
 			uint32_t mask;
 
@@ -989,6 +997,11 @@ static void conf_print(const struct ctx *c)
 	}
 
 	if (c->ifi6) {
+		if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
+			info("    NAT to host ::1: %s",
+			     inet_ntop(AF_INET6, &c->ip6.map_host_loopback,
+				       buf6, sizeof(buf6)));
+
 		if (!c->no_ndp && !c->no_dhcpv6)
 			info("NDP/DHCPv6:");
 		else if (!c->no_ndp)
@@ -1123,6 +1136,35 @@ static void conf_ugid(char *runas, uid_t *uid, gid_t *gid)
 }
 
 /**
+ * conf_nat() - Parse --map-host-loopback option
+ * @c:		Execution context
+ * @arg:	String argument to --map-host-loopback
+ * @no_map_gw:	--no-map-gw flag, updated for "none" argument
+ */
+static void conf_nat(struct ctx *c, const char *arg, int *no_map_gw)
+{
+	if (strcmp(arg, "none") == 0) {
+		c->ip4.map_host_loopback = in4addr_any;
+		c->ip6.map_host_loopback = in6addr_any;
+		*no_map_gw = 1;
+	}
+
+	if (inet_pton(AF_INET6, arg, &c->ip6.map_host_loopback) &&
+	    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback)	&&
+	    !IN6_IS_ADDR_LOOPBACK(&c->ip6.map_host_loopback)	&&
+	    !IN6_IS_ADDR_MULTICAST(&c->ip6.map_host_loopback))
+		return;
+
+	if (inet_pton(AF_INET, arg, &c->ip4.map_host_loopback)	&&
+	    !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback)	&&
+	    !IN4_IS_ADDR_LOOPBACK(&c->ip4.map_host_loopback)	&&
+	    !IN4_IS_ADDR_MULTICAST(&c->ip4.map_host_loopback))
+		return;
+
+	die("Invalid address to remap to host: %s", optarg);
+}
+
+/**
  * conf_open_files() - Open files as requested by configuration
  * @c:		Execution context
  */
@@ -1231,6 +1273,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"no-copy-routes", no_argument,		NULL,		18 },
 		{"no-copy-addrs", no_argument,		NULL,		19 },
 		{"netns-only",	no_argument,		NULL,		20 },
+		{"map-host-loopback", required_argument, NULL,		21 },
 		{ 0 },
 	};
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
@@ -1399,6 +1442,9 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			netns_only = 1;
 			*userns = 0;
+			break;
+		case 21:
+			conf_nat(c, optarg, &no_map_gw);
 			break;
 		case 'd':
 			c->debug = 1;
@@ -1639,10 +1685,12 @@ void conf(struct ctx *c, int argc, char **argv)
 	    (*c->ip6.ifname_out && !c->ifi6))
 		die("External interface not usable");
 
-	if (c->ifi4 && !no_map_gw)
+	if (c->ifi4 && !no_map_gw &&
+	    IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
 		c->ip4.map_host_loopback = c->ip4.guest_gw;
 
-	if (c->ifi6 && !no_map_gw)
+	if (c->ifi6 && !no_map_gw &&
+	    IN6_IS_ADDR_UNSPECIFIED(&c->ip6.map_host_loopback))
 		c->ip6.map_host_loopback = c->ip6.guest_gw;
 
 	if (c->ifi4 && IN4_IS_ADDR_UNSPECIFIED(&c->ip4.guest_gw))

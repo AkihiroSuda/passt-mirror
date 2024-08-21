@@ -14,6 +14,9 @@
 htools	bc head ip sleep iperf3 udp_rr jq sed
 nstools	ip sleep iperf3 udp_rr jq sed
 
+set	MAP_HOST4 192.0.2.1
+set	MAP_HOST6 2001:db8:9a55::1
+
 test	pasta: throughput and latency (local traffic)
 
 hout	FREQ_PROCFS (echo "scale=1"; sed -n 's/cpu MHz.*: \([0-9]*\)\..*$/(\1+10^2\/2)\/10^3/p' /proc/cpuinfo) | bc -l | head -n1
@@ -133,8 +136,6 @@ te
 
 test	pasta: throughput and latency (traffic via tap)
 
-nsout	GW ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
-nsout	GW6 ip -j -6 route show|jq -rM '.[] | select(.dst == "default").gateway'
 nsout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
 
 info	Throughput in Gbps, latency in µs, one thread at __FREQ__ GHz
@@ -146,13 +147,13 @@ tr	UDP throughput over IPv6: ns to host
 iperf3s	host 10003
 # (datagram size) = (packet size) - 48: 40 bytes of IPv6 header, 8 of UDP header
 
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -b 8G -l 1472
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -b 8G -l 1472
 bw	__BW__ 0.3 0.5
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -b 12G -l 3972
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -b 12G -l 3972
 bw	__BW__ 0.5 0.8
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -b 20G -l 16356
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -b 20G -l 16356
 bw	__BW__ 3.0 4.0
-iperf3	BW ns __GW6__%__IFNAME__ 10003 __TIME__ __OPTS__ -b 30G -l 65472
+iperf3	BW ns __MAP_HOST6__ 10003 __TIME__ __OPTS__ -b 30G -l 65472
 bw	__BW__ 6.0 7.0
 
 iperf3k	host
@@ -162,7 +163,7 @@ lat	-
 lat	-
 lat	-
 hostb	udp_rr --nolog -P 10003 -C 10013 -6
-nsout	LAT udp_rr --nolog -P 10003 -C 10013 -6 -c -H __GW6__%__IFNAME__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT udp_rr --nolog -P 10003 -C 10013 -6 -c -H __MAP_HOST6__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 200 150
 
@@ -171,13 +172,13 @@ tr	UDP throughput over IPv4: ns to host
 iperf3s	host 10003
 # (datagram size) = (packet size) - 28: 20 bytes of IPv4 header, 8 of UDP header
 
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -b 8G -l 1472
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -b 8G -l 1472
 bw	__BW__ 0.3 0.5
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -b 12G -l 3972
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -b 12G -l 3972
 bw	__BW__ 0.5 0.8
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -b 20G -l 16356
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -b 20G -l 16356
 bw	__BW__ 3.0 4.0
-iperf3	BW ns __GW__ 10003 __TIME__ __OPTS__ -b 30G -l 65492
+iperf3	BW ns __MAP_HOST4__ 10003 __TIME__ __OPTS__ -b 30G -l 65492
 bw	__BW__ 6.0 7.0
 
 iperf3k	host
@@ -187,7 +188,7 @@ lat	-
 lat	-
 lat	-
 hostb	udp_rr --nolog -P 10003 -C 10013 -4
-nsout	LAT udp_rr --nolog -P 10003 -C 10013 -4 -c -H __GW__ | sed -n 's/^throughput=\(.*\)/\1/p'
+nsout	LAT udp_rr --nolog -P 10003 -C 10013 -4 -c -H __MAP_HOST4__ | sed -n 's/^throughput=\(.*\)/\1/p'
 hostw
 lat	__LAT__ 200 150
 

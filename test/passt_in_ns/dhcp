@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# PASST - Plug A Simple Socket Transport
+#  for qemu/UNIX domain socket mode
+#
+# PASTA - Pack A Subtle Tap Abstraction
+#  for network namespace/tap device mode
+#
+# test/passt/dhcp - Check DHCP and DHCPv6 functionality in passt mode
+#
+# Copyright (c) 2021 Red Hat GmbH
+# Author: Stefano Brivio <sbrivio@redhat.com>
+
+gtools	ip jq dhclient sed tr
+htools	ip jq sed tr head
+
+set	MAP_NS4 192.0.2.2
+set	MAP_NS6 2001:db8:9a55::2
+
+test	Interface name
+gout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
+hout	HOST_IFNAME ip -j -4 route show|jq -rM '[.[] | select(.dst == "default").dev] | .[0]'
+hout	HOST_IFNAME6 ip -j -6 route show|jq -rM '[.[] | select(.dst == "default").dev] | .[0]'
+check	[ -n "__IFNAME__" ]
+
+test	DHCP: address
+guest	/sbin/dhclient -4 __IFNAME__
+gout	ADDR ip -j -4 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[0].local'
+hout	HOST_ADDR ip -j -4 addr show|jq -rM '.[] | select(.ifname == "__HOST_IFNAME__").addr_info[0].local'
+check	[ "__ADDR__" = "__HOST_ADDR__" ]
+
+test	DHCP: route
+gout	GW ip -j -4 route show|jq -rM '.[] | select(.dst == "default").gateway'
+hout	HOST_GW ip -j -4 route show|jq -rM '[.[] | select(.dst == "default").gateway] | .[0]'
+check	[ "__GW__" = "__HOST_GW__" ]
+
+test	DHCP: MTU
+gout	MTU ip -j link show | jq -rM '.[] | select(.ifname == "__IFNAME__").mtu'
+check	[ __MTU__ = 65520 ]
+
+test	DHCP: DNS
+gout	DNS sed -n 's/^nameserver \([0-9]*\.\)\(.*\)/\1\2/p' /etc/resolv.conf | tr '\n' ',' | sed 's/,$//;s/$/\n/'
+hout	HOST_DNS sed -n 's/^nameserver \([0-9]*\.\)\(.*\)/\1\2/p' /etc/resolv.conf | head -n3 | tr '\n' ',' | sed 's/,$//;s/$/\n/'
+check	[ "__DNS__" = "__HOST_DNS__" ] || ( [ "__DNS__" = "__MAP_NS4__" ] && expr "__HOST_DNS__" : "127[.]" )
+
+# FQDNs should be terminated by dots, but the guest DHCP client might omit them:
+# strip them first
+test	DHCP: search list
+gout	SEARCH sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^search \(.*\)/\1/p' | tr ' \n' ',' | sed 's/,$//;s/$/\n/'
+hout	HOST_SEARCH sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^search \(.*\)/\1/p' | tr ' \n' ',' | sed 's/,$//;s/$/\n/'
+check	[ "__SEARCH__" = "__HOST_SEARCH__" ]
+
+test	DHCPv6: address
+guest	/sbin/dhclient -6 __IFNAME__
+gout	ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.prefixlen == 128).local] | .[0]'
+hout	HOST_ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__HOST_IFNAME6__").addr_info[] | select(.scope == "global" and .deprecated != true).local] | .[0]'
+check	[ "__ADDR6__" = "__HOST_ADDR6__" ]
+
+test	DHCPv6: route
+gout	GW6 ip -j -6 route show|jq -rM '.[] | select(.dst == "default").gateway'
+hout	HOST_GW6 ip -j -6 route show|jq -rM '[.[] | select(.dst == "default").gateway] | .[0]'
+check	[ "__GW6__" = "__HOST_GW6__" ]
+
+# Strip interface specifier: interface names might differ between host and guest
+test	DHCPv6: DNS
+gout	DNS6 sed -n 's/^nameserver \([^:]*:\)\([^%]*\).*/\1\2/p' /etc/resolv.conf | tr '\n' ',' | sed 's/,$//;s/$/\n/'
+hout	HOST_DNS6 sed -n 's/^nameserver \([^:]*:\)\([^%]*\).*/\1\2/p' /etc/resolv.conf | tr '\n' ',' | sed 's/,$//;s/$/\n/'
+check	[ "__DNS6__" = "__HOST_DNS6__" ] || [ "__DNS6__" = "__MAP_NS6__" -a "__HOST_DNS6__" = "::1" ]
+
+test	DHCPv6: search list
+gout	SEARCH6 sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^search \(.*\)/\1/p' | tr ' \n' ',' | sed 's/,$//;s/$/\n/'
+hout	HOST_SEARCH6 sed 's/\. / /g' /etc/resolv.conf | sed 's/\.$//g' | sed -n 's/^search \(.*\)/\1/p' | tr ' \n' ',' | sed 's/,$//;s/$/\n/'
+check	[ "__SEARCH6__" = "__HOST_SEARCH6__" ]
