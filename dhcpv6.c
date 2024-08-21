@@ -298,7 +298,8 @@ static struct opt_hdr *dhcpv6_ia_notonlink(const struct pool *p,
 {
 	char buf[INET6_ADDRSTRLEN];
 	struct in6_addr req_addr;
-	struct opt_hdr *ia, *h;
+	const struct opt_hdr *h;
+	struct opt_hdr *ia;
 	size_t offset;
 	int ia_type;
 
@@ -312,12 +313,13 @@ ia_ta:
 		offset += sizeof(struct opt_ia_na);
 
 		while ((h = dhcpv6_opt(p, &offset, OPT_IAAADR))) {
-			struct opt_ia_addr *opt_addr = (struct opt_ia_addr *)h;
+			const struct opt_ia_addr *opt_addr;
 
 			if (ntohs(h->l) != OPT_VSIZE(ia_addr))
 				return NULL;
 
-			memcpy(&req_addr, &opt_addr->addr, sizeof(req_addr));
+			opt_addr = (const struct opt_ia_addr *)h;
+			req_addr = opt_addr->addr;
 			if (!IN6_ARE_ADDR_EQUAL(la, &req_addr)) {
 				info("DHCPv6: requested address %s not on link",
 				     inet_ntop(AF_INET6, &req_addr,
@@ -363,7 +365,7 @@ static size_t dhcpv6_dns_fill(const struct ctx *c, char *buf, int offset)
 			srv->hdr.l = 0;
 		}
 
-		memcpy(&srv->addr[i], &c->ip6.dns[i], sizeof(srv->addr[i]));
+		srv->addr[i] = c->ip6.dns[i];
 		srv->hdr.l += sizeof(srv->addr[i]);
 		offset += sizeof(srv->addr[i]);
 	}

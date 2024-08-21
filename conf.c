@@ -389,14 +389,14 @@ static void add_dns6(struct ctx *c,
 	/* Guest or container can only access local addresses via redirect */
 	if (IN6_IS_ADDR_LOOPBACK(addr)) {
 		if (!c->no_map_gw) {
-			memcpy(*conf, &c->ip6.gw, sizeof(**conf));
+			**conf = c->ip6.gw;
 			(*conf)++;
 
 			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
-				memcpy(&c->ip6.dns_match, addr, sizeof(*addr));
+				c->ip6.dns_match = *addr;
 		}
 	} else {
-		memcpy(*conf, addr, sizeof(**conf));
+		**conf = *addr;
 		(*conf)++;
 	}
 
@@ -632,7 +632,7 @@ static unsigned int conf_ip4(unsigned int ifi,
 			ip4->prefix_len = 32;
 	}
 
-	memcpy(&ip4->addr_seen, &ip4->addr, sizeof(ip4->addr_seen));
+	ip4->addr_seen = ip4->addr;
 
 	if (MAC_IS_ZERO(mac)) {
 		int rc = nl_link_get_mac(nl_sock, ifi, mac);
@@ -693,8 +693,8 @@ static unsigned int conf_ip6(unsigned int ifi,
 		return 0;
 	}
 
-	memcpy(&ip6->addr_seen, &ip6->addr, sizeof(ip6->addr));
-	memcpy(&ip6->addr_ll_seen, &ip6->addr_ll, sizeof(ip6->addr_ll));
+	ip6->addr_seen = ip6->addr;
+	ip6->addr_ll_seen = ip6->addr_ll;
 
 	if (MAC_IS_ZERO(mac)) {
 		rc = nl_link_get_mac(nl_sock, ifi, mac);
