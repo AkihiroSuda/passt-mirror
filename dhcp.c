@@ -345,9 +345,9 @@ int dhcp(const struct ctx *c, const struct pool *p)
 
 	m->yiaddr = c->ip4.addr;
 	mask.s_addr = htonl(0xffffffff << (32 - c->ip4.prefix_len));
-	memcpy(opts[1].s,  &mask,        sizeof(mask));
-	memcpy(opts[3].s,  &c->ip4.gw,   sizeof(c->ip4.gw));
-	memcpy(opts[54].s, &c->ip4.gw,   sizeof(c->ip4.gw));
+	memcpy(opts[1].s,  &mask,                sizeof(mask));
+	memcpy(opts[3].s,  &c->ip4.gw,           sizeof(c->ip4.gw));
+	memcpy(opts[54].s, &c->ip4.our_tap_addr, sizeof(c->ip4.our_tap_addr));
 
 	/* If the gateway is not on the assigned subnet, send an option 121
 	 * (Classless Static Routing) adding a dummy route to it.
@@ -377,7 +377,7 @@ int dhcp(const struct ctx *c, const struct pool *p)
 		opt_set_dns_search(c, sizeof(m->o));
 
 	dlen = offsetof(struct msg, o) + fill(m);
-	tap_udp4_send(c, c->ip4.gw, 67, c->ip4.addr, 68, m, dlen);
+	tap_udp4_send(c, c->ip4.our_tap_addr, 67, c->ip4.addr, 68, m, dlen);
 
 	return 1;
 }

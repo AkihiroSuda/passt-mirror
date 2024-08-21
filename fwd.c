@@ -387,10 +387,14 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 	}
 
 	if (!fwd_guest_accessible(c, &ini->eaddr)) {
-		if (inany_v4(&ini->eaddr))
-			tgt->oaddr = inany_from_v4(c->ip4.gw);
-		else
+		if (inany_v4(&ini->eaddr)) {
+			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.our_tap_addr))
+				/* No source address we can use */
+				return PIF_NONE;
+			tgt->oaddr = inany_from_v4(c->ip4.our_tap_addr);
+		} else {
 			tgt->oaddr.a6 = c->ip6.our_tap_ll;
+		}
 	} else {
 		tgt->oaddr = ini->eaddr;
 	}
