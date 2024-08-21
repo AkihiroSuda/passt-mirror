@@ -236,11 +236,15 @@ interface will be chosen instead.
 
 .TP
 .BR \-D ", " \-\-dns " " \fIaddr
-Use \fIaddr\fR (IPv4 or IPv6) for DHCP, DHCPv6, NDP or DNS forwarding, as
-configured (see options \fB--no-dhcp-dns\fR, \fB--dhcp-dns\fR,
-\fB--dns-forward\fR) instead of reading addresses from \fI/etc/resolv.conf\fR.
-This option can be specified multiple times.  Specifying \fB-D none\fR disables
-usage of DNS addresses altogether.
+Instruct the guest (via DHCP, DHVPv6 or NDP) to use \fIaddr\fR (IPv4
+or IPv6) as a nameserver, as configured (see options
+\fB--no-dhcp-dns\fR, \fB--dhcp-dns\fR) instead of reading addresses
+from \fI/etc/resolv.conf\fR.  This option can be specified multiple
+times.  Specifying \fB-D none\fR disables usage of DNS addresses
+altogether.  Unlike addresses from \fI/etc/resolv.conf\fR, \fIaddr\fR
+is given to the guest without remapping.  For example \fB--dns
+127.0.0.1\fR will instruct the guest to use itself as nameserver, not
+the host.
 
 .TP
 .BR \-\-dns-forward " " \fIaddr

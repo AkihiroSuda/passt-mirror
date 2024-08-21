@@ -353,7 +353,7 @@ bind_all_fail:
 /**
  * add_dns4() - Possibly add the IPv4 address of a DNS resolver to configuration
  * @c:		Execution context
- * @addr:	Address found in /etc/resolv.conf
+ * @addr:	Guest nameserver IPv4 address
  * @idx:	Index of free entry in array of IPv4 resolvers
  *
  * Return: Number of entries added (0 or 1)
@@ -361,64 +361,29 @@ bind_all_fail:
 static unsigned add_dns4(struct ctx *c, const struct in_addr *addr,
 			 unsigned idx)
 {
-	unsigned added = 0;
-
 	if (idx >= ARRAY_SIZE(c->ip4.dns))
 		return 0;
 
-	/* Guest or container can only access local addresses via redirect */
-	if (IN4_IS_ADDR_LOOPBACK(addr)) {
-		if (!c->no_map_gw) {
-			c->ip4.dns[idx] = c->ip4.gw;
-			added++;
-
-			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match))
-				c->ip4.dns_match = c->ip4.gw;
-		}
-	} else {
-		c->ip4.dns[idx] = *addr;
-		added++;
-	}
-
-	if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_host))
-		c->ip4.dns_host = *addr;
-
-	return added;
+	c->ip4.dns[idx] = *addr;
+	return 1;
 }
 
 /**
  * add_dns6() - Possibly add the IPv6 address of a DNS resolver to configuration
  * @c:		Execution context
- * @addr:	Address found in /etc/resolv.conf
+ * @addr:	Guest nameserver IPv6 address
  * @idx:	Index of free entry in array of IPv6 resolvers
  *
  * Return: Number of entries added (0 or 1)
  */
-static unsigned add_dns6(struct ctx *c, struct in6_addr *addr, unsigned idx)
+static unsigned add_dns6(struct ctx *c, const struct in6_addr *addr,
+			 unsigned idx)
 {
-	unsigned added = 0;
-
 	if (idx >= ARRAY_SIZE(c->ip6.dns))
 		return 0;
 
-	/* Guest or container can only access local addresses via redirect */
-	if (IN6_IS_ADDR_LOOPBACK(addr)) {
-		if (!c->no_map_gw) {
-			c->ip6.dns[idx] = c->ip6.gw;
-			added++;
-
-			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
-				c->ip6.dns_match = c->ip6.gw;
-		}
-	} else {
-		c->ip6.dns[idx] = *addr;
-		added++;
-	}
-
-	if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_host))
-		c->ip6.dns_host = *addr;
-
-	return added;
+	c->ip6.dns[idx] = *addr;
+	return 1;
 }
 
 /**
@@ -437,11 +402,44 @@ static void add_dns_resolv(struct ctx *c, const char *nameserver,
 	struct in6_addr ns6;
 	struct in_addr ns4;
 
-	if (idx4 && inet_pton(AF_INET, nameserver, &ns4))
-		*idx4 += add_dns4(c, &ns4, *idx4);
+	if (idx4 && inet_pton(AF_INET, nameserver, &ns4)) {
+		if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_host))
+			c->ip4.dns_host = ns4;
 
-	if (idx6 && inet_pton(AF_INET6, nameserver, &ns6))
+		/* Guest or container can only access local addresses via
+		 * redirect
+		 */
+		if (IN4_IS_ADDR_LOOPBACK(&ns4)) {
+			if (c->no_map_gw)
+				return;
+
+			ns4 = c->ip4.gw;
+			if (IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_match))
+				c->ip4.dns_match = c->ip4.gw;
+		}
+
+		*idx4 += add_dns4(c, &ns4, *idx4);
+	}
+
+	if (idx6 && inet_pton(AF_INET6, nameserver, &ns6)) {
+		if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_host))
+			c->ip6.dns_host = ns6;
+
+		/* Guest or container can only access local addresses via
+		 * redirect
+		 */
+		if (IN6_IS_ADDR_LOOPBACK(&ns6)) {
+			if (c->no_map_gw)
+				return;
+
+			ns6 = c->ip6.gw;
+
+			if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_match))
+				c->ip6.dns_match = c->ip6.gw;
+		}
+
 		*idx6 += add_dns6(c, &ns6, *idx6);
+	}
 }
 
 /**
