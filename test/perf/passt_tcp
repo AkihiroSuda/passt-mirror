@@ -112,6 +112,10 @@ bw	__BW__ 7.0 8.0
 
 iperf3k	ns
 
+# Reducing MTU below 1280 deconfigures IPv6, get our address back
+guest	dhclient -6 -x
+guest	dhclient -6 __IFNAME__
+
 tl	TCP RR latency over IPv4: guest to host
 lat	-
 lat	-
