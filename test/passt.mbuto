@@ -13,8 +13,15 @@
 PROGS="${PROGS:-ash,dash,bash ip mount ls insmod mkdir ln cat chmod lsmod
        modprobe find grep mknod mv rm umount jq iperf3 dhclient hostname
        sed tr chown sipcalc cut socat dd strace ping tail killall sleep sysctl
-       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp
-       /usr/lib/openssh/sshd-session}"
+       nproc tcp_rr tcp_crr udp_rr which tee seq bc sshd ssh-keygen cmp}"
+
+# OpenSSH 9.8 introduced split binaries, with sshd being the daemon, and
+# sshd-session the per-session program. We need the latter as well, and the path
+# depends on the distribution. It doesn't exist on older versions.
+for bin in /usr/lib/openssh/sshd-session /usr/lib/ssh/sshd-session \
+	   /usr/libexec/openssh/sshd-session; do
+	command -v "${bin}" >/dev/null && PROGS="${PROGS} ${bin}"
+done
 
 KMODS="${KMODS:- virtio_net virtio_pci vmw_vsock_virtio_transport}"
 
