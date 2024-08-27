@@ -242,7 +242,10 @@ for __p in ${__profiles}; do
 	__calls="$(sed -n 's/[\t ]*\*[\t ]*#syscalls\(:'"${__p}"'\|\)[\t ]\{1,\}\(.*\)/\2/p' ${IN})"
 	__calls="${__calls} ${EXTRA_SYSCALLS:-}"
 	__calls="$(filter ${__calls})"
-	echo "seccomp profile ${__p} allows: ${__calls}" | tr '\n' ' ' | fmt -t
+
+	cols="$(stty -a | sed -n 's/.*columns \([0-9]*\).*/\1/p' || :)" 2>/dev/null
+	case $cols in [0-9]*) col_args="-w ${cols}";; *) col_args="";; esac
+	echo "seccomp profile ${__p} allows: ${__calls}" | tr '\n' ' ' | fmt -t ${col_args}
 
 	# Pad here to keep gen_profile() "simple"
 	__count=0
