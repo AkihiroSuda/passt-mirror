@@ -714,7 +714,7 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port)
 {
 	union udp_listen_epoll_ref uref = { .port = port };
-	int s, r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
+	int r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	ASSERT(!c->no_udp);
 
@@ -725,29 +725,29 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 
 	if ((af == AF_INET || af == AF_UNSPEC) && c->ifi4) {
 		if (!ns) {
-			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
-					 addr, ifname, port, uref.u32);
+			r4 = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
+				     addr, ifname, port, uref.u32);
 
-			udp_splice_init[V4][port] = s < 0 ? -1 : s;
+			udp_splice_init[V4][port] = r4 < 0 ? -1 : r4;
 		} else {
-			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
-					 &in4addr_loopback,
-					 ifname, port, uref.u32);
-			udp_splice_ns[V4][port] = s < 0 ? -1 : s;
+			r4  = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
+				      &in4addr_loopback,
+				      ifname, port, uref.u32);
+			udp_splice_ns[V4][port] = r4 < 0 ? -1 : r4;
 		}
 	}
 
 	if ((af == AF_INET6 || af == AF_UNSPEC) && c->ifi6) {
 		if (!ns) {
-			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
-					 addr, ifname, port, uref.u32);
+			r6 = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
+				     addr, ifname, port, uref.u32);
 
-			udp_splice_init[V6][port] = s < 0 ? -1 : s;
+			udp_splice_init[V6][port] = r6 < 0 ? -1 : r6;
 		} else {
-			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
-					 &in6addr_loopback,
-					 ifname, port, uref.u32);
-			udp_splice_ns[V6][port] = s < 0 ? -1 : s;
+			r6 = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
+				     &in6addr_loopback,
+				     ifname, port, uref.u32);
+			udp_splice_ns[V6][port] = r6 < 0 ? -1 : r6;
 		}
 	}
 
