@@ -26,14 +26,12 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s);
  * union udp_listen_epoll_ref - epoll reference for "listening" UDP sockets
  * @port:		Source port for connected sockets, bound port otherwise
  * @pif:		pif for this socket
- * @v6:			Set for IPv6 sockets or connections
  * @u32:		Opaque u32 value of reference
  */
 union udp_listen_epoll_ref {
 	struct {
 		in_port_t	port;
 		uint8_t		pif;
-		bool		v6:1;
 	};
 	uint32_t u32;
 };

@@ -178,8 +178,7 @@ enum udp_iov_idx {
 
 /* IOVs and msghdr arrays for receiving datagrams from sockets */
 static struct iovec	udp_iov_recv		[UDP_MAX_FRAMES];
-static struct mmsghdr	udp4_mh_recv		[UDP_MAX_FRAMES];
-static struct mmsghdr	udp6_mh_recv		[UDP_MAX_FRAMES];
+static struct mmsghdr	udp_mh_recv		[UDP_MAX_FRAMES];
 
 /* IOVs and msghdr arrays for sending "spliced" datagrams to sockets */
 static union sockaddr_inany udp_splice_to;
@@ -222,6 +221,7 @@ void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 static void udp_iov_init_one(const struct ctx *c, size_t i)
 {
 	struct udp_payload_t *payload = &udp_payload[i];
+	struct msghdr *mh = &udp_mh_recv[i].msg_hdr;
 	struct udp_meta_t *meta = &udp_meta[i];
 	struct iovec *siov = &udp_iov_recv[i];
 	struct iovec *tiov = udp_l2_iov[i];
@@ -236,27 +236,10 @@ static void udp_iov_init_one(const struct ctx *c, size_t i)
 	tiov[UDP_IOV_TAP] = tap_hdr_iov(c, &meta->taph);
 	tiov[UDP_IOV_PAYLOAD].iov_base = payload;
 
-	/* It's useful to have separate msghdr arrays for receiving.  Otherwise,
-	 * an IPv4 recv() will alter msg_namelen, so we'd have to reset it every
-	 * time or risk truncating the address on future IPv6 recv()s.
-	 */
-	if (c->ifi4) {
-		struct msghdr *mh = &udp4_mh_recv[i].msg_hdr;
-
-		mh->msg_name	= &meta->s_in;
-		mh->msg_namelen	= sizeof(struct sockaddr_in);
-		mh->msg_iov	= siov;
-		mh->msg_iovlen	= 1;
-	}
-
-	if (c->ifi6) {
-		struct msghdr *mh = &udp6_mh_recv[i].msg_hdr;
-
-		mh->msg_name	= &meta->s_in;
-		mh->msg_namelen	= sizeof(struct sockaddr_in6);
-		mh->msg_iov	= siov;
-		mh->msg_iovlen	= 1;
-	}
+	mh->msg_name	= &meta->s_in;
+	mh->msg_namelen	= sizeof(meta->s_in);
+	mh->msg_iov	= siov;
+	mh->msg_iovlen	= 1;
 }
 
 /**
@@ -506,10 +489,10 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 			     uint32_t events, const struct timespec *now)
 {
-	struct mmsghdr *mmh_recv = ref.udp.v6 ? udp6_mh_recv : udp4_mh_recv;
+	const socklen_t sasize = sizeof(udp_meta[0].s_in);
 	int n, i;
 
-	if ((n = udp_sock_recv(c, ref.fd, events, mmh_recv)) <= 0)
+	if ((n = udp_sock_recv(c, ref.fd, events, udp_mh_recv)) <= 0)
 		return;
 
 	/* We divide datagrams into batches based on how we need to send them,
@@ -518,6 +501,7 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 	 * populate it one entry *ahead* of the loop counter.
 	 */
 	udp_meta[0].tosidx = udp_flow_from_sock(c, ref, &udp_meta[0].s_in, now);
+	udp_mh_recv[0].msg_hdr.msg_namelen = sasize;
 	for (i = 0; i < n; ) {
 		flow_sidx_t batchsidx = udp_meta[i].tosidx;
 		uint8_t batchpif = pif_at_sidx(batchsidx);
@@ -525,9 +509,9 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 		do {
 			if (pif_is_socket(batchpif)) {
-				udp_splice_prepare(mmh_recv, i);
+				udp_splice_prepare(udp_mh_recv, i);
 			} else if (batchpif == PIF_TAP) {
-				udp_tap_prepare(mmh_recv, i,
+				udp_tap_prepare(udp_mh_recv, i,
 						flowside_at_sidx(batchsidx));
 			}
 
@@ -537,6 +521,7 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 			udp_meta[i].tosidx = udp_flow_from_sock(c, ref,
 								&udp_meta[i].s_in,
 								now);
+			udp_mh_recv[i].msg_hdr.msg_namelen = sasize;
 		} while (flow_sidx_eq(udp_meta[i].tosidx, batchsidx));
 
 		if (pif_is_socket(batchpif)) {
@@ -572,19 +557,16 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 			    uint32_t events, const struct timespec *now)
 {
-	const struct flowside *fromside = flowside_at_sidx(ref.flowside);
 	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	struct udp_flow *uflow = udp_at_sidx(ref.flowside);
 	int from_s = uflow->s[ref.flowside.sidei];
-	bool v6 = !inany_v4(&fromside->eaddr);
-	struct mmsghdr *mmh_recv = v6 ? udp6_mh_recv : udp4_mh_recv;
 	uint8_t topif = pif_at_sidx(tosidx);
 	int n, i;
 
 	ASSERT(!c->no_udp && uflow);
 
-	if ((n = udp_sock_recv(c, from_s, events, mmh_recv)) <= 0)
+	if ((n = udp_sock_recv(c, from_s, events, udp_mh_recv)) <= 0)
 		return;
 
 	flow_trace(uflow, "Received %d datagrams on reply socket", n);
@@ -592,9 +574,11 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 
 	for (i = 0; i < n; i++) {
 		if (pif_is_socket(topif))
-			udp_splice_prepare(mmh_recv, i);
+			udp_splice_prepare(udp_mh_recv, i);
 		else if (topif == PIF_TAP)
-			udp_tap_prepare(mmh_recv, i, toside);
+			udp_tap_prepare(udp_mh_recv, i, toside);
+		/* Restore sockaddr length clobbered by recvmsg() */
+		udp_mh_recv[i].msg_hdr.msg_namelen = sizeof(udp_meta[i].s_in);
 	}
 
 	if (pif_is_socket(topif)) {
@@ -740,8 +724,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		uref.pif = PIF_HOST;
 
 	if ((af == AF_INET || af == AF_UNSPEC) && c->ifi4) {
-		uref.v6 = 0;
-
 		if (!ns) {
 			r4 = s = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
 					 addr, ifname, port, uref.u32);
@@ -756,8 +738,6 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 	}
 
 	if ((af == AF_INET6 || af == AF_UNSPEC) && c->ifi6) {
-		uref.v6 = 1;
-
 		if (!ns) {
 			r6 = s = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
 					 addr, ifname, port, uref.u32);
