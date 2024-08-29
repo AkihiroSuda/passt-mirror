@@ -27,6 +27,23 @@
 #include "lineread.h"
 #include "flow_table.h"
 
+/* Empheral port range: values from RFC 6335 */
+static const in_port_t fwd_ephemeral_min = (1 << 15) + (1 << 14);
+static const in_port_t fwd_ephemeral_max = NUM_PORTS - 1;
+
+/**
+ * fwd_port_is_ephemeral() - Is port number ephemeral?
+ * @port:	Port number
+ *
+ * Return: true if @port is ephemeral, that is may be allocated by the kernel as
+ *         a local port for outgoing connections or datagrams, but should not be
+ *         used for binding services to.
+ */
+bool fwd_port_is_ephemeral(in_port_t port)
+{
+	return (port >= fwd_ephemeral_min) && (port <= fwd_ephemeral_max);
+}
+
 /* See enum in kernel's include/net/tcp_states.h */
 #define UDP_LISTEN	0x07
 #define TCP_LISTEN	0x0a

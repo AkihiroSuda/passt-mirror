@@ -156,9 +156,12 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 			die("'all' port forwarding is only allowed for passt");
 
 		fwd->mode = FWD_ALL;
-		memset(fwd->map, 0xff, PORT_EPHEMERAL_MIN / 8);
 
-		for (i = 0; i < PORT_EPHEMERAL_MIN; i++) {
+		for (i = 0; i < NUM_PORTS; i++) {
+			if (fwd_port_is_ephemeral(i))
+				continue;
+
+			bitmap_set(fwd->map, i);
 			if (optname == 't') {
 				ret = tcp_sock_init(c, AF_UNSPEC, NULL, NULL,
 						    i);
@@ -259,8 +262,9 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	} while ((p = next_chunk(p, ',')));
 
 	if (exclude_only) {
-		for (i = 0; i < PORT_EPHEMERAL_MIN; i++) {
-			if (bitmap_isset(exclude, i))
+		for (i = 0; i < NUM_PORTS; i++) {
+			if (fwd_port_is_ephemeral(i) ||
+			    bitmap_isset(exclude, i))
 				continue;
 
 			bitmap_set(fwd->map, i);

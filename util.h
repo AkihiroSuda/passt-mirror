@@ -95,9 +95,6 @@
 #define FD_PROTO(x, proto)						\
 	(IN_INTERVAL(c->proto.fd_min, c->proto.fd_max, (x)))
 
-#define PORT_EPHEMERAL_MIN	((1 << 15) + (1 << 14))		/* RFC 6335 */
-#define PORT_IS_EPHEMERAL(port) ((port) >= PORT_EPHEMERAL_MIN)
-
 #define MAC_ZERO		((uint8_t [ETH_ALEN]){ 0 })
 #define MAC_IS_ZERO(addr)	(!memcmp((addr), MAC_ZERO, ETH_ALEN))
 

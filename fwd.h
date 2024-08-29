@@ -12,6 +12,8 @@ struct flowside;
 /* Number of ports for both TCP and UDP */
 #define	NUM_PORTS	(1U << 16)
 
+bool fwd_port_is_ephemeral(in_port_t port);
+
 enum fwd_ports_mode {
 	FWD_UNSET = 0,
 	FWD_SPEC = 1,
