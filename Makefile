@@ -33,9 +33,16 @@ AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/MIPS64EL/MIPSEL64/')
 AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/HPPA/PARISC/')
 AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/SH4/SH/')
 
+# On some systems enabling optimization also enables source fortification,
+# automagically. Do not override it.
+FORTIFY_FLAG :=
+ifeq ($(shell $(CC) -O2 -dM -E - < /dev/null 2>&1 | grep ' _FORTIFY_SOURCE ' > /dev/null; echo $$?),1)
+FORTIFY_FLAG := -D_FORTIFY_SOURCE=2
+endif
+
 FLAGS := -Wall -Wextra -Wno-format-zero-length
 FLAGS += -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
-FLAGS += -D_FORTIFY_SOURCE=2 -O2 -pie -fPIE
+FLAGS +=  $(FORTIFY_FLAG) -O2 -pie -fPIE
 FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
 FLAGS += -DNETNS_RUN_DIR=\"/run/netns\"
 FLAGS += -DPASST_AUDIT_ARCH=AUDIT_ARCH_$(AUDIT_ARCH)
