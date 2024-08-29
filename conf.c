@@ -157,7 +157,10 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 		fwd->mode = FWD_ALL;
 
-		for (i = 0; i < NUM_PORTS; i++) {
+		/* Skip port 0.  It has special meaning for many socket APIs, so
+		 * trying to bind it is not really safe.
+		 */
+		for (i = 1; i < NUM_PORTS; i++) {
 			if (fwd_port_is_ephemeral(i))
 				continue;
 
@@ -262,7 +265,10 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 	} while ((p = next_chunk(p, ',')));
 
 	if (exclude_only) {
-		for (i = 0; i < NUM_PORTS; i++) {
+		/* Skip port 0.  It has special meaning for many socket APIs, so
+		 * trying to bind it is not really safe.
+		 */
+		for (i = 1; i < NUM_PORTS; i++) {
 			if (fwd_port_is_ephemeral(i) ||
 			    bitmap_isset(exclude, i))
 				continue;
