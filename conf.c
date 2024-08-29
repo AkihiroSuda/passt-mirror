@@ -1721,6 +1721,7 @@ void conf(struct ctx *c, int argc, char **argv)
 	/* Inbound port options & DNS can be parsed now (after IPv4/IPv6
 	 * settings)
 	 */
+	fwd_probe_ephemeral();
 	udp_portmap_clear();
 	optind = 0;
 	do {
