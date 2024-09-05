@@ -773,15 +773,13 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
 int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		  const void *addr, const char *ifname, in_port_t port)
 {
-	union udp_listen_epoll_ref uref = { .port = port };
+	union udp_listen_epoll_ref uref = {
+		.pif = ns ? PIF_SPLICE : PIF_HOST,
+		.port = port,
+	};
 	int r4 = FD_REF_MAX + 1, r6 = FD_REF_MAX + 1;
 
 	ASSERT(!c->no_udp);
-
-	if (ns)
-		uref.pif = PIF_SPLICE;
-	else
-		uref.pif = PIF_HOST;
 
 	if (af == AF_UNSPEC && c->ifi4 && c->ifi6) {
 		int s;

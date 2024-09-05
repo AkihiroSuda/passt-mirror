@@ -427,12 +427,12 @@ static int pasta_netns_quit_timer(void)
  */
 void pasta_netns_quit_init(const struct ctx *c)
 {
-	union epoll_ref ref = { .type = EPOLL_TYPE_NSQUIT_INOTIFY };
 	struct epoll_event ev = { .events = EPOLLIN };
 	int flags = O_NONBLOCK | O_CLOEXEC;
 	struct statfs s = { 0 };
 	bool try_inotify = true;
 	int fd = -1, dir_fd;
+	union epoll_ref ref;
 
 	if (c->mode != MODE_PASTA || c->no_netns_quit || !*c->netns_base)
 		return;
@@ -463,6 +463,7 @@ void pasta_netns_quit_init(const struct ctx *c)
 		ref.type = EPOLL_TYPE_NSQUIT_TIMER;
 	} else {
 		close(dir_fd);
+		ref.type = EPOLL_TYPE_NSQUIT_INOTIFY;
 	}
 
 	if (fd > FD_REF_MAX)
