@@ -697,7 +697,7 @@ static flow_sidx_t flowside_lookup(const struct ctx *c, uint8_t proto,
 	       !(FLOW_PROTO(&flow->f) == proto &&
 		 flow->f.pif[sidx.sidei] == pif &&
 		 flowside_eq(&flow->f.side[sidx.sidei], side)))
-		b = (b + 1) % FLOW_HASH_SIZE;
+		b = mod_sub(b, 1, FLOW_HASH_SIZE);
 
 	return flow_hashtab[b];
 }
