@@ -387,11 +387,12 @@ static void udp_tap_prepare(const struct mmsghdr *mmh, unsigned idx,
  * udp_sock_recverr() - Receive and clear an error from a socket
  * @s:		Socket to receive from
  *
- * Return: true if errors received and processed, false if no more errors
+ * Return: 1 if error received and processed, 0 if no more errors in queue, < 0
+ *         if there was an error reading the queue
  *
  * #syscalls recvmsg
  */
-static bool udp_sock_recverr(int s)
+static int udp_sock_recverr(int s)
 {
 	const struct sock_extended_err *ee;
 	const struct cmsghdr *hdr;
@@ -408,14 +409,16 @@ static bool udp_sock_recverr(int s)
 
 	rc = recvmsg(s, &mh, MSG_ERRQUEUE);
 	if (rc < 0) {
-		if (errno != EAGAIN && errno != EWOULDBLOCK)
-			err_perror("Failed to read error queue");
-		return false;
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return 0;
+
+		err_perror("UDP: Failed to read error queue");
+		return -1;
 	}
 
 	if (!(mh.msg_flags & MSG_ERRQUEUE)) {
 		err("Missing MSG_ERRQUEUE flag reading error queue");
-		return false;
+		return -1;
 	}
 
 	hdr = CMSG_FIRSTHDR(&mh);
@@ -424,7 +427,7 @@ static bool udp_sock_recverr(int s)
 	      (hdr->cmsg_level == IPPROTO_IPV6 &&
 	       hdr->cmsg_type == IPV6_RECVERR))) {
 		err("Unexpected cmsg reading error queue");
-		return false;
+		return -1;
 	}
 
 	ee = (const struct sock_extended_err *)CMSG_DATA(hdr);
@@ -433,7 +436,7 @@ static bool udp_sock_recverr(int s)
 	debug("%s error on UDP socket %i: %s",
 	      str_ee_origin(ee), s, strerror(ee->ee_errno));
 
-	return true;
+	return 1;
 }
 
 /**
@@ -447,6 +450,7 @@ static bool udp_sock_recverr(int s)
 static int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
 {
 	unsigned n_err = 0;
+	int rc;
 
 	ASSERT(!c->no_udp);
 
@@ -454,8 +458,11 @@ static int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
 		return 0; /* Nothing to do */
 
 	/* Empty the error queue */
-	while (udp_sock_recverr(s))
-		n_err++;
+	while ((rc = udp_sock_recverr(s)) > 0)
+		n_err += rc;
+
+	if (rc < 0)
+		return -1; /* error reading error, unrecoverable */
 
 	return n_err;
 }
