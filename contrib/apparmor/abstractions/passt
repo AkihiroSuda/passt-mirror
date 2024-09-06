@@ -34,6 +34,8 @@
 
   owner @{PROC}/@{pid}/uid_map		r,	# conf_ugid()
 
+  @{PROC}/sys/net/ipv4/ip_local_port_range r,	# fwd_probe_ephemeral()
+
   network netlink raw,				# nl_sock_init_do(), netlink.c
 
   network inet stream,				# tcp.c
