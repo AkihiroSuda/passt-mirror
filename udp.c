@@ -450,7 +450,8 @@ static int udp_sock_recverr(int s)
 static int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
 {
 	unsigned n_err = 0;
-	int rc;
+	socklen_t errlen;
+	int rc, err;
 
 	ASSERT(!c->no_udp);
 
@@ -463,6 +464,24 @@ static int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
 
 	if (rc < 0)
 		return -1; /* error reading error, unrecoverable */
+
+	errlen = sizeof(err);
+	if (getsockopt(s, SOL_SOCKET, SO_ERROR, &err, &errlen) < 0 ||
+	    errlen != sizeof(err)) {
+		err_perror("Error reading SO_ERROR");
+		return -1;  /* error reading error, unrecoverable */
+	}
+
+	if (err) {
+		debug("Unqueued error on UDP socket %i: %s", s, strerror(err));
+		n_err++;
+	}
+
+	if (!n_err) {
+		/* EPOLLERR, but no errors to clear !? */
+		err("EPOLLERR event without reported errors on socket %i", s);
+		return -1; /* no way to clear, unrecoverable */
+	}
 
 	return n_err;
 }
