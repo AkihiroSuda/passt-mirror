@@ -1076,8 +1076,8 @@ static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 
 	tap_flush_pools();
 
-	for (n = 0; n < (ssize_t)TAP_BUF_BYTES; n += len) {
-		len = read(c->fd_tap, pkt_buf + n, TAP_BUF_BYTES - n);
+	for (n = 0; n <= (ssize_t)TAP_BUF_BYTES - ETH_MAX_MTU; n += len) {
+		len = read(c->fd_tap, pkt_buf + n, ETH_MAX_MTU);
 
 		if (len == 0) {
 			die("EOF on tap device, exiting");
