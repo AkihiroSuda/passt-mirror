@@ -982,23 +982,16 @@ static void tap_sock_reset(struct ctx *c)
 }
 
 /**
- * tap_handler_passt() - Packet handler for AF_UNIX file descriptor
+ * tap_passt_input() - Handler for new data on the socket to qemu
  * @c:		Execution context
- * @events:	epoll events
  * @now:	Current timestamp
  */
-void tap_handler_passt(struct ctx *c, uint32_t events,
-		       const struct timespec *now)
+static void tap_passt_input(struct ctx *c, const struct timespec *now)
 {
 	static const char *partial_frame;
 	static ssize_t partial_len = 0;
 	ssize_t n;
 	char *p;
-
-	if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
-		tap_sock_reset(c);
-		return;
-	}
 
 	tap_flush_pools();
 
@@ -1052,19 +1045,32 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 }
 
 /**
- * tap_handler_pasta() - Packet handler for /dev/net/tun file descriptor
+ * tap_handler_passt() - Event handler for AF_UNIX file descriptor
  * @c:		Execution context
  * @events:	epoll events
  * @now:	Current timestamp
  */
-void tap_handler_pasta(struct ctx *c, uint32_t events,
+void tap_handler_passt(struct ctx *c, uint32_t events,
 		       const struct timespec *now)
+{
+	if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
+		tap_sock_reset(c);
+		return;
+	}
+
+	if (events & EPOLLIN)
+		tap_passt_input(c, now);
+}
+
+/**
+ * tap_pasta_input() - Handler for new data on the socket to hypervisor
+ * @c:		Execution context
+ * @now:	Current timestamp
+ */
+static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 {
 	ssize_t n, len;
 	int ret;
-
-	if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
-		die("Disconnect event on /dev/net/tun device, exiting");
 
 redo:
 	n = 0;
@@ -1100,6 +1106,22 @@ restart:
 		goto redo;
 
 	die("Error on tap device, exiting");
+}
+
+/**
+ * tap_handler_pasta() - Packet handler for /dev/net/tun file descriptor
+ * @c:		Execution context
+ * @events:	epoll events
+ * @now:	Current timestamp
+ */
+void tap_handler_pasta(struct ctx *c, uint32_t events,
+		       const struct timespec *now)
+{
+	if (events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
+		die("Disconnect event on /dev/net/tun device, exiting");
+
+	if (events & EPOLLIN)
+		tap_pasta_input(c, now);
 }
 
 /**
