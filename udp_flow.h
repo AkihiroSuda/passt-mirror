@@ -10,6 +10,7 @@
 /**
  * struct udp - Descriptor for a flow of UDP packets
  * @f:		Generic flow information
+ * @closed:	Flow is already closed
  * @ts:		Activity timestamp
  * @s:		Socket fd (or -1) for each side of the flow
  */
@@ -17,6 +18,7 @@ struct udp_flow {
 	/* Must be first element */
 	struct flow_common f;
 
+	bool closed :1;
 	time_t ts;
 	int s[SIDES];
 };
@@ -30,6 +32,8 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 			      const void *saddr, const void *daddr,
 			      in_port_t srcport, in_port_t dstport,
 			      const struct timespec *now);
+void udp_flow_close(const struct ctx *c, struct udp_flow *uflow);
+bool udp_flow_defer(const struct udp_flow *uflow);
 bool udp_flow_timer(const struct ctx *c, struct udp_flow *uflow,
 		    const struct timespec *now);
 

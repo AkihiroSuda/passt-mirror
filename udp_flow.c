@@ -39,8 +39,11 @@ struct udp_flow *udp_at_sidx(flow_sidx_t sidx)
  * @c:		Execution context
  * @uflow:	UDP flow
  */
-static void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
+void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 {
+	if (uflow->closed)
+		return; /* Nothing to do */
+
 	if (uflow->s[INISIDE] >= 0) {
 		/* The listening socket needs to stay in epoll */
 		close(uflow->s[INISIDE]);
@@ -56,6 +59,8 @@ static void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 	flow_hash_remove(c, FLOW_SIDX(uflow, INISIDE));
 	if (!pif_is_socket(uflow->f.pif[TGTSIDE]))
 		flow_hash_remove(c, FLOW_SIDX(uflow, TGTSIDE));
+
+	uflow->closed = true;
 }
 
 /**
@@ -254,6 +259,17 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 	flow_initiate_af(flow, PIF_TAP, af, saddr, srcport, daddr, dstport);
 
 	return udp_flow_new(c, flow, -1, now);
+}
+
+/**
+ * udp_flow_defer() - Deferred per-flow handling (clean up aborted flows)
+ * @uflow:	Flow to handle
+ *
+ * Return: true if the connection is ready to free, false otherwise
+ */
+bool udp_flow_defer(const struct udp_flow *uflow)
+{
+	return uflow->closed;
 }
 
 /**
