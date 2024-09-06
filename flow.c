@@ -283,28 +283,23 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 	       "Flow %u (%s): %s", flow_idx(f), type_or_state, msg);
 }
 
-/**
- * flow_set_state() - Change flow's state
- * @f:		Flow changing state
- * @state:	New state
+/** flow_log_details_() - Log the details of a flow
+ * @f:		flow to log
+ * @pri:	Log priority
+ * @state:	State to log details according to
+ *
+ * Logs the details of the flow: endpoints, interfaces, type etc.
  */
-static void flow_set_state(struct flow_common *f, enum flow_state state)
+void flow_log_details_(const struct flow_common *f, int pri,
+		       enum flow_state state)
 {
 	char estr0[INANY_ADDRSTRLEN], fstr0[INANY_ADDRSTRLEN];
 	char estr1[INANY_ADDRSTRLEN], fstr1[INANY_ADDRSTRLEN];
 	const struct flowside *ini = &f->side[INISIDE];
 	const struct flowside *tgt = &f->side[TGTSIDE];
-	uint8_t oldstate = f->state;
 
-	ASSERT(state < FLOW_NUM_STATES);
-	ASSERT(oldstate < FLOW_NUM_STATES);
-
-	f->state = state;
-	flow_log_(f, LOG_DEBUG, "%s -> %s", flow_state_str[oldstate],
-		  FLOW_STATE(f));
-
-	if (MAX(state, oldstate) >= FLOW_STATE_TGT)
-		flow_log_(f, LOG_DEBUG,
+	if (state >= FLOW_STATE_TGT)
+		flow_log_(f, pri,
 			  "%s [%s]:%hu -> [%s]:%hu => %s [%s]:%hu -> [%s]:%hu",
 			  pif_name(f->pif[INISIDE]),
 			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
@@ -316,13 +311,32 @@ static void flow_set_state(struct flow_common *f, enum flow_state state)
 			  tgt->oport,
 			  inany_ntop(&tgt->eaddr, estr1, sizeof(estr1)),
 			  tgt->eport);
-	else if (MAX(state, oldstate) >= FLOW_STATE_INI)
-		flow_log_(f, LOG_DEBUG, "%s [%s]:%hu -> [%s]:%hu => ?",
+	else if (state >= FLOW_STATE_INI)
+		flow_log_(f, pri, "%s [%s]:%hu -> [%s]:%hu => ?",
 			  pif_name(f->pif[INISIDE]),
 			  inany_ntop(&ini->eaddr, estr0, sizeof(estr0)),
 			  ini->eport,
 			  inany_ntop(&ini->oaddr, fstr0, sizeof(fstr0)),
 			  ini->oport);
+}
+
+/**
+ * flow_set_state() - Change flow's state
+ * @f:		Flow changing state
+ * @state:	New state
+ */
+static void flow_set_state(struct flow_common *f, enum flow_state state)
+{
+	uint8_t oldstate = f->state;
+
+	ASSERT(state < FLOW_NUM_STATES);
+	ASSERT(oldstate < FLOW_NUM_STATES);
+
+	f->state = state;
+	flow_log_(f, LOG_DEBUG, "%s -> %s", flow_state_str[oldstate],
+		  FLOW_STATE(f));
+
+	flow_log_details_(f, LOG_DEBUG, MAX(state, oldstate));
 }
 
 /**

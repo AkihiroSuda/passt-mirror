@@ -264,4 +264,11 @@ void flow_log_(const struct flow_common *f, int pri, const char *fmt, ...)
 			flow_dbg((f), __VA_ARGS__);			\
 	} while (0)
 
+void flow_log_details_(const struct flow_common *f, int pri,
+		       enum flow_state state);
+#define flow_log_details(f_, pri) \
+	flow_log_details_(&((f_)->f), (pri), (f_)->f.state)
+#define flow_dbg_details(f_)	flow_log_details((f_), LOG_DEBUG)
+#define flow_err_details(f_)	flow_log_details((f_), LOG_ERR)
+
 #endif /* FLOW_H */
