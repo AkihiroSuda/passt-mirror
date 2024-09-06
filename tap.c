@@ -1003,10 +1003,13 @@ static void tap_passt_input(struct ctx *c, const struct timespec *now)
 		memmove(pkt_buf, partial_frame, partial_len);
 	}
 
-	n = recv(c->fd_tap, pkt_buf + partial_len, TAP_BUF_BYTES - partial_len,
-		 MSG_DONTWAIT);
+	do {
+		n = recv(c->fd_tap, pkt_buf + partial_len,
+			 TAP_BUF_BYTES - partial_len, MSG_DONTWAIT);
+	} while ((n < 0) && errno == EINTR);
+
 	if (n < 0) {
-		if (errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK) {
 			err_perror("Receive error on guest connection, reset");
 			tap_sock_reset(c);
 		}
