@@ -1073,42 +1073,35 @@ void tap_handler_passt(struct ctx *c, uint32_t events,
 static void tap_pasta_input(struct ctx *c, const struct timespec *now)
 {
 	ssize_t n, len;
-	int ret;
-
-redo:
-	n = 0;
 
 	tap_flush_pools();
-restart:
-	while ((len = read(c->fd_tap, pkt_buf + n, TAP_BUF_BYTES - n)) > 0) {
 
-		if (len < (ssize_t)sizeof(struct ethhdr) ||
-		    len > (ssize_t)ETH_MAX_MTU) {
-			n += len;
-			continue;
+	for (n = 0; n < (ssize_t)TAP_BUF_BYTES; n += len) {
+		len = read(c->fd_tap, pkt_buf + n, TAP_BUF_BYTES - n);
+
+		if (len == 0) {
+			die("EOF on tap device, exiting");
+		} else if (len < 0) {
+			if (errno == EINTR) {
+				len = 0;
+				continue;
+			}
+
+			if (errno == EAGAIN && errno == EWOULDBLOCK)
+				break; /* all done for now */
+
+			die("Error on tap device, exiting");
 		}
 
+		/* Ignore frames of bad length */
+		if (len < (ssize_t)sizeof(struct ethhdr) ||
+		    len > (ssize_t)ETH_MAX_MTU)
+			continue;
 
 		tap_add_packet(c, len, pkt_buf + n);
-
-		if ((n += len) == TAP_BUF_BYTES)
-			break;
 	}
 
-	if (len < 0 && errno == EINTR)
-		goto restart;
-
-	ret = errno;
-
 	tap_handler(c, now);
-
-	if (len > 0 || ret == EAGAIN)
-		return;
-
-	if (n == TAP_BUF_BYTES)
-		goto redo;
-
-	die("Error on tap device, exiting");
 }
 
 /**
