@@ -50,6 +50,7 @@ require {
 	type passwd_file_t;
 
 	class netlink_route_socket { bind create nlmsg_read };
+	type sysctl_net_t;
 
 	class capability { sys_tty_config setuid setgid };
 	class cap_userns { setpcap sys_admin sys_ptrace };
@@ -104,6 +105,8 @@ allow passt_t net_conf_t:lnk_file read;
 allow passt_t tmp_t:sock_file { create unlink write };
 allow passt_t self:netlink_route_socket { bind create nlmsg_read read write setopt };
 kernel_search_network_sysctl(passt_t)
+allow passt_t sysctl_net_t:dir search;
+allow passt_t sysctl_net_t:file { open read };
 
 corenet_tcp_bind_all_nodes(passt_t)
 corenet_udp_bind_all_nodes(passt_t)

@@ -196,7 +196,7 @@ allow pasta_t ifconfig_var_run_t:dir { read search watch };
 allow pasta_t self:tun_socket create;
 allow pasta_t tun_tap_device_t:chr_file { ioctl open read write };
 allow pasta_t sysctl_net_t:dir search;
-allow pasta_t sysctl_net_t:file { open write };
+allow pasta_t sysctl_net_t:file { open read write };
 allow pasta_t kernel_t:system module_request;
 
 allow pasta_t nsfs_t:file read;
