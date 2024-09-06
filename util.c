@@ -249,7 +249,7 @@ void sock_probe_mem(struct ctx *c)
 int64_t timespec_diff_us(const struct timespec *a, const struct timespec *b)
 {
 	if (a->tv_nsec < b->tv_nsec) {
-		return (b->tv_nsec - a->tv_nsec) / 1000 +
+		return (a->tv_nsec + 1000000000 - b->tv_nsec) / 1000 +
 		       (a->tv_sec - b->tv_sec - 1) * 1000000;
 	}
 
