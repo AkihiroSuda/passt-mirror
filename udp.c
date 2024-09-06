@@ -437,11 +437,37 @@ static bool udp_sock_recverr(int s)
 }
 
 /**
+ * udp_sock_errs() - Process errors on a socket
+ * @c:		Execution context
+ * @s:		Socket to receive from
+ * @events:	epoll events bitmap
+ *
+ * Return: Number of errors handled, or < 0 if we have an unrecoverable error
+ */
+static int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
+{
+	unsigned n_err = 0;
+
+	ASSERT(!c->no_udp);
+
+	if (!(events & EPOLLERR))
+		return 0; /* Nothing to do */
+
+	/* Empty the error queue */
+	while (udp_sock_recverr(s))
+		n_err++;
+
+	return n_err;
+}
+
+/**
  * udp_sock_recv() - Receive datagrams from a socket
  * @c:		Execution context
  * @s:		Socket to receive from
  * @events:	epoll events bitmap
  * @mmh		mmsghdr array to receive into
+ *
+ * Return: Number of datagrams received
  *
  * #syscalls recvmmsg arm:recvmmsg_time64 i686:recvmmsg_time64
  */
@@ -458,12 +484,6 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 	int n = (c->mode == MODE_PASTA ? 1 : UDP_MAX_FRAMES);
 
 	ASSERT(!c->no_udp);
-
-	/* Clear any errors first */
-	if (events & EPOLLERR) {
-		while (udp_sock_recverr(s))
-			;
-	}
 
 	if (!(events & EPOLLIN))
 		return 0;
@@ -491,6 +511,13 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 {
 	const socklen_t sasize = sizeof(udp_meta[0].s_in);
 	int n, i;
+
+	if (udp_sock_errs(c, ref.fd, events) < 0) {
+		err("UDP: Unrecoverable error on listening socket:"
+		    " (%s port %hu)", pif_name(ref.udp.pif), ref.udp.port);
+		/* FIXME: what now?  close/re-open socket? */
+		return;
+	}
 
 	if ((n = udp_sock_recv(c, ref.fd, events, udp_mh_recv)) <= 0)
 		return;
@@ -565,6 +592,13 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 	int n, i;
 
 	ASSERT(!c->no_udp && uflow);
+
+	if (udp_sock_errs(c, from_s, events) < 0) {
+		flow_err(uflow, "Unrecoverable error on reply socket");
+		flow_err_details(uflow);
+		udp_flow_close(c, uflow);
+		return;
+	}
 
 	if ((n = udp_sock_recv(c, from_s, events, udp_mh_recv)) <= 0)
 		return;
