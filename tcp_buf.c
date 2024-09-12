@@ -332,9 +332,13 @@ int tcp_buf_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		else
 			dup_iov = tcp6_l2_flags_iov[tcp6_flags_used++];
 
-		for (i = 0; i < TCP_NUM_IOVS; i++)
-			memcpy(dup_iov[i].iov_base, iov[i].iov_base,
-			       iov[i].iov_len);
+		for (i = 0; i < TCP_NUM_IOVS; i++) {
+			/* All frames share the same ethernet header buffer */
+			if (i != TCP_IOV_ETH) {
+				memcpy(dup_iov[i].iov_base, iov[i].iov_base,
+				       iov[i].iov_len);
+			}
+		}
 		dup_iov[TCP_IOV_PAYLOAD].iov_len = iov[TCP_IOV_PAYLOAD].iov_len;
 	}
 
