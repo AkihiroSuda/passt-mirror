@@ -168,7 +168,6 @@ void tcp_sock4_iov_init(const struct ctx *c)
 		iov = tcp4_l2_flags_iov[i];
 
 		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp4_flags_tap_hdr[i]);
-		iov[TCP_IOV_ETH].iov_base = &tcp4_eth_src;
 		iov[TCP_IOV_ETH] = IOV_OF_LVALUE(tcp4_eth_src);
 		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp4_flags_ip[i]);
 		iov[TCP_IOV_PAYLOAD].iov_base = &tcp4_flags[i];
