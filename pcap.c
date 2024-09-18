@@ -86,9 +86,8 @@ static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 		.caplen = l2len,
 		.len = l2len
 	};
-	struct iovec hiov = { &h, sizeof(h) };
 
-	if (write_remainder(pcap_fd, &hiov, 1, 0) < 0 ||
+	if (write_all_buf(pcap_fd, &h, sizeof(h)) < 0 ||
 	    write_remainder(pcap_fd, iov, iovcnt, offset) < 0)
 		debug_perror("Cannot log packet, length %zu", l2len);
 }

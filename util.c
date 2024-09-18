@@ -582,6 +582,31 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 #endif
 }
 
+/* write_all_buf() - write all of a buffer to an fd
+ * @fd:		File descriptor
+ * @buf:	Pointer to base of buffer
+ * @len:	Length of buffer
+ *
+ * Return: 0 on success, -1 on error (with errno set)
+ *
+ * #syscalls write
+ */
+int write_all_buf(int fd, const void *buf, size_t len)
+{
+	const char *p = buf;
+	size_t left = len;
+
+	while (left) {
+		ssize_t rc = write(fd, p, left);
+
+		if (rc < 0)
+			return -1;
+		p += rc;
+		left -= rc;
+	}
+	return 0;
+}
+
 /* write_remainder() - write the tail of an IO vector to an fd
  * @fd:		File descriptor
  * @iov:	IO vector
