@@ -597,10 +597,15 @@ int write_all_buf(int fd, const void *buf, size_t len)
 	size_t left = len;
 
 	while (left) {
-		ssize_t rc = write(fd, p, left);
+		ssize_t rc;
+
+		do
+			rc = write(fd, p, left);
+		while ((rc < 0) && errno == EINTR);
 
 		if (rc < 0)
 			return -1;
+
 		p += rc;
 		left -= rc;
 	}
@@ -615,28 +620,30 @@ int write_all_buf(int fd, const void *buf, size_t len)
  *
  * Return: 0 on success, -1 on error (with errno set)
  *
- * #syscalls write writev
+ * #syscalls writev
  */
 int write_remainder(int fd, const struct iovec *iov, size_t iovcnt, size_t skip)
 {
-	size_t offset, i;
+	size_t i = 0, offset;
 
-	while ((i = iov_skip_bytes(iov, iovcnt, skip, &offset)) < iovcnt) {
+	while ((i += iov_skip_bytes(iov + i, iovcnt - i, skip, &offset)) < iovcnt) {
 		ssize_t rc;
 
 		if (offset) {
-			rc = write(fd, (char *)iov[i].iov_base + offset,
-				   iov[i].iov_len - offset);
-		} else {
-			rc = writev(fd, &iov[i], iovcnt - i);
+			/* Write the remainder of the partially written buffer */
+			if (write_all_buf(fd, (char *)iov[i].iov_base + offset,
+					  iov[i].iov_len - offset) < 0)
+				return -1;
+			i++;
 		}
 
+		/* Write as much of the remaining whole buffers as we can */
+		rc = writev(fd, &iov[i], iovcnt - i);
 		if (rc < 0)
 			return -1;
 
-		skip += rc;
+		skip = rc;
 	}
-
 	return 0;
 }
 
