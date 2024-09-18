@@ -899,13 +899,14 @@ static void tcp_fill_header(struct tcphdr *th,
 
 /**
  * tcp_fill_headers4() - Fill 802.3, IPv4, TCP headers in pre-cooked buffers
- * @conn:	Connection pointer
- * @taph:	tap backend specific header
- * @iph:	Pointer to IPv4 header
- * @th:		Pointer to TCP header
- * @dlen:	TCP payload length
- * @check:	Checksum, if already known
- * @seq:	Sequence number for this segment
+ * @conn:		Connection pointer
+ * @taph:		tap backend specific header
+ * @iph:		Pointer to IPv4 header
+ * @th:			Pointer to TCP header
+ * @dlen:		TCP payload length
+ * @check:		Checksum, if already known
+ * @seq:		Sequence number for this segment
+ * @no_tcp_csum:	Do not set TCP checksum
  *
  * Return: The IPv4 payload length, host order
  */
@@ -913,7 +914,7 @@ static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
 				struct tap_hdr *taph,
 				struct iphdr *iph, struct tcphdr *th,
 				size_t dlen, const uint16_t *check,
-				uint32_t seq)
+				uint32_t seq, bool no_tcp_csum)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
 	const struct in_addr *src4 = inany_v4(&tapside->oaddr);
@@ -932,7 +933,10 @@ static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
 
 	tcp_fill_header(th, conn, seq);
 
-	tcp_update_check_tcp4(iph, th);
+	if (no_tcp_csum)
+		th->check = 0;
+	else
+		tcp_update_check_tcp4(iph, th);
 
 	tap_hdr_update(taph, l3len + sizeof(struct ethhdr));
 
@@ -941,20 +945,21 @@ static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
 
 /**
  * tcp_fill_headers6() - Fill 802.3, IPv6, TCP headers in pre-cooked buffers
- * @conn:	Connection pointer
- * @taph:	tap backend specific header
- * @ip6h:	Pointer to IPv6 header
- * @th:		Pointer to TCP header
- * @dlen:	TCP payload length
- * @check:	Checksum, if already known
- * @seq:	Sequence number for this segment
+ * @conn:		Connection pointer
+ * @taph:		tap backend specific header
+ * @ip6h:		Pointer to IPv6 header
+ * @th:			Pointer to TCP header
+ * @dlen:		TCP payload length
+ * @check:		Checksum, if already known
+ * @seq:		Sequence number for this segment
+ * @no_tcp_csum:	Do not set TCP checksum
  *
  * Return: The IPv6 payload length, host order
  */
 static size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
 				struct tap_hdr *taph,
 				struct ipv6hdr *ip6h, struct tcphdr *th,
-				size_t dlen, uint32_t seq)
+				size_t dlen, uint32_t seq, bool no_tcp_csum)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
 	size_t l4len = dlen + sizeof(*th);
@@ -973,7 +978,10 @@ static size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
 
 	tcp_fill_header(th, conn, seq);
 
-	tcp_update_check_tcp6(ip6h, th);
+	if (no_tcp_csum)
+		th->check = 0;
+	else
+		tcp_update_check_tcp6(ip6h, th);
 
 	tap_hdr_update(taph, l4len + sizeof(*ip6h) + sizeof(struct ethhdr));
 
@@ -987,12 +995,14 @@ static size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
  * @dlen:	TCP payload length
  * @check:	Checksum, if already known
  * @seq:	Sequence number for this segment
+ * @no_tcp_csum: Do not set TCP checksum
  *
  * Return: IP payload length, host order
  */
 size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 			       struct iovec *iov, size_t dlen,
-			       const uint16_t *check, uint32_t seq)
+			       const uint16_t *check, uint32_t seq,
+			       bool no_tcp_csum)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
 	const struct in_addr *a4 = inany_v4(&tapside->oaddr);
@@ -1001,13 +1011,13 @@ size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 		return tcp_fill_headers4(conn, iov[TCP_IOV_TAP].iov_base,
 					 iov[TCP_IOV_IP].iov_base,
 					 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
-					 check, seq);
+					 check, seq, no_tcp_csum);
 	}
 
 	return tcp_fill_headers6(conn, iov[TCP_IOV_TAP].iov_base,
 				 iov[TCP_IOV_IP].iov_base,
 				 iov[TCP_IOV_PAYLOAD].iov_base, dlen,
-				 seq);
+				 seq, no_tcp_csum);
 }
 
 /**

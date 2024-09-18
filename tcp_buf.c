@@ -320,7 +320,7 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		return ret;
 	}
 
-	l4len = tcp_l2_buf_fill_headers(conn, iov, optlen, NULL, seq);
+	l4len = tcp_l2_buf_fill_headers(conn, iov, optlen, NULL, seq, false);
 	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 
 	if (flags & DUP_ACK) {
@@ -381,7 +381,8 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		tcp4_frame_conns[tcp4_payload_used] = conn;
 
 		iov = tcp4_l2_iov[tcp4_payload_used++];
-		l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, check, seq);
+		l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, check, seq,
+						false);
 		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 		if (tcp4_payload_used > TCP_FRAMES_MEM - 1)
 			tcp_payload_flush(c);
@@ -389,7 +390,8 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 		tcp6_frame_conns[tcp6_payload_used] = conn;
 
 		iov = tcp6_l2_iov[tcp6_payload_used++];
-		l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, NULL, seq);
+		l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, NULL, seq,
+						false);
 		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 		if (tcp6_payload_used > TCP_FRAMES_MEM - 1)
 			tcp_payload_flush(c);
