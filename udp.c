@@ -294,15 +294,17 @@ static void udp_splice_send(const struct ctx *c, size_t start, size_t n,
 
 /**
  * udp_update_hdr4() - Update headers for one IPv4 datagram
- * @ip4h:	Pre-filled IPv4 header (except for tot_len and saddr)
- * @bp:		Pointer to udp_payload_t to update
- * @toside:	Flowside for destination side
- * @dlen:	Length of UDP payload
+ * @ip4h:		Pre-filled IPv4 header (except for tot_len and saddr)
+ * @bp:			Pointer to udp_payload_t to update
+ * @toside:		Flowside for destination side
+ * @dlen:		Length of UDP payload
+ * @no_udp_csum:	Do not set UDP checksum
  *
  * Return: size of IPv4 payload (UDP header + data)
  */
 static size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
-			      const struct flowside *toside, size_t dlen)
+			      const struct flowside *toside, size_t dlen,
+			      bool no_udp_csum)
 {
 	const struct in_addr *src = inany_v4(&toside->oaddr);
 	const struct in_addr *dst = inany_v4(&toside->eaddr);
@@ -319,22 +321,28 @@ static size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
 	bp->uh.source = htons(toside->oport);
 	bp->uh.dest = htons(toside->eport);
 	bp->uh.len = htons(l4len);
-	csum_udp4(&bp->uh, *src, *dst, bp->data, dlen);
+	if (no_udp_csum)
+		bp->uh.check = 0;
+	else
+		csum_udp4(&bp->uh, *src, *dst, bp->data, dlen);
 
 	return l4len;
 }
 
 /**
  * udp_update_hdr6() - Update headers for one IPv6 datagram
- * @ip6h:	Pre-filled IPv6 header (except for payload_len and addresses)
- * @bp:		Pointer to udp_payload_t to update
- * @toside:	Flowside for destination side
- * @dlen:	Length of UDP payload
+ * @ip6h:		Pre-filled IPv6 header (except for payload_len and
+ * 			addresses)
+ * @bp:			Pointer to udp_payload_t to update
+ * @toside:		Flowside for destination side
+ * @dlen:		Length of UDP payload
+ * @no_udp_csum:	Do not set UDP checksum
  *
  * Return: size of IPv6 payload (UDP header + data)
  */
 static size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
-			      const struct flowside *toside, size_t dlen)
+			      const struct flowside *toside, size_t dlen,
+			      bool no_udp_csum)
 {
 	uint16_t l4len = dlen + sizeof(bp->uh);
 
@@ -348,7 +356,16 @@ static size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
 	bp->uh.source = htons(toside->oport);
 	bp->uh.dest = htons(toside->eport);
 	bp->uh.len = ip6h->payload_len;
-	csum_udp6(&bp->uh, &toside->oaddr.a6, &toside->eaddr.a6, bp->data, dlen);
+	if (no_udp_csum) {
+		/* 0 is an invalid checksum for UDP IPv6 and dropped by
+		 * the kernel stack, even if the checksum is disabled by virtio
+		 * flags. We need to put any non-zero value here.
+		 */
+		bp->uh.check = 0xffff;
+	} else {
+		csum_udp6(&bp->uh, &toside->oaddr.a6, &toside->eaddr.a6,
+			  bp->data, dlen);
+	}
 
 	return l4len;
 }
@@ -358,9 +375,11 @@ static size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
  * @mmh:	Receiving mmsghdr array
  * @idx:	Index of the datagram to prepare
  * @toside:	Flowside for destination side
+ * @no_udp_csum: Do not set UDP checksum
  */
-static void udp_tap_prepare(const struct mmsghdr *mmh, unsigned idx,
-			    const struct flowside *toside)
+static void udp_tap_prepare(const struct mmsghdr *mmh,
+			    unsigned idx, const struct flowside *toside,
+			    bool no_udp_csum)
 {
 	struct iovec (*tap_iov)[UDP_NUM_IOVS] = &udp_l2_iov[idx];
 	struct udp_payload_t *bp = &udp_payload[idx];
@@ -368,13 +387,15 @@ static void udp_tap_prepare(const struct mmsghdr *mmh, unsigned idx,
 	size_t l4len;
 
 	if (!inany_v4(&toside->eaddr) || !inany_v4(&toside->oaddr)) {
-		l4len = udp_update_hdr6(&bm->ip6h, bp, toside, mmh[idx].msg_len);
+		l4len = udp_update_hdr6(&bm->ip6h, bp, toside,
+					mmh[idx].msg_len, no_udp_csum);
 		tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip6h) +
 			       sizeof(udp6_eth_hdr));
 		(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp6_eth_hdr);
 		(*tap_iov)[UDP_IOV_IP] = IOV_OF_LVALUE(bm->ip6h);
 	} else {
-		l4len = udp_update_hdr4(&bm->ip4h, bp, toside, mmh[idx].msg_len);
+		l4len = udp_update_hdr4(&bm->ip4h, bp, toside,
+					mmh[idx].msg_len, no_udp_csum);
 		tap_hdr_update(&bm->taph, l4len + sizeof(bm->ip4h) +
 			       sizeof(udp4_eth_hdr));
 		(*tap_iov)[UDP_IOV_ETH] = IOV_OF_LVALUE(udp4_eth_hdr);
@@ -565,7 +586,8 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 				udp_splice_prepare(udp_mh_recv, i);
 			} else if (batchpif == PIF_TAP) {
 				udp_tap_prepare(udp_mh_recv, i,
-						flowside_at_sidx(batchsidx));
+						flowside_at_sidx(batchsidx),
+						false);
 			}
 
 			if (++i >= n)
@@ -636,7 +658,7 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 		if (pif_is_socket(topif))
 			udp_splice_prepare(udp_mh_recv, i);
 		else if (topif == PIF_TAP)
-			udp_tap_prepare(udp_mh_recv, i, toside);
+			udp_tap_prepare(udp_mh_recv, i, toside, false);
 		/* Restore sockaddr length clobbered by recvmsg() */
 		udp_mh_recv[i].msg_hdr.msg_namelen = sizeof(udp_meta[i].s_in);
 	}
