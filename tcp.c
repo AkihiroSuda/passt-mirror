@@ -1235,7 +1235,7 @@ int tcp_prepare_flags(struct ctx *c, struct tcp_tap_conn *conn,
  *
  * Return: negative error code on connection reset, 0 otherwise
  */
-int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
+static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
 {
 	return tcp_buf_send_flag(c, conn, flags);
 }
@@ -2477,7 +2477,7 @@ static void tcp_sock_refill_init(const struct ctx *c)
  *
  * Return: true if supported, false otherwise
  */
-bool tcp_probe_peek_offset_cap(sa_family_t af)
+static bool tcp_probe_peek_offset_cap(sa_family_t af)
 {
 	bool ret = false;
 	int s, optv = 0;
