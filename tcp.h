@@ -10,11 +10,12 @@
 
 struct ctx;
 
-void tcp_timer_handler(struct ctx *c, union epoll_ref ref);
-void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
+void tcp_timer_handler(const struct ctx *c, union epoll_ref ref);
+void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 			const struct timespec *now);
-void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events);
-int tcp_tap_handler(struct ctx *c, uint8_t pif, sa_family_t af,
+void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
+		      uint32_t events);
+int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		    const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now);
 int tcp_sock_init(const struct ctx *c, sa_family_t af, const void *addr,
@@ -58,16 +59,12 @@ union tcp_listen_epoll_ref {
  * @fwd_in:		Port forwarding configuration for inbound packets
  * @fwd_out:		Port forwarding configuration for outbound packets
  * @timer_run:		Timestamp of most recent timer run
- * @kernel_snd_wnd:	Kernel reports sending window (with commit 8f7baad7f035)
  * @pipe_size:		Size of pipes for spliced connections
  */
 struct tcp_ctx {
 	struct fwd_ports fwd_in;
 	struct fwd_ports fwd_out;
 	struct timespec timer_run;
-#ifdef HAS_SND_WND
-	int kernel_snd_wnd;
-#endif
 	size_t pipe_size;
 };
 

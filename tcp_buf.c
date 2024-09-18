@@ -239,7 +239,7 @@ void tcp_flags_flush(const struct ctx *c)
  * @frames:	Two-dimensional array containing queued frames with sub-iovs
  * @num_frames:	Number of entries in the two arrays to be compared
  */
-static void tcp_revert_seq(struct ctx *c, struct tcp_tap_conn **conns,
+static void tcp_revert_seq(const struct ctx *c, struct tcp_tap_conn **conns,
 			   struct iovec (*frames)[TCP_NUM_IOVS], int num_frames)
 {
 	int i;
@@ -264,7 +264,7 @@ static void tcp_revert_seq(struct ctx *c, struct tcp_tap_conn **conns,
  * tcp_payload_flush() - Send out buffers for segments with data
  * @c:		Execution context
  */
-void tcp_payload_flush(struct ctx *c)
+void tcp_payload_flush(const struct ctx *c)
 {
 	size_t m;
 
@@ -293,7 +293,7 @@ void tcp_payload_flush(struct ctx *c)
  *
  * Return: negative error code on connection reset, 0 otherwise
  */
-int tcp_buf_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
+int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 {
 	struct tcp_flags_t *payload;
 	struct iovec *iov;
@@ -361,7 +361,7 @@ int tcp_buf_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
  * @no_csum:	Don't compute IPv4 checksum, use the one from previous buffer
  * @seq:	Sequence number to be sent
  */
-static void tcp_data_to_tap(struct ctx *c, struct tcp_tap_conn *conn,
+static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			    ssize_t dlen, int no_csum, uint32_t seq)
 {
 	struct iovec *iov;
@@ -405,7 +405,7 @@ static void tcp_data_to_tap(struct ctx *c, struct tcp_tap_conn *conn,
  *
  * #syscalls recvmsg
  */
-int tcp_buf_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
+int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	int fill_bufs, send_bufs = 0, last_len, iov_rem = 0;

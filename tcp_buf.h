@@ -9,8 +9,8 @@
 void tcp_sock4_iov_init(const struct ctx *c);
 void tcp_sock6_iov_init(const struct ctx *c);
 void tcp_flags_flush(const struct ctx *c);
-void tcp_payload_flush(struct ctx *c);
-int tcp_buf_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn);
-int tcp_buf_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags);
+void tcp_payload_flush(const struct ctx *c);
+int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn);
+int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags);
 
 #endif  /*TCP_BUF_H */

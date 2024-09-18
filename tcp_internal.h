@@ -82,7 +82,7 @@ void conn_event_do(const struct ctx *c, struct tcp_tap_conn *conn,
 		conn_event_do(c, conn, event);				\
 	} while (0)
 
-void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn);
+void tcp_rst_do(const struct ctx *c, struct tcp_tap_conn *conn);
 #define tcp_rst(c, conn)						\
 	do {								\
 		flow_dbg((conn), "TCP reset at %s:%i", __func__, __LINE__); \
@@ -94,7 +94,7 @@ size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 			       const uint16_t *check, uint32_t seq);
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 			  int force_seq, struct tcp_info *tinfo);
-int tcp_prepare_flags(struct ctx *c, struct tcp_tap_conn *conn, int flags,
+int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn, int flags,
 		      struct tcphdr *th, char *data, size_t *optlen);
 
 #endif /* TCP_INTERNAL_H */

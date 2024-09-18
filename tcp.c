@@ -308,11 +308,6 @@
 /* MSS rounding: see SET_MSS() */
 #define MSS_DEFAULT			536
 #define WINDOW_DEFAULT			14600		/* RFC 6928 */
-#ifdef HAS_SND_WND
-# define KERNEL_REPORTS_SND_WND(c)	((c)->tcp.kernel_snd_wnd)
-#else
-# define KERNEL_REPORTS_SND_WND(c)	(0 && (c))
-#endif
 
 #define ACK_INTERVAL			10		/* ms */
 #define SYN_TIMEOUT			10		/* s */
@@ -370,6 +365,14 @@ char		tcp_buf_discard		[MAX_WINDOW];
 
 /* Does the kernel support TCP_PEEK_OFF? */
 bool peek_offset_cap;
+#ifdef HAS_SND_WND
+/* Does the kernel report sending window in TCP_INFO (kernel commit
+ * 8f7baad7f035)
+ */
+bool snd_wnd_cap;
+#else
+#define snd_wnd_cap	(false)
+#endif
 
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
@@ -1052,7 +1055,7 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	}
 #endif /* !HAS_BYTES_ACKED */
 
-	if (!KERNEL_REPORTS_SND_WND(c)) {
+	if (!snd_wnd_cap) {
 		tcp_get_sndbuf(conn);
 		new_wnd_to_tap = MIN(SNDBUF_GET(conn), MAX_WINDOW);
 		conn->wnd_to_tap = MIN(new_wnd_to_tap >> conn->ws_to_tap,
@@ -1136,7 +1139,7 @@ static void tcp_update_seqack_from_tap(const struct ctx *c,
  *	     0 if there is no flag to send
  *	     1 otherwise
  */
-int tcp_prepare_flags(struct ctx *c, struct tcp_tap_conn *conn,
+int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 		      int flags, struct tcphdr *th, char *data,
 		      size_t *optlen)
 {
@@ -1152,11 +1155,6 @@ int tcp_prepare_flags(struct ctx *c, struct tcp_tap_conn *conn,
 		conn_event(c, conn, CLOSED);
 		return -ECONNRESET;
 	}
-
-#ifdef HAS_SND_WND
-	if (!c->tcp.kernel_snd_wnd && tinfo.tcpi_snd_wnd)
-		c->tcp.kernel_snd_wnd = 1;
-#endif
 
 	if (!(conn->flags & LOCAL))
 		tcp_rtt_dst_check(conn, &tinfo);
@@ -1235,7 +1233,8 @@ int tcp_prepare_flags(struct ctx *c, struct tcp_tap_conn *conn,
  *
  * Return: negative error code on connection reset, 0 otherwise
  */
-static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
+static int tcp_send_flag(const struct ctx *c, struct tcp_tap_conn *conn,
+			 int flags)
 {
 	return tcp_buf_send_flag(c, conn, flags);
 }
@@ -1245,7 +1244,7 @@ static int tcp_send_flag(struct ctx *c, struct tcp_tap_conn *conn, int flags)
  * @c:		Execution context
  * @conn:	Connection pointer
  */
-void tcp_rst_do(struct ctx *c, struct tcp_tap_conn *conn)
+void tcp_rst_do(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	if (conn->events == CLOSED)
 		return;
@@ -1463,7 +1462,7 @@ static void tcp_bind_outbound(const struct ctx *c,
  * @optlen:	Bytes in options: caller MUST ensure available length
  * @now:	Current timestamp
  */
-static void tcp_conn_from_tap(struct ctx *c, sa_family_t af,
+static void tcp_conn_from_tap(const struct ctx *c, sa_family_t af,
 			      const void *saddr, const void *daddr,
 			      const struct tcphdr *th, const char *opts,
 			      size_t optlen, const struct timespec *now)
@@ -1628,7 +1627,7 @@ static int tcp_sock_consume(const struct tcp_tap_conn *conn, uint32_t ack_seq)
  *
  * #syscalls recvmsg
  */
-static int tcp_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
+static int tcp_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	return tcp_buf_data_from_sock(c, conn);
 }
@@ -1644,8 +1643,8 @@ static int tcp_data_from_sock(struct ctx *c, struct tcp_tap_conn *conn)
  *
  * Return: count of consumed packets
  */
-static int tcp_data_from_tap(struct ctx *c, struct tcp_tap_conn *conn,
-			      const struct pool *p, int idx)
+static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
+			     const struct pool *p, int idx)
 {
 	int i, iov_i, ack = 0, fin = 0, retr = 0, keep = -1, partial_send = 0;
 	uint16_t max_ack_seq_wnd = conn->wnd_from_tap;
@@ -1842,7 +1841,8 @@ out:
  * @opts:	Pointer to start of options
  * @optlen:	Bytes in options: caller MUST ensure available length
  */
-static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
+static void tcp_conn_from_sock_finish(const struct ctx *c,
+				      struct tcp_tap_conn *conn,
 				      const struct tcphdr *th,
 				      const char *opts, size_t optlen)
 {
@@ -1885,7 +1885,7 @@ static void tcp_conn_from_sock_finish(struct ctx *c, struct tcp_tap_conn *conn,
  *
  * Return: count of consumed packets
  */
-int tcp_tap_handler(struct ctx *c, uint8_t pif, sa_family_t af,
+int tcp_tap_handler(const struct ctx *c, uint8_t pif, sa_family_t af,
 		    const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now)
 {
@@ -2023,7 +2023,7 @@ reset:
  * @c:		Execution context
  * @conn:	Connection pointer
  */
-static void tcp_connect_finish(struct ctx *c, struct tcp_tap_conn *conn)
+static void tcp_connect_finish(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	socklen_t sl;
 	int so;
@@ -2049,8 +2049,8 @@ static void tcp_connect_finish(struct ctx *c, struct tcp_tap_conn *conn)
  * @sa:		Peer socket address (from accept())
  * @now:	Current timestamp
  */
-static void tcp_tap_conn_from_sock(struct ctx *c, union flow *flow, int s,
-				   const struct timespec *now)
+static void tcp_tap_conn_from_sock(const struct ctx *c, union flow *flow,
+				   int s, const struct timespec *now)
 {
 	struct tcp_tap_conn *conn = FLOW_SET_TYPE(flow, FLOW_TCP, tcp);
 	uint64_t hash;
@@ -2081,7 +2081,7 @@ static void tcp_tap_conn_from_sock(struct ctx *c, union flow *flow, int s,
  * @ref:	epoll reference of listening socket
  * @now:	Current timestamp
  */
-void tcp_listen_handler(struct ctx *c, union epoll_ref ref,
+void tcp_listen_handler(const struct ctx *c, union epoll_ref ref,
 			const struct timespec *now)
 {
 	const struct flowside *ini;
@@ -2146,7 +2146,7 @@ cancel:
  *
  * #syscalls timerfd_gettime arm:timerfd_gettime64 i686:timerfd_gettime64
  */
-void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
+void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 {
 	struct itimerspec check_armed = { { 0 }, { 0 } };
 	struct tcp_tap_conn *conn = &FLOW(ref.flow)->tcp;
@@ -2210,7 +2210,8 @@ void tcp_timer_handler(struct ctx *c, union epoll_ref ref)
  * @ref:	epoll reference
  * @events:	epoll events bitmap
  */
-void tcp_sock_handler(struct ctx *c, union epoll_ref ref, uint32_t events)
+void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
+		      uint32_t events)
 {
 	struct tcp_tap_conn *conn = conn_at_sidx(ref.flowside);
 
@@ -2494,6 +2495,40 @@ static bool tcp_probe_peek_offset_cap(sa_family_t af)
 	return ret;
 }
 
+#ifdef HAS_SND_WND
+/**
+ * tcp_probe_snd_wnd_cap() - Check if TCP_INFO reports tcpi_snd_wnd
+ *
+ * Return: true if supported, false otherwise
+ */
+static bool tcp_probe_snd_wnd_cap(void)
+{
+	struct tcp_info tinfo;
+	socklen_t sl = sizeof(tinfo);
+	int s;
+
+	s = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+	if (s < 0) {
+		warn_perror("Temporary TCP socket creation failed");
+		return false;
+	}
+
+	if (getsockopt(s, SOL_TCP, TCP_INFO, &tinfo, &sl)) {
+		warn_perror("Failed to get TCP_INFO on temporary socket");
+		close(s);
+		return false;
+	}
+
+	close(s);
+
+	if (sl < (offsetof(struct tcp_info, tcpi_snd_wnd) +
+		  sizeof(tinfo.tcpi_snd_wnd)))
+		return false;
+
+	return true;
+}
+#endif /* HAS_SND_WND */
+
 /**
  * tcp_init() - Get initial sequence, hash secret, initialise per-socket data
  * @c:		Execution context
@@ -2526,6 +2561,12 @@ int tcp_init(struct ctx *c)
 	peek_offset_cap = (!c->ifi4 || tcp_probe_peek_offset_cap(AF_INET)) &&
 			  (!c->ifi6 || tcp_probe_peek_offset_cap(AF_INET6));
 	debug("SO_PEEK_OFF%ssupported", peek_offset_cap ? " " : " not ");
+
+#ifdef HAS_SND_WND
+	snd_wnd_cap = tcp_probe_snd_wnd_cap();
+#endif
+	debug("TCP_INFO tcpi_snd_wnd field%ssupported",
+	      snd_wnd_cap ? " " : " not ");
 
 	return 0;
 }
