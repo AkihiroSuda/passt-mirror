@@ -1020,7 +1020,7 @@ size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
  * Return: 1 if sequence or window were updated, 0 otherwise
  */
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
-			  int force_seq, struct tcp_info *tinfo)
+			  bool force_seq, struct tcp_info *tinfo)
 {
 	uint32_t prev_wnd_to_tap = conn->wnd_to_tap << conn->ws_to_tap;
 	uint32_t prev_ack_to_tap = conn->seq_ack_to_tap;
@@ -1157,7 +1157,7 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (!(conn->flags & LOCAL))
 		tcp_rtt_dst_check(conn, &tinfo);
 
-	if (!tcp_update_seqack_wnd(c, conn, flags, &tinfo) && !flags)
+	if (!tcp_update_seqack_wnd(c, conn, !!flags, &tinfo) && !flags)
 		return 0;
 
 	*optlen = 0;
@@ -2240,7 +2240,7 @@ void tcp_sock_handler(const struct ctx *c, union epoll_ref ref,
 			tcp_data_from_sock(c, conn);
 
 		if (events & EPOLLOUT)
-			tcp_update_seqack_wnd(c, conn, 0, NULL);
+			tcp_update_seqack_wnd(c, conn, false, NULL);
 
 		return;
 	}

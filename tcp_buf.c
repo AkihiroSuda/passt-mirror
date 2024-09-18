@@ -511,7 +511,7 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	last_len = sendlen - (send_bufs - 1) * mss;
 
 	/* Likely, some new data was acked too. */
-	tcp_update_seqack_wnd(c, conn, 0, NULL);
+	tcp_update_seqack_wnd(c, conn, false, NULL);
 
 	/* Finally, queue to tap */
 	dlen = mss;
