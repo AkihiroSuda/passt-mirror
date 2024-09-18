@@ -1066,14 +1066,13 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (!tinfo) {
 		if (prev_wnd_to_tap > WINDOW_DEFAULT) {
 			goto out;
-}
+		}
 		tinfo = &tinfo_new;
 		if (getsockopt(s, SOL_TCP, TCP_INFO, tinfo, &sl)) {
 			goto out;
-}
+		}
 	}
 
-#ifdef HAS_SND_WND
 	if ((conn->flags & LOCAL) || tcp_rtt_dst_low(conn)) {
 		new_wnd_to_tap = tinfo->tcpi_snd_wnd;
 	} else {
@@ -1081,7 +1080,6 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 		new_wnd_to_tap = MIN((int)tinfo->tcpi_snd_wnd,
 				     SNDBUF_GET(conn));
 	}
-#endif
 
 	new_wnd_to_tap = MIN(new_wnd_to_tap, MAX_WINDOW);
 	if (!(conn->events & ESTABLISHED))
