@@ -157,58 +157,6 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 
 	return fd;
 }
-/**
- * sock_l4() - Create and bind socket for given L4, add to epoll list
- * @c:		Execution context
- * @af:		Address family, AF_INET or AF_INET6
- * @type:	epoll type
- * @bind_addr:	Address for binding, NULL for any
- * @ifname:	Interface for binding, NULL for any
- * @port:	Port, host order
- * @data:	epoll reference portion for protocol handlers
- *
- * Return: newly created socket, negative error code on failure
- */
-int sock_l4(const struct ctx *c, sa_family_t af, enum epoll_type type,
-	    const void *bind_addr, const char *ifname, uint16_t port,
-	    uint32_t data)
-{
-	switch (af) {
-	case AF_INET: {
-		struct sockaddr_in addr4 = {
-			.sin_family = AF_INET,
-			.sin_port = htons(port),
-			{ 0 }, { 0 },
-		};
-		if (bind_addr)
-			addr4.sin_addr = *(struct in_addr *)bind_addr;
-		return sock_l4_sa(c, type, &addr4, sizeof(addr4), ifname,
-				  false, data);
-	}
-
-	case AF_UNSPEC:
-		if (!DUAL_STACK_SOCKETS || bind_addr)
-			 return -EINVAL;
-		/* fallthrough */
-	case AF_INET6: {
-		struct sockaddr_in6 addr6 = {
-			.sin6_family = AF_INET6,
-			.sin6_port = htons(port),
-			0, IN6ADDR_ANY_INIT, 0,
-		};
-		if (bind_addr) {
-			addr6.sin6_addr = *(struct in6_addr *)bind_addr;
-
-			if (IN6_IS_ADDR_LINKLOCAL(bind_addr))
-				addr6.sin6_scope_id = c->ifi6;
-		}
-		return sock_l4_sa(c, type, &addr6, sizeof(addr6), ifname,
-				  af == AF_INET6, data);
-	}
-	default:
-		return -EINVAL;
-	}
-}
 
 /**
  * sock_probe_mem() - Check if setting high SO_SNDBUF and SO_RCVBUF is allowed

@@ -181,9 +181,6 @@ int close_range(unsigned int first, unsigned int last, int flags) {
 int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	       const void *sa, socklen_t sl,
 	       const char *ifname, bool v6only, uint32_t data);
-int sock_l4(const struct ctx *c, sa_family_t af, enum epoll_type type,
-	    const void *bind_addr, const char *ifname, uint16_t port,
-	    uint32_t data);
 void sock_probe_mem(struct ctx *c);
 long timespec_diff_ms(const struct timespec *a, const struct timespec *b);
 int64_t timespec_diff_us(const struct timespec *a, const struct timespec *b);

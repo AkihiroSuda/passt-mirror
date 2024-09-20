@@ -59,3 +59,45 @@ void pif_sockaddr(const struct ctx *c, union sockaddr_inany *sa, socklen_t *sl,
 		*sl = sizeof(sa->sa6);
 	}
 }
+
+/** pif_sock_l4() - Open a socket bound to an address on a specified interface
+ * @c:		Execution context
+ * @type:	Socket epoll type
+ * @pif:	Interface for this socket
+ * @addr:	Address to bind to, or NULL for dual-stack any
+ * @ifname:	Interface for binding, NULL for any
+ * @port:	Port number to bind to (host byte order)
+ * @data:	epoll reference portion for protocol handlers
+ *
+ * NOTE: For namespace pifs, this must be called having already entered the
+ * relevant namespace.
+ *
+ * Return: newly created socket, negative error code on failure
+ */
+int pif_sock_l4(const struct ctx *c, enum epoll_type type, uint8_t pif,
+		const union inany_addr *addr, const char *ifname,
+		in_port_t port, uint32_t data)
+{
+	union sockaddr_inany sa = {
+		.sa6.sin6_family = AF_INET6,
+		.sa6.sin6_addr = in6addr_any,
+		.sa6.sin6_port = htons(port),
+	};
+	socklen_t sl;
+
+	ASSERT(pif_is_socket(pif));
+
+	if (pif == PIF_SPLICE) {
+		/* Sanity checks */
+		ASSERT(!ifname);
+		ASSERT(addr && inany_is_loopback(addr));
+	}
+
+	if (!addr)
+		return sock_l4_sa(c, type, &sa, sizeof(sa.sa6),
+				  ifname, false, data);
+
+	pif_sockaddr(c, &sa, &sl, pif, addr, port);
+	return sock_l4_sa(c, type, &sa, sl,
+			  ifname, sa.sa_family == AF_INET6, data);
+}

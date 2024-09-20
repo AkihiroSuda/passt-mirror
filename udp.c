@@ -809,8 +809,8 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		ASSERT(!addr);
 
 		/* Attempt to get a dual stack socket */
-		s = sock_l4(c, AF_UNSPEC, EPOLL_TYPE_UDP_LISTEN,
-			    NULL, ifname, port, uref.u32);
+		s = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_HOST,
+				NULL, ifname, port, uref.u32);
 		udp_splice_init[V4][port] = s < 0 ? -1 : s;
 		udp_splice_init[V6][port] = s < 0 ? -1 : s;
 		if (IN_INTERVAL(0, FD_REF_MAX, s))
@@ -819,28 +819,38 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 
 	if ((af == AF_INET || af == AF_UNSPEC) && c->ifi4) {
 		if (!ns) {
-			r4 = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
-				     addr, ifname, port, uref.u32);
+			union inany_addr aany = inany_any4;
+
+			if (addr)
+				inany_from_af(&aany, AF_INET, addr);
+
+			r4 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_HOST,
+					 &aany, ifname, port, uref.u32);
 
 			udp_splice_init[V4][port] = r4 < 0 ? -1 : r4;
 		} else {
-			r4  = sock_l4(c, AF_INET, EPOLL_TYPE_UDP_LISTEN,
-				      &in4addr_loopback,
-				      ifname, port, uref.u32);
+			r4  = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_SPLICE,
+					  &inany_loopback4, ifname,
+					  port, uref.u32);
 			udp_splice_ns[V4][port] = r4 < 0 ? -1 : r4;
 		}
 	}
 
 	if ((af == AF_INET6 || af == AF_UNSPEC) && c->ifi6) {
 		if (!ns) {
-			r6 = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
-				     addr, ifname, port, uref.u32);
+			union inany_addr aany = inany_any6;
+
+			if (addr)
+				inany_from_af(&aany, AF_INET6, addr);
+
+			r6 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_HOST,
+					 &aany, ifname, port, uref.u32);
 
 			udp_splice_init[V6][port] = r6 < 0 ? -1 : r6;
 		} else {
-			r6 = sock_l4(c, AF_INET6, EPOLL_TYPE_UDP_LISTEN,
-				     &in6addr_loopback,
-				     ifname, port, uref.u32);
+			r6 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_SPLICE,
+					 &inany_loopback6, ifname,
+					 port, uref.u32);
 			udp_splice_ns[V6][port] = r6 < 0 ? -1 : r6;
 		}
 	}
