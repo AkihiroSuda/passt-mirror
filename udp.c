@@ -803,21 +803,16 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 
 	ASSERT(!c->no_udp);
 
-	if (af == AF_UNSPEC && c->ifi4 && c->ifi6) {
+	if (af == AF_UNSPEC && c->ifi4 && c->ifi6 && !ns) {
 		int s;
 
+		ASSERT(!addr);
+
 		/* Attempt to get a dual stack socket */
-		if (!ns) {
-			s = sock_l4(c, AF_UNSPEC, EPOLL_TYPE_UDP_LISTEN,
-				    addr, ifname, port, uref.u32);
-			udp_splice_init[V4][port] = s < 0 ? -1 : s;
-			udp_splice_init[V6][port] = s < 0 ? -1 : s;
-		} else {
-			s = sock_l4(c, AF_UNSPEC, EPOLL_TYPE_UDP_LISTEN,
-				    &in4addr_loopback, ifname, port, uref.u32);
-			udp_splice_ns[V4][port] = s < 0 ? -1 : s;
-			udp_splice_ns[V6][port] = s < 0 ? -1 : s;
-		}
+		s = sock_l4(c, AF_UNSPEC, EPOLL_TYPE_UDP_LISTEN,
+			    NULL, ifname, port, uref.u32);
+		udp_splice_init[V4][port] = s < 0 ? -1 : s;
+		udp_splice_init[V6][port] = s < 0 ? -1 : s;
 		if (IN_INTERVAL(0, FD_REF_MAX, s))
 			return 0;
 	}
