@@ -785,15 +785,14 @@ int udp_tap_handler(const struct ctx *c, uint8_t pif,
  * udp_sock_init() - Initialise listening sockets for a given port
  * @c:		Execution context
  * @ns:		In pasta mode, if set, bind with loopback address in namespace
- * @af:		Address family to select a specific IP version, or AF_UNSPEC
  * @addr:	Pointer to address for binding, NULL if not configured
  * @ifname:	Name of interface to bind to, NULL if not configured
  * @port:	Port, host order
  *
  * Return: 0 on (partial) success, negative error code on (complete) failure
  */
-int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
-		  const void *addr, const char *ifname, in_port_t port)
+int udp_sock_init(const struct ctx *c, int ns, const union inany_addr *addr,
+		  const char *ifname, in_port_t port)
 {
 	union udp_listen_epoll_ref uref = {
 		.pif = ns ? PIF_SPLICE : PIF_HOST,
@@ -803,10 +802,8 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 
 	ASSERT(!c->no_udp);
 
-	if (af == AF_UNSPEC && c->ifi4 && c->ifi6 && !ns) {
+	if (!addr && c->ifi4 && c->ifi6 && !ns) {
 		int s;
-
-		ASSERT(!addr);
 
 		/* Attempt to get a dual stack socket */
 		s = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_HOST,
@@ -817,15 +814,11 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 			return 0;
 	}
 
-	if ((af == AF_INET || af == AF_UNSPEC) && c->ifi4) {
+	if ((!addr || inany_v4(addr)) && c->ifi4) {
 		if (!ns) {
-			union inany_addr aany = inany_any4;
-
-			if (addr)
-				inany_from_af(&aany, AF_INET, addr);
-
 			r4 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_HOST,
-					 &aany, ifname, port, uref.u32);
+					 addr ? addr : &inany_any4, ifname,
+					 port, uref.u32);
 
 			udp_splice_init[V4][port] = r4 < 0 ? -1 : r4;
 		} else {
@@ -836,15 +829,11 @@ int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
 		}
 	}
 
-	if ((af == AF_INET6 || af == AF_UNSPEC) && c->ifi6) {
+	if ((!addr || !inany_v4(addr)) && c->ifi6) {
 		if (!ns) {
-			union inany_addr aany = inany_any6;
-
-			if (addr)
-				inany_from_af(&aany, AF_INET6, addr);
-
 			r6 = pif_sock_l4(c, EPOLL_TYPE_UDP_LISTEN, PIF_HOST,
-					 &aany, ifname, port, uref.u32);
+					 addr ? addr : &inany_any6, ifname,
+					 port, uref.u32);
 
 			udp_splice_init[V6][port] = r6 < 0 ? -1 : r6;
 		} else {
@@ -918,7 +907,7 @@ static void udp_port_rebind(struct ctx *c, bool outbound)
 
 		if ((c->ifi4 && socks[V4][port] == -1) ||
 		    (c->ifi6 && socks[V6][port] == -1))
-			udp_sock_init(c, outbound, AF_UNSPEC, NULL, NULL, port);
+			udp_sock_init(c, outbound, NULL, NULL, port);
 	}
 }
 

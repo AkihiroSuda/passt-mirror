@@ -16,8 +16,8 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 int udp_tap_handler(const struct ctx *c, uint8_t pif,
 		    sa_family_t af, const void *saddr, const void *daddr,
 		    const struct pool *p, int idx, const struct timespec *now);
-int udp_sock_init(const struct ctx *c, int ns, sa_family_t af,
-		  const void *addr, const char *ifname, in_port_t port);
+int udp_sock_init(const struct ctx *c, int ns, const union inany_addr *addr,
+		  const char *ifname, in_port_t port);
 int udp_init(struct ctx *c);
 void udp_timer(struct ctx *c, const struct timespec *now);
 void udp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s);

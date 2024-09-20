@@ -116,11 +116,10 @@ static int parse_port_range(const char *s, char **endptr,
 static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		       struct fwd_ports *fwd)
 {
-	char addr_buf[sizeof(struct in6_addr)] = { 0 }, *addr = addr_buf;
+	union inany_addr addr_buf = inany_any6, *addr = &addr_buf;
 	char buf[BUFSIZ], *spec, *ifname = NULL, *p;
 	bool exclude_only = true, bound_one = false;
 	uint8_t exclude[PORT_BITMAP_SIZE] = { 0 };
-	sa_family_t af = AF_UNSPEC;
 	unsigned i;
 	int ret;
 
@@ -166,15 +165,13 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 			bitmap_set(fwd->map, i);
 			if (optname == 't') {
-				ret = tcp_sock_init(c, AF_UNSPEC, NULL, NULL,
-						    i);
+				ret = tcp_sock_init(c, NULL, NULL, i);
 				if (ret == -ENFILE || ret == -EMFILE)
 					goto enfile;
 				if (!ret)
 					bound_one = true;
 			} else if (optname == 'u') {
-				ret = udp_sock_init(c, 0, AF_UNSPEC, NULL, NULL,
-						    i);
+				ret = udp_sock_init(c, 0, NULL, NULL, i);
 				if (ret == -ENFILE || ret == -EMFILE)
 					goto enfile;
 				if (!ret)
@@ -218,6 +215,9 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		if (ifname == buf + 1) {	/* Interface without address */
 			addr = NULL;
 		} else {
+			struct in6_addr a6;
+			struct in_addr a4;
+
 			p = buf;
 
 			/* Allow square brackets for IPv4 too for convenience */
@@ -226,10 +226,10 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 				p++;
 			}
 
-			if (inet_pton(AF_INET, p, addr))
-				af = AF_INET;
-			else if (inet_pton(AF_INET6, p, addr))
-				af = AF_INET6;
+			if (inet_pton(AF_INET, p, &a4))
+				inany_from_af(addr, AF_INET, &a4);
+			else if (inet_pton(AF_INET6, p, &a6))
+				inany_from_af(addr, AF_INET6, &a6);
 			else
 				goto bad;
 		}
@@ -276,13 +276,13 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 			bitmap_set(fwd->map, i);
 
 			if (optname == 't') {
-				ret = tcp_sock_init(c, af, addr, ifname, i);
+				ret = tcp_sock_init(c, addr, ifname, i);
 				if (ret == -ENFILE || ret == -EMFILE)
 					goto enfile;
 				if (!ret)
 					bound_one = true;
 			} else if (optname == 'u') {
-				ret = udp_sock_init(c, 0, af, addr, ifname, i);
+				ret = udp_sock_init(c, 0, addr, ifname, i);
 				if (ret == -ENFILE || ret == -EMFILE)
 					goto enfile;
 				if (!ret)
@@ -338,9 +338,9 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 
 			ret = 0;
 			if (optname == 't')
-				ret = tcp_sock_init(c, af, addr, ifname, i);
+				ret = tcp_sock_init(c, addr, ifname, i);
 			else if (optname == 'u')
-				ret = udp_sock_init(c, 0, af, addr, ifname, i);
+				ret = udp_sock_init(c, 0, addr, ifname, i);
 			if (ret)
 				goto bind_fail;
 		}
