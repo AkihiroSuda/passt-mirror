@@ -36,3 +36,23 @@ const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size)
 
 	return inet_ntop(AF_INET6, &src->a6, dst, size);
 }
+
+/** inany_pton - Parse an IPv[46] address from text format
+ * @src:	IPv[46] address
+ * @dst:	output buffer, filled with parsed address
+ *
+ * Return: On success, 1, if no parseable address is found, 0
+ */
+int inany_pton(const char *src, union inany_addr *dst)
+{
+	if (inet_pton(AF_INET, src, &dst->v4mapped.a4)) {
+		memset(&dst->v4mapped.zero, 0, sizeof(dst->v4mapped.zero));
+		memset(&dst->v4mapped.one, 0xff, sizeof(dst->v4mapped.one));
+		return 1;
+	}
+
+	if (inet_pton(AF_INET6, src, &dst->a6))
+		return 1;
+
+	return 0;
+}

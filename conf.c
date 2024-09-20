@@ -215,9 +215,6 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 		if (ifname == buf + 1) {	/* Interface without address */
 			addr = NULL;
 		} else {
-			struct in6_addr a6;
-			struct in_addr a4;
-
 			p = buf;
 
 			/* Allow square brackets for IPv4 too for convenience */
@@ -226,11 +223,7 @@ static void conf_ports(const struct ctx *c, char optname, const char *optarg,
 				p++;
 			}
 
-			if (inet_pton(AF_INET, p, &a4))
-				inany_from_af(addr, AF_INET, &a4);
-			else if (inet_pton(AF_INET6, p, &a6))
-				inany_from_af(addr, AF_INET6, &a6);
-			else
+			if (!inany_pton(p, addr))
 				goto bad;
 		}
 	} else {

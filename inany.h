@@ -270,5 +270,6 @@ static inline void inany_siphash_feed(struct siphash_state *state,
 #define INANY_ADDRSTRLEN	MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)
 
 const char *inany_ntop(const union inany_addr *src, char *dst, socklen_t size);
+int inany_pton(const char *src, union inany_addr *dst);
 
 #endif /* INANY_H */
