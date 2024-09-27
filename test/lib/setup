@@ -58,7 +58,7 @@ setup_passt() {
 	context_run_bg qemu 'qemu-system-'"${QEMU_ARCH}"		   \
 		' -machine accel=kvm'                                      \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                    \
-		' -kernel ' "/boot/vmlinuz-$(uname -r)"			   \
+		' -kernel '"${KERNEL}"					   \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	   \
 		' -nodefaults'						   \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	   \
@@ -159,7 +159,7 @@ setup_passt_in_ns() {
 		' -machine accel=kvm'                                      \
 		' -M accel=kvm:tcg'                                        \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                    \
-		' -kernel ' "/boot/vmlinuz-$(uname -r)"			   \
+		' -kernel '"${KERNEL}"					   \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	   \
 		' -nodefaults'						   \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	   \
@@ -230,7 +230,7 @@ setup_two_guests() {
 	context_run_bg qemu_1 'qemu-system-'"${QEMU_ARCH}"		     \
 		' -M accel=kvm:tcg'                                          \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                      \
-		' -kernel ' "/boot/vmlinuz-$(uname -r)"			     \
+		' -kernel '"${KERNEL}"					     \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	     \
 		' -nodefaults'						     \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	     \
@@ -243,7 +243,7 @@ setup_two_guests() {
 	context_run_bg qemu_2 'qemu-system-'"${QEMU_ARCH}"		     \
 		' -M accel=kvm:tcg'                                          \
 		' -m '${VMEM}' -cpu host -smp '${VCPUS}                      \
-		' -kernel ' "/boot/vmlinuz-$(uname -r)"			     \
+		' -kernel '"${KERNEL}"					     \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	     \
 		' -nodefaults'						     \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	     \

@@ -664,7 +664,7 @@ pause_continue() {
 
 # run_term() - Start tmux session, running entry point, with recording if needed
 run_term() {
-	TMUX="tmux new-session -s passt_test -eSTATEBASE=$STATEBASE -ePCAP=$PCAP -eDEBUG=$DEBUG"
+	TMUX="tmux new-session -s passt_test -eSTATEBASE=$STATEBASE -ePCAP=$PCAP -eDEBUG=$DEBUG -eKERNEL=$KERNEL"
 
 	if [ ${CI} -eq 1 ]; then
 		printf '\e[8;50;240t'

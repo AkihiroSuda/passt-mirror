@@ -38,6 +38,9 @@ TRACE=${TRACE:-0}
 # If set, tell passt and pasta to take packet captures
 PCAP=${PCAP:-0}
 
+# Custom kernel to boot guests with, if given
+KERNEL=${KERNEL:-"/boot/vmlinuz-$(uname -r)"}
+
 COMMIT="$(git log --oneline --no-decorate -1)"
 
 . lib/util
