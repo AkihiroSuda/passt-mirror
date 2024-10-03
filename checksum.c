@@ -503,7 +503,6 @@ uint16_t csum(const void *buf, size_t len, uint32_t init)
  *
  * Return: 16-bit folded, complemented checksum
  */
-/* cppcheck-suppress unusedFunction */
 uint16_t csum_iov(const struct iovec *iov, size_t n, size_t offset,
 		  uint32_t init)
 {

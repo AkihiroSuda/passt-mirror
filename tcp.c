@@ -755,36 +755,106 @@ static void tcp_sock_set_bufsize(const struct ctx *c, int s)
 }
 
 /**
- * tcp_update_check_tcp4() - Update TCP checksum from stored one
+ * tcp_update_check_tcp4() - Calculate TCP checksum for IPv4
  * @iph:	IPv4 header
- * @bp:		TCP header followed by TCP payload
+ * @iov:	Pointer to the array of IO vectors
+ * @iov_cnt:	Length of the array
+ * @l4offset:	IPv4 payload offset in the iovec array
  */
 static void tcp_update_check_tcp4(const struct iphdr *iph,
-				  struct tcp_payload_t *bp)
+				  const struct iovec *iov, int iov_cnt,
+				  size_t l4offset)
 {
 	uint16_t l4len = ntohs(iph->tot_len) - sizeof(struct iphdr);
 	struct in_addr saddr = { .s_addr = iph->saddr };
 	struct in_addr daddr = { .s_addr = iph->daddr };
-	uint32_t sum = proto_ipv4_header_psum(l4len, IPPROTO_TCP, saddr, daddr);
+	size_t check_ofs;
+	__sum16 *check;
+	int check_idx;
+	uint32_t sum;
+	char *ptr;
 
-	bp->th.check = 0;
-	bp->th.check = csum(bp, l4len, sum);
+	sum = proto_ipv4_header_psum(l4len, IPPROTO_TCP, saddr, daddr);
+
+	check_idx = iov_skip_bytes(iov, iov_cnt,
+				   l4offset + offsetof(struct tcphdr, check),
+				   &check_ofs);
+
+	if (check_idx >= iov_cnt) {
+		err("TCP4 buffer is too small, iov size %zd, check offset %zd",
+		    iov_size(iov, iov_cnt),
+		    l4offset + offsetof(struct tcphdr, check));
+		return;
+	}
+
+	if (check_ofs + sizeof(*check) > iov[check_idx].iov_len) {
+		err("TCP4 checksum field memory is not contiguous "
+		    "check_ofs %zd check_idx %d iov_len %zd",
+		    check_ofs, check_idx, iov[check_idx].iov_len);
+		return;
+	}
+
+	ptr = (char *)iov[check_idx].iov_base + check_ofs;
+	if ((uintptr_t)ptr & (__alignof__(*check) - 1)) {
+		err("TCP4 checksum field is not correctly aligned in memory");
+		return;
+	}
+
+	check = (__sum16 *)ptr;
+
+	*check = 0;
+	*check = csum_iov(iov, iov_cnt, l4offset, sum);
 }
 
 /**
  * tcp_update_check_tcp6() - Calculate TCP checksum for IPv6
  * @ip6h:	IPv6 header
- * @bp:		TCP header followed by TCP payload
+ * @iov:	Pointer to the array of IO vectors
+ * @iov_cnt:	Length of the array
+ * @l4offset:	IPv6 payload offset in the iovec array
  */
 static void tcp_update_check_tcp6(const struct ipv6hdr *ip6h,
-				  struct tcp_payload_t *bp)
+				  const struct iovec *iov, int iov_cnt,
+				  size_t l4offset)
 {
 	uint16_t l4len = ntohs(ip6h->payload_len);
-	uint32_t sum = proto_ipv6_header_psum(l4len, IPPROTO_TCP,
-					      &ip6h->saddr, &ip6h->daddr);
+	size_t check_ofs;
+	__sum16 *check;
+	int check_idx;
+	uint32_t sum;
+	char *ptr;
 
-	bp->th.check = 0;
-	bp->th.check = csum(bp, l4len, sum);
+	sum = proto_ipv6_header_psum(l4len, IPPROTO_TCP, &ip6h->saddr,
+				     &ip6h->daddr);
+
+	check_idx = iov_skip_bytes(iov, iov_cnt,
+				   l4offset + offsetof(struct tcphdr, check),
+				   &check_ofs);
+
+	if (check_idx >= iov_cnt) {
+		err("TCP6 buffer is too small, iov size %zd, check offset %zd",
+		    iov_size(iov, iov_cnt),
+		    l4offset + offsetof(struct tcphdr, check));
+		return;
+	}
+
+	if (check_ofs + sizeof(*check) > iov[check_idx].iov_len) {
+		err("TCP6 checksum field memory is not contiguous "
+		    "check_ofs %zd check_idx %d iov_len %zd",
+		    check_ofs, check_idx, iov[check_idx].iov_len);
+		return;
+	}
+
+	ptr = (char *)iov[check_idx].iov_base + check_ofs;
+	if ((uintptr_t)ptr & (__alignof__(*check) - 1)) {
+		err("TCP6 checksum field is not correctly aligned in memory");
+		return;
+	}
+
+	check = (__sum16 *)ptr;
+
+	*check = 0;
+	*check = csum_iov(iov, iov_cnt, l4offset, sum);
 }
 
 /**
@@ -935,10 +1005,16 @@ static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
 
 	tcp_fill_header(&bp->th, conn, seq);
 
-	if (no_tcp_csum)
+	if (no_tcp_csum) {
 		bp->th.check = 0;
-	else
-		tcp_update_check_tcp4(iph, bp);
+	} else {
+		const struct iovec iov = {
+			.iov_base = bp,
+			.iov_len = ntohs(iph->tot_len) - sizeof(struct iphdr),
+		};
+
+		tcp_update_check_tcp4(iph, &iov, 1, 0);
+	}
 
 	tap_hdr_update(taph, l3len + sizeof(struct ethhdr));
 
@@ -980,10 +1056,16 @@ static size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
 
 	tcp_fill_header(&bp->th, conn, seq);
 
-	if (no_tcp_csum)
+	if (no_tcp_csum) {
 		bp->th.check = 0;
-	else
-		tcp_update_check_tcp6(ip6h, bp);
+	} else {
+		const struct iovec iov = {
+			.iov_base = bp,
+			.iov_len = ntohs(ip6h->payload_len)
+		};
+
+		tcp_update_check_tcp6(ip6h, &iov, 1, 0);
+	}
 
 	tap_hdr_update(taph, l4len + sizeof(*ip6h) + sizeof(struct ethhdr));
 
