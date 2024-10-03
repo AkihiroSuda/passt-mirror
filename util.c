@@ -52,6 +52,7 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 {
 	sa_family_t af = ((const struct sockaddr *)sa)->sa_family;
 	union epoll_ref ref = { .type = type, .data = data };
+	bool freebind = false;
 	struct epoll_event ev;
 	int fd, y = 1, ret;
 	uint8_t proto;
@@ -61,8 +62,11 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	case EPOLL_TYPE_TCP_LISTEN:
 		proto = IPPROTO_TCP;
 		socktype = SOCK_STREAM | SOCK_NONBLOCK;
+		freebind = c->freebind;
 		break;
 	case EPOLL_TYPE_UDP_LISTEN:
+		freebind = c->freebind;
+		/* fallthrough */
 	case EPOLL_TYPE_UDP_REPLY:
 		proto = IPPROTO_UDP;
 		socktype = SOCK_DGRAM | SOCK_NONBLOCK;
@@ -124,6 +128,18 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 			     sockaddr_ntop(sa, str, sizeof(str)), ifname);
 			close(fd);
 			return ret;
+		}
+	}
+
+	if (freebind) {
+		int level = af == AF_INET ? IPPROTO_IP : IPPROTO_IPV6;
+		int opt = af == AF_INET ? IP_FREEBIND : IPV6_FREEBIND;
+
+		if (setsockopt(fd, level, opt, &y, sizeof(y))) {
+			err_perror("Failed to set %s on socket %i",
+				   af == AF_INET ? "IP_FREEBIND"
+				                 : "IPV6_FREEBIND",
+				   fd);
 		}
 	}
 

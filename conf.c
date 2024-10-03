@@ -836,6 +836,7 @@ static void usage(const char *name, FILE *f, int status)
 		"  --no-ndp		Disable NDP responses\n"
 		"  --no-dhcpv6		Disable DHCPv6 server\n"
 		"  --no-ra		Disable router advertisements\n"
+		"  --freebind		Bind to any address for forwarding\n"
 		"  --no-map-gw		Don't map gateway address to host\n"
 		"  -4, --ipv4-only	Enable IPv4 operation only\n"
 		"  -6, --ipv6-only	Enable IPv6 operation only\n");
@@ -1255,6 +1256,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"no-dhcpv6",	no_argument,		&c->no_dhcpv6,	1 },
 		{"no-ndp",	no_argument,		&c->no_ndp,	1 },
 		{"no-ra",	no_argument,		&c->no_ra,	1 },
+		{"freebind",	no_argument,		&c->freebind,	1 },
 		{"no-map-gw",	no_argument,		&no_map_gw,	1 },
 		{"ipv4-only",	no_argument,		NULL,		'4' },
 		{"ipv6-only",	no_argument,		NULL,		'6' },

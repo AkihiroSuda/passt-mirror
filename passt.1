@@ -328,6 +328,16 @@ Disable Router Advertisements. Router Solicitations coming from guest or target
 namespace will be ignored.
 
 .TP
+.BR \-\-freebind
+Allow any binding address to be specified for \fB-t\fR and \fB-u\fR
+options.  Usually binding addresses must be addresses currently
+configured on the host.  With \fB\-\-freebind\fR, the
+\fBIP_FREEBIND\fR or \fBIPV6_FREEBIND\fR socket option is enabled
+allowing any address to be used.  This is typically used to bind
+addresses which might be configured on the host in future, at which
+point the forwarding will immediately start operating.
+
+.TP
 .BR \-\-map-host-loopback " " \fIaddr
 Translate \fIaddr\fR to refer to the host. Packets from the guest to
 \fIaddr\fR will be redirected to the host.  On the host such packets
