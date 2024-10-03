@@ -829,6 +829,9 @@ static void usage(const char *name, FILE *f, int status)
 		"  --dns-forward ADDR	Forward DNS queries sent to ADDR\n"
 		"    can be specified zero to two times (for IPv4 and IPv6)\n"
 		"    default: don't forward DNS queries\n"
+		"  --dns-host ADDR	Host nameserver to direct queries to\n"
+		"    can be specified zero to two times (for IPv4 and IPv6)\n"
+		"    default: first nameserver from host's /etc/resolv.conf\n"
 		"  --no-tcp		Disable TCP protocol handler\n"
 		"  --no-udp		Disable UDP protocol handler\n"
 		"  --no-icmp		Disable ICMP/ICMPv6 protocol handler\n"
@@ -1286,6 +1289,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"netns-only",	no_argument,		NULL,		20 },
 		{"map-host-loopback", required_argument, NULL,		21 },
 		{"map-guest-addr", required_argument,	NULL,		22 },
+		{"dns-host",	required_argument,	NULL,		24 },
 		{ 0 },
 	};
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
@@ -1462,6 +1466,18 @@ void conf(struct ctx *c, int argc, char **argv)
 		case 22:
 			conf_nat(optarg, &c->ip4.map_guest_addr,
 				 &c->ip6.map_guest_addr, NULL);
+			break;
+		case 24:
+			if (inet_pton(AF_INET6, optarg, &c->ip6.dns_host) &&
+			    !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns_host))
+				break;
+
+			if (inet_pton(AF_INET, optarg, &c->ip4.dns_host) &&
+			    !IN4_IS_ADDR_UNSPECIFIED(&c->ip4.dns_host)   &&
+			    !IN4_IS_ADDR_BROADCAST(&c->ip4.dns_host))
+				break;
+
+			die("Invalid host nameserver address: %s", optarg);
 			break;
 		case 'd':
 			c->debug = 1;

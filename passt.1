@@ -249,10 +249,19 @@ the host.
 .TP
 .BR \-\-dns-forward " " \fIaddr
 Map \fIaddr\fR (IPv4 or IPv6) as seen from guest or namespace to the
-first configured DNS resolver (with corresponding IP version). Maps
-only UDP and TCP traffic to port 53 or port 853.  Replies are
-translated back with a reverse mapping.  This option can be specified
-zero to two times (once for IPv4, once for IPv6).
+nameserver (with corresponding IP version) specified by the
+\fB\-\-dns-host\fR option. Maps only UDP and TCP traffic to port 53 or
+port 853.  Replies are translated back with a reverse mapping.  This
+option can be specified zero to two times (once for IPv4, once for
+IPv6).
+
+.TP
+.BR \-\-dns-host " " \fIaddr
+Configure the host nameserver which guest or namespace queries to the
+\fB\-\-dns-forward\fR address will be redirected to. This option can
+be specified zero to two times (once for IPv4, once for IPv6).
+By default, the first nameserver from the host's
+\fI/etc/resolv.conf\fR.
 
 .TP
 .BR \-S ", " \-\-search " " \fIlist
