@@ -59,6 +59,7 @@
 #include "util.h"
 #include "ip.h"
 #include "checksum.h"
+#include "iov.h"
 
 /* Checksums are optional for UDP over IPv4, so we usually just set
  * them to 0.  Change this to 1 to calculate real UDP over IPv4
@@ -497,16 +498,27 @@ uint16_t csum(const void *buf, size_t len, uint32_t init)
  *
  * @iov		Pointer to the array of IO vectors
  * @n		Length of the array
+ * @offset:	Offset of the data to checksum within the full data length
  * @init	Initial 32-bit checksum, 0 for no pre-computed checksum
  *
  * Return: 16-bit folded, complemented checksum
  */
 /* cppcheck-suppress unusedFunction */
-uint16_t csum_iov(const struct iovec *iov, size_t n, uint32_t init)
+uint16_t csum_iov(const struct iovec *iov, size_t n, size_t offset,
+		  uint32_t init)
 {
 	unsigned int i;
+	size_t first;
 
-	for (i = 0; i < n; i++)
+	i = iov_skip_bytes(iov, n, offset, &first);
+	if (i >= n)
+		return (uint16_t)~csum_fold(init);
+
+	init = csum_unfolded((char *)iov[i].iov_base + first,
+			     iov[i].iov_len - first, init);
+	i++;
+
+	for (; i < n; i++)
 		init = csum_unfolded(iov[i].iov_base, iov[i].iov_len, init);
 
 	return (uint16_t)~csum_fold(init);

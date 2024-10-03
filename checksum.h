@@ -32,6 +32,7 @@ void csum_icmp6(struct icmp6hdr *icmp6hr,
 		const void *payload, size_t dlen);
 uint32_t csum_unfolded(const void *buf, size_t len, uint32_t init);
 uint16_t csum(const void *buf, size_t len, uint32_t init);
-uint16_t csum_iov(const struct iovec *iov, size_t n, uint32_t init);
+uint16_t csum_iov(const struct iovec *iov, size_t n, size_t offset,
+		  uint32_t init);
 
 #endif /* CHECKSUM_H */
