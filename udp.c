@@ -321,10 +321,15 @@ static size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
 	bp->uh.source = htons(toside->oport);
 	bp->uh.dest = htons(toside->eport);
 	bp->uh.len = htons(l4len);
-	if (no_udp_csum)
+	if (no_udp_csum) {
 		bp->uh.check = 0;
-	else
-		csum_udp4(&bp->uh, *src, *dst, bp->data, dlen);
+	} else {
+		const struct iovec iov = {
+			.iov_base = bp->data,
+			.iov_len = dlen
+		};
+		csum_udp4(&bp->uh, *src, *dst, &iov, 1, 0);
+	}
 
 	return l4len;
 }
@@ -363,8 +368,12 @@ static size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
 		 */
 		bp->uh.check = 0xffff;
 	} else {
+		const struct iovec iov = {
+			.iov_base = bp->data,
+			.iov_len = dlen
+		};
 		csum_udp6(&bp->uh, &toside->oaddr.a6, &toside->eaddr.a6,
-			  bp->data, dlen);
+			  &iov, 1, 0);
 	}
 
 	return l4len;

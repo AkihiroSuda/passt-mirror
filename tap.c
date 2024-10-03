@@ -172,11 +172,15 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 	struct iphdr *ip4h = tap_push_l2h(c, buf, ETH_P_IP);
 	struct udphdr *uh = tap_push_ip4h(ip4h, src, dst, l4len, IPPROTO_UDP);
 	char *data = (char *)(uh + 1);
+	const struct iovec iov = {
+		.iov_base = (void *)in,
+		.iov_len = dlen
+	};
 
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
 	uh->len = htons(l4len);
-	csum_udp4(uh, src, dst, in, dlen);
+	csum_udp4(uh, src, dst, &iov, 1, 0);
 	memcpy(data, in, dlen);
 
 	tap_send_single(c, buf, dlen + (data - buf));
@@ -247,7 +251,7 @@ static void *tap_push_ip6h(struct ipv6hdr *ip6h,
 void tap_udp6_send(const struct ctx *c,
 		   const struct in6_addr *src, in_port_t sport,
 		   const struct in6_addr *dst, in_port_t dport,
-		   uint32_t flow, const void *in, size_t dlen)
+		   uint32_t flow, void *in, size_t dlen)
 {
 	size_t l4len = dlen + sizeof(struct udphdr);
 	char buf[USHRT_MAX];
@@ -255,11 +259,15 @@ void tap_udp6_send(const struct ctx *c,
 	struct udphdr *uh = tap_push_ip6h(ip6h, src, dst,
 					  l4len, IPPROTO_UDP, flow);
 	char *data = (char *)(uh + 1);
+	const struct iovec iov = {
+		.iov_base = in,
+		.iov_len = dlen
+	};
 
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
 	uh->len = htons(l4len);
-	csum_udp6(uh, src, dst, in, dlen);
+	csum_udp6(uh, src, dst, &iov, 1, 0);
 	memcpy(data, in, dlen);
 
 	tap_send_single(c, buf, dlen + (data - buf));

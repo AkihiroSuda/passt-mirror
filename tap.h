@@ -53,7 +53,7 @@ const struct in6_addr *tap_ip6_daddr(const struct ctx *c,
 void tap_udp6_send(const struct ctx *c,
 		   const struct in6_addr *src, in_port_t sport,
 		   const struct in6_addr *dst, in_port_t dport,
-		   uint32_t flow, const void *in, size_t dlen);
+		   uint32_t flow, void *in, size_t dlen);
 void tap_icmp6_send(const struct ctx *c,
 		    const struct in6_addr *src, const struct in6_addr *dst,
 		    const void *in, size_t l4len);

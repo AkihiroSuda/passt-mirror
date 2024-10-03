@@ -166,22 +166,24 @@ uint32_t proto_ipv4_header_psum(uint16_t l4len, uint8_t protocol,
  * @udp4hr:	UDP header, initialised apart from checksum
  * @saddr:	IPv4 source address
  * @daddr:	IPv4 destination address
- * @payload:	UDP packet payload
- * @dlen:	Length of @payload (not including UDP header)
+ * @iov:	Pointer to the array of IO vectors
+ * @iov_cnt:	Length of the array
+ * @offset:	UDP payload offset in the iovec array
  */
 void csum_udp4(struct udphdr *udp4hr,
 	       struct in_addr saddr, struct in_addr daddr,
-	       const void *payload, size_t dlen)
+	       const struct iovec *iov, int iov_cnt, size_t offset)
 {
 	/* UDP checksums are optional, so don't bother */
 	udp4hr->check = 0;
 
 	if (UDP4_REAL_CHECKSUMS) {
-		uint16_t l4len = dlen + sizeof(struct udphdr);
+		uint16_t l4len = iov_size(iov, iov_cnt) - offset +
+				 sizeof(struct udphdr);
 		uint32_t psum = proto_ipv4_header_psum(l4len, IPPROTO_UDP,
 						       saddr, daddr);
 		psum = csum_unfolded(udp4hr, sizeof(struct udphdr), psum);
-		udp4hr->check = csum(payload, dlen, psum);
+		udp4hr->check = csum_iov(iov, iov_cnt, offset, psum);
 	}
 }
 
@@ -227,19 +229,24 @@ uint32_t proto_ipv6_header_psum(uint16_t payload_len, uint8_t protocol,
 /**
  * csum_udp6() - Calculate and set checksum for a UDP over IPv6 packet
  * @udp6hr:	UDP header, initialised apart from checksum
- * @payload:	UDP packet payload
- * @dlen:	Length of @payload (not including UDP header)
+ * @saddr:	Source address
+ * @daddr:	Destination address
+ * @iov:	Pointer to the array of IO vectors
+ * @iov_cnt:	Length of the array
+ * @offset:	UDP payload offset in the iovec array
  */
 void csum_udp6(struct udphdr *udp6hr,
 	       const struct in6_addr *saddr, const struct in6_addr *daddr,
-	       const void *payload, size_t dlen)
+	       const struct iovec *iov, int iov_cnt, size_t offset)
 {
-	uint32_t psum = proto_ipv6_header_psum(dlen + sizeof(struct udphdr),
-					       IPPROTO_UDP, saddr, daddr);
+	uint16_t l4len = iov_size(iov, iov_cnt) - offset +
+			 sizeof(struct udphdr);
+	uint32_t psum = proto_ipv6_header_psum(l4len, IPPROTO_UDP,
+					       saddr, daddr);
 	udp6hr->check = 0;
 
 	psum = csum_unfolded(udp6hr, sizeof(struct udphdr), psum);
-	udp6hr->check = csum(payload, dlen, psum);
+	udp6hr->check = csum_iov(iov, iov_cnt, offset, psum);
 }
 
 /**
