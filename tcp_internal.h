@@ -63,6 +63,35 @@ enum tcp_iov_parts {
 	TCP_NUM_IOVS
 };
 
+/**
+ * struct tcp_payload_t - TCP header and data to send segments with payload
+ * @th:		TCP header
+ * @data:	TCP data
+ */
+struct tcp_payload_t {
+	struct tcphdr th;
+	uint8_t data[IP_MAX_MTU - sizeof(struct tcphdr)];
+#ifdef __AVX2__
+} __attribute__ ((packed, aligned(32)));    /* For AVX2 checksum routines */
+#else
+} __attribute__ ((packed, aligned(__alignof__(unsigned int))));
+#endif
+
+/**
+ * struct tcp_flags_t - TCP header and data to send zero-length
+ *                      segments (flags)
+ * @th:		TCP header
+ * @opts	TCP options
+ */
+struct tcp_flags_t {
+	struct tcphdr th;
+	char opts[OPT_MSS_LEN + OPT_WS_LEN + 1];
+#ifdef __AVX2__
+} __attribute__ ((packed, aligned(32)));
+#else
+} __attribute__ ((packed, aligned(__alignof__(unsigned int))));
+#endif
+
 extern char tcp_buf_discard [MAX_WINDOW];
 
 void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
