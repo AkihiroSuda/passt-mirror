@@ -31,8 +31,8 @@ PR_DELAY_INIT=100 # ms
 # $@:	Message to print
 info() {
 	tmux select-pane -t ${PANE_INFO}
-	echo "${@}" >> $STATEBASE/log_pipe
-	echo "${@}" >> "${LOGFILE}"
+	printf "${@}\n" >> $STATEBASE/log_pipe
+	printf "${@}\n" >> "${LOGFILE}"
 }
 
 # info_n() - Highlight, print message to pane and to log file without newline
@@ -47,13 +47,13 @@ info_n() {
 # $@:	Message to print
 info_nolog() {
 	tmux select-pane -t ${PANE_INFO}
-	echo "${@}" >> $STATEBASE/log_pipe
+	printf "${@}\n" >> $STATEBASE/log_pipe
 }
 
 # info_nolog() - Print message to log file
 # $@:	Message to print
 log() {
-	echo "${@}" >> "${LOGFILE}"
+	printf "${@}\n" >> "${LOGFILE}"
 }
 
 # info_nolog_n() - Send message to pane without highlighting it, without newline
