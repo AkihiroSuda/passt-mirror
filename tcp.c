@@ -1957,11 +1957,12 @@ static void tcp_conn_from_sock_finish(const struct ctx *c,
 		return;
 	}
 
+	tcp_send_flag(c, conn, ACK);
+
 	/* The client might have sent data already, which we didn't
 	 * dequeue waiting for SYN,ACK from tap -- check now.
 	 */
 	tcp_data_from_sock(c, conn);
-	tcp_send_flag(c, conn, ACK);
 }
 
 /**
