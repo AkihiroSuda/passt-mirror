@@ -16,7 +16,9 @@ htools	ip jq sipcalc grep cut
 
 test	Interface name
 gout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
-guest	ip link set dev __IFNAME__ up && sleep 2
+guest	ip link set dev __IFNAME__ up
+# Wait for DAD to complete
+guest	while ip -j -6 addr show tentative | jq -e '.[].addr_info'; do sleep 0.1; done
 hout	HOST_IFNAME6 ip -j -6 route show|jq -rM '[.[] | select(.dst == "default").dev] | .[0]'
 check	[ -n "__IFNAME__" ]
 

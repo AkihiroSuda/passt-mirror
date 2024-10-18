@@ -18,7 +18,8 @@ test	Interface name
 nsout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
 check	[ -n "__IFNAME__" ]
 ns	ip link set dev __IFNAME__ up
-sleep	2
+# Wait for DAD to complete
+ns	while ip -j -6 addr show tentative | jq -e '.[].addr_info'; do sleep 0.1; done
 
 test	SLAAC: prefix
 nsout	ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global" and .prefixlen == 64).local] | .[0]'
