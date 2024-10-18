@@ -225,6 +225,7 @@ struct ip6_ctx {
  * @no_dhcpv6:		Disable DHCPv6 server
  * @no_ndp:		Disable NDP handler altogether
  * @no_ra:		Disable router advertisements
+ * @host_lo_to_ns_lo:	Map host loopback addresses to ns loopback addresses
  * @freebind:		Allow binding of non-local addresses for forwarding
  * @low_wmem:		Low probed net.core.wmem_max
  * @low_rmem:		Low probed net.core.rmem_max
@@ -285,6 +286,7 @@ struct ctx {
 	int no_dhcpv6;
 	int no_ndp;
 	int no_ra;
+	int host_lo_to_ns_lo;
 	int freebind;
 
 	int low_wmem;

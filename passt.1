@@ -606,6 +606,13 @@ Configure UDP port forwarding from target namespace to init namespace.
 Default is \fBauto\fR.
 
 .TP
+.BR \-\-host-lo-to-ns-lo " " (DEPRECATED)
+If specified, connections forwarded with \fB\-t\fR and \fB\-u\fR from
+the host's loopback address will appear on the loopback address in the
+guest as well.  Without this option such forwarded packets will appear
+to come from the guest's public address.
+
+.TP
 .BR \-\-userns " " \fIspec
 Target user namespace to join, as a path. If PID is given, without this option,
 the user namespace will be the one of the corresponding process.
@@ -893,8 +900,9 @@ interfaces, and it would also be impossible for guest or target
 namespace to route answers back.
 
 For convenience, the source address on these packets is translated to
-the address specified by the \fB\-\-map-host-loopback\fR option.  If
-not specified this defaults, somewhat arbitrarily, to the address of
+the address specified by the \fB\-\-map-host-loopback\fR option (with
+some exceptions in pasta mode, see next section below).  If not
+specified this defaults, somewhat arbitrarily, to the address of
 default IPv4 or IPv6 gateway (if any) -- this is known to be an
 existing, valid address on the same subnet.  If \fB\-\-no-map-gw\fR or
 \fB\-\-map-host-loopback none\fR are specified this translation is
@@ -931,8 +939,15 @@ and the new socket using the \fBsplice\fR(2) system call, and for UDP, a pair
 of \fBrecvmmsg\fR(2) and \fBsendmmsg\fR(2) system calls deals with packet
 transfers.
 
-This bypass only applies to local connections and traffic, because it's not
-possible to bind sockets to foreign addresses.
+Because it's not possible to bind sockets to foreign addresses, this
+bypass only applies to local connections and traffic.  It also means
+that the address translation differs slightly from passt mode.
+Connections from loopback to loopback on the host will appear to come
+from the target namespace's public address within the guest, unless
+\fB\-\-host-lo-to-ns-lo\fR is specified, in which case they will
+appear to come from loopback in the namespace as well.  The latter
+behaviour used to be the default, but is usually undesirable, since it
+can unintentionally expose namespace local services to the host.
 
 .SS Binding to low numbered ports (well-known or system ports, up to 1023)
 

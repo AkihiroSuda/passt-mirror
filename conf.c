@@ -912,6 +912,9 @@ pasta_opts:
 		"  -U, --udp-ns SPEC	UDP port forwarding to init namespace\n"
 		"    SPEC is as described above\n"
 		"    default: auto\n"
+		"  --host-lo-to-ns-lo	DEPRECATED:\n"
+		"			Translate host-loopback forwards to\n"
+		"			namespace loopback\n"
 		"  --userns NSPATH 	Target user namespace to join\n"
 		"  --netns PATH|NAME	Target network namespace to join\n"
 		"  --netns-only		Don't join existing user namespace\n"
@@ -1289,6 +1292,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"netns-only",	no_argument,		NULL,		20 },
 		{"map-host-loopback", required_argument, NULL,		21 },
 		{"map-guest-addr", required_argument,	NULL,		22 },
+		{"host-lo-to-ns-lo", no_argument, 	NULL,		23 },
 		{"dns-host",	required_argument,	NULL,		24 },
 		{ 0 },
 	};
@@ -1466,6 +1470,11 @@ void conf(struct ctx *c, int argc, char **argv)
 		case 22:
 			conf_nat(optarg, &c->ip4.map_guest_addr,
 				 &c->ip6.map_guest_addr, NULL);
+			break;
+		case 23:
+			if (c->mode != MODE_PASTA)
+				die("--host-lo-to-ns-lo is for pasta mode only");
+			c->host_lo_to_ns_lo = 1;
 			break;
 		case 24:
 			if (inet_pton(AF_INET6, optarg, &c->ip6.dns_host) &&

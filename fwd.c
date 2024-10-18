@@ -447,19 +447,34 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 	    (proto == IPPROTO_TCP || proto == IPPROTO_UDP)) {
 		/* spliceable */
 
-		/* Preserve the specific loopback adddress used, but let the
-		 * kernel pick a source port on the target side
+		/* The traffic will go over the guest's 'lo' interface, but by
+		 * default use its external address, so we don't inadvertently
+		 * expose services that listen only on the guest's loopback
+		 * address.  That can be overridden by --host-lo-to-ns-lo which
+		 * will instead forward to the loopback address in the guest.
+		 *
+		 * In either case, let the kernel pick the source address to
+		 * match.
 		 */
-		tgt->oaddr = ini->eaddr;
+		if (inany_v4(&ini->eaddr)) {
+			if (c->host_lo_to_ns_lo)
+				tgt->eaddr = inany_loopback4;
+			else
+				tgt->eaddr = inany_from_v4(c->ip4.addr_seen);
+			tgt->oaddr = inany_any4;
+		} else {
+			if (c->host_lo_to_ns_lo)
+				tgt->eaddr = inany_loopback6;
+			else
+				tgt->eaddr.a6 = c->ip6.addr_seen;
+			tgt->oaddr = inany_any6;
+		}
+
+		/* Let the kernel pick source port */
 		tgt->oport = 0;
 		if (proto == IPPROTO_UDP)
 			/* But for UDP preserve the source port */
 			tgt->oport = ini->eport;
-
-		if (inany_v4(&ini->eaddr))
-			tgt->eaddr = inany_loopback4;
-		else
-			tgt->eaddr = inany_loopback6;
 
 		return PIF_SPLICE;
 	}
