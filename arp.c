@@ -59,14 +59,12 @@ int arp(const struct ctx *c, const struct pool *p)
 	    ah->ar_op  != htons(ARPOP_REQUEST))
 		return 1;
 
-	/* Discard announcements (but not 0.0.0.0 "probes"): we might have the
-	 * same IP address, hide that.
-	 */
-	if (memcmp(am->sip, (unsigned char[4]){ 0 }, sizeof(am->tip)) &&
+	/* Discard announcements, but not 0.0.0.0 "probes" */
+	if (memcmp(am->sip, &in4addr_any, sizeof(am->sip)) &&
 	    !memcmp(am->sip, am->tip, sizeof(am->sip)))
 		return 1;
 
-	/* Don't resolve our own address, either. */
+	/* Don't resolve the guest's assigned address, either. */
 	if (!memcmp(am->tip, &c->ip4.addr, sizeof(am->tip)))
 		return 1;
 
