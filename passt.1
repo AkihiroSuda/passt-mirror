@@ -882,38 +882,40 @@ root@localhost's password:
 
 .SH NOTES
 
-.SS Handling of traffic with local destination and source addresses
+.SS Handling of traffic with loopback destination and source addresses
 
-Both \fBpasst\fR and \fBpasta\fR can bind on ports with a local address,
-depending on the configuration. Local destination or source addresses need to be
-changed before packets are delivered to the guest or target namespace: most
-operating systems would drop packets received from non-loopback interfaces with
-local addresses, and it would also be impossible for guest or target namespace
-to route answers back.
+Both \fBpasst\fR and \fBpasta\fR can bind on ports with a loopback
+address (127.0.0.0/8 or ::1), depending on the configuration. Loopback
+destination or source addresses need to be changed before packets are
+delivered to the guest or target namespace: most operating systems
+would drop packets received with loopback addresses on non-loopback
+interfaces, and it would also be impossible for guest or target
+namespace to route answers back.
 
-For convenience, and somewhat arbitrarily, the source address on these packets
-is translated to the address of the default IPv4 or IPv6 gateway (if any) --
-this is known to be an existing, valid address on the same subnet.
+For convenience, the source address on these packets is translated to
+the address specified by the \fB\-\-map-host-loopback\fR option.  If
+not specified this defaults, somewhat arbitrarily, to the address of
+default IPv4 or IPv6 gateway (if any) -- this is known to be an
+existing, valid address on the same subnet.  If \fB\-\-no-map-gw\fR or
+\fB\-\-map-host-loopback none\fR are specified this translation is
+disabled and packets with loopback addresses are simply dropped.
 
-Loopback destination addresses are instead translated to the observed external
-address of the guest or target namespace. For IPv6 packets, if usage of a
-link-local address by guest or namespace has ever been observed, and the
-original destination address is also a link-local address, the observed
-link-local address is used. Otherwise, the observed global address is used. For
-both IPv4 and IPv6, if no addresses have been seen yet, the configured addresses
-will be used instead.
+Loopback destination addresses are translated to the observed external
+address of the guest or target namespace. For IPv6, the observed
+link-local address is used if the translated source address is
+link-local, otherwise the observed global address is used. For both
+IPv4 and IPv6, if no addresses have been seen yet, the configured
+addresses will be used instead.
 
 For example, if \fBpasst\fR or \fBpasta\fR receive a connection from 127.0.0.1,
 with destination 127.0.0.10, and the default IPv4 gateway is 192.0.2.1, while
 the last observed source address from guest or namespace is 192.0.2.2, this will
 be translated to a connection from 192.0.2.1 to 192.0.2.2.
 
-Similarly, for traffic coming from guest or namespace, packets with destination
-address corresponding to the default gateway will have their destination address
-translated to a loopback address, if and only if a packet, in the opposite
-direction, with a loopback destination or source address, port-wise matching for
-UDP, or connection-wise for TCP, has been recently forwarded to guest or
-namespace. This behaviour can be disabled with \-\-no\-map\-gw.
+Similarly, for traffic coming from guest or namespace, packets with
+destination address corresponding to the \fB\-\-map-host-loopback\fR
+address will have their destination address translated to a loopback
+address.
 
 .SS Handling of local traffic in pasta
 
