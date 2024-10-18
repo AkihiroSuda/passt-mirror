@@ -116,6 +116,8 @@ iperf3k	ns
 # Reducing MTU below 1280 deconfigures IPv6, get our address back
 guest	dhclient -6 -x
 guest	dhclient -6 __IFNAME__
+# Wait for DAD to complete
+guest	while ip -j -6 addr show tentative | jq -e '.[].addr_info'; do sleep 0.1; done
 
 tl	TCP RR latency over IPv4: guest to host
 lat	-

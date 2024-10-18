@@ -49,6 +49,8 @@ check	[ "__SEARCH__" = "__HOST_SEARCH__" ]
 
 test	DHCPv6: address
 guest	/sbin/dhclient -6 __IFNAME__
+# Wait for DAD to complete
+guest	while ip -j -6 addr show tentative | jq -e '.[].addr_info'; do sleep 0.1; done
 gout	ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.prefixlen == 128).local] | .[0]'
 hout	HOST_ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__HOST_IFNAME6__").addr_info[] | select(.scope == "global" and .deprecated != true).local] | .[0]'
 check	[ "__ADDR6__" = "__HOST_ADDR6__" ]
