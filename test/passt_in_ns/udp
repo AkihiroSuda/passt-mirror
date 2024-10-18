@@ -30,7 +30,7 @@ host	socat -u OPEN:__BASEPATH__/medium.bin UDP4:127.0.0.1:10001,shut-null
 guestw
 guest	cmp test.bin /root/medium.bin
 
-test	UDP/IPv4: host to ns
+test	UDP/IPv4: host to ns (recvmmsg/sendmmsg)
 nsb	socat -u UDP4-LISTEN:10002,null-eof OPEN:__TEMP_NS__,create,trunc
 sleep	1
 host	socat -u OPEN:__BASEPATH__/medium.bin UDP4:127.0.0.1:10002,shut-null
@@ -88,7 +88,7 @@ host	socat -u OPEN:__BASEPATH__/medium.bin UDP6:[::1]:10001,shut-null
 guestw
 guest	cmp test.bin /root/medium.bin
 
-test	UDP/IPv6: host to ns
+test	UDP/IPv6: host to ns (recvmmsg/sendmmsg)
 nsb	socat -u UDP6-LISTEN:10002,null-eof OPEN:__TEMP_NS__,create,trunc
 sleep	1
 host	socat -u OPEN:__BASEPATH__/medium.bin UDP6:[::1]:10002,shut-null

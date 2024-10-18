@@ -17,8 +17,8 @@ htools	dd socat ip jq
 set	TEMP __STATEDIR__/test.bin
 set	TEMP_NS __STATEDIR__/test_ns.bin
 
-test	UDP/IPv4: host to ns
-nsb	socat -u UDP4-LISTEN:10002,bind=127.0.0.1,null-eof OPEN:__TEMP_NS__,create,trunc
+test	UDP/IPv4: host to ns (recvmmsg/sendmmsg)
+nsb	socat -u UDP4-LISTEN:10002,null-eof OPEN:__TEMP_NS__,create,trunc
 host	socat OPEN:__BASEPATH__/medium.bin UDP4:127.0.0.1:10002,shut-null
 nsw
 check	cmp __BASEPATH__/medium.bin __TEMP_NS__
@@ -37,8 +37,8 @@ ns	socat -u OPEN:__BASEPATH__/medium.bin UDP4:__GW__:10003,shut-null
 hostw
 check	cmp __BASEPATH__/medium.bin __TEMP__
 
-test	UDP/IPv6: host to ns
-nsb	socat -u UDP6-LISTEN:10002,bind=[::1],null-eof OPEN:__TEMP_NS__,create,trunc
+test	UDP/IPv6: host to ns (recvmmsg/sendmmsg)
+nsb	socat -u UDP6-LISTEN:10002,null-eof OPEN:__TEMP_NS__,create,trunc
 host	socat -u OPEN:__BASEPATH__/medium.bin UDP6:[::1]:10002,shut-null
 nsw
 check	cmp __BASEPATH__/medium.bin __TEMP_NS__

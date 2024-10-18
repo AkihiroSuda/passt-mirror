@@ -32,7 +32,7 @@ host	socat -u OPEN:__BASEPATH__/big.bin TCP4:127.0.0.1:10001
 guestw
 guest	cmp test_big.bin /root/big.bin
 
-test	TCP/IPv4: host to ns: big transfer
+test	TCP/IPv4: host to ns (spliced): big transfer
 nsb	socat -u TCP4-LISTEN:10002 OPEN:__TEMP_NS_BIG__,create,trunc
 sleep	1
 host	socat -u OPEN:__BASEPATH__/big.bin TCP4:127.0.0.1:10002
@@ -90,7 +90,7 @@ host	socat -u OPEN:__BASEPATH__/small.bin TCP4:127.0.0.1:10001
 guestw
 guest	cmp test_small.bin /root/small.bin
 
-test	TCP/IPv4: host to ns: small transfer
+test	TCP/IPv4: host to ns (spliced): small transfer
 nsb	socat -u TCP4-LISTEN:10002 OPEN:__TEMP_NS_SMALL__,create,trunc
 sleep	1
 host	socat -u OPEN:__BASEPATH__/small.bin TCP4:127.0.0.1:10002
@@ -146,7 +146,7 @@ host	socat -u OPEN:__BASEPATH__/big.bin TCP6:[::1]:10001
 guestw
 guest	cmp test_big.bin /root/big.bin
 
-test	TCP/IPv6: host to ns: big transfer
+test	TCP/IPv6: host to ns (spliced): big transfer
 nsb	socat -u TCP6-LISTEN:10002 OPEN:__TEMP_NS_BIG__,create,trunc
 sleep	1
 host	socat -u OPEN:__BASEPATH__/big.bin TCP6:[::1]:10002
@@ -204,7 +204,7 @@ host	socat -u OPEN:__BASEPATH__/small.bin TCP6:[::1]:10001
 guestw
 guest	cmp test_small.bin /root/small.bin
 
-test	TCP/IPv6: host to ns: small transfer
+test	TCP/IPv6: host to ns (spliced): small transfer
 nsb	socat -u TCP6-LISTEN:10002 OPEN:__TEMP_NS_SMALL__,create,trunc
 sleep	1
 host	socat -u OPEN:__BASEPATH__/small.bin TCP6:[::1]:10002
