@@ -282,7 +282,7 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 
 	seq = conn->seq_to_tap;
 	ret = tcp_prepare_flags(c, conn, flags, &payload->th,
-				payload->opts, &optlen);
+				&payload->opts, &optlen);
 	if (ret <= 0) {
 		if (CONN_V4(conn))
 			tcp4_flags_used--;

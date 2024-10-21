@@ -1232,7 +1232,7 @@ static void tcp_update_seqack_from_tap(const struct ctx *c,
  *	     1 otherwise
  */
 int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
-		      int flags, struct tcphdr *th, char *data,
+		      int flags, struct tcphdr *th, struct tcp_syn_opts *opts,
 		      size_t *optlen)
 {
 	struct tcp_info tinfo = { 0 };
@@ -1258,12 +1258,6 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 	if (flags & SYN) {
 		int mss;
 
-		/* Options: MSS, NOP and window scale (8 bytes) */
-		*optlen = OPT_MSS_LEN + 1 + OPT_WS_LEN;
-
-		*data++ = OPT_MSS;
-		*data++ = OPT_MSS_LEN;
-
 		if (c->mtu == -1) {
 			mss = tinfo.tcpi_snd_mss;
 		} else {
@@ -1279,16 +1273,11 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 			else if (mss > PAGE_SIZE)
 				mss = ROUND_DOWN(mss, PAGE_SIZE);
 		}
-		*(uint16_t *)data = htons(MIN(USHRT_MAX, mss));
-
-		data += OPT_MSS_LEN - 2;
 
 		conn->ws_to_tap = MIN(MAX_WS, tinfo.tcpi_snd_wscale);
 
-		*data++ = OPT_NOP;
-		*data++ = OPT_WS;
-		*data++ = OPT_WS_LEN;
-		*data++ = conn->ws_to_tap;
+		*opts = TCP_SYN_OPTS(mss, conn->ws_to_tap);
+		*optlen = sizeof(*opts);
 	} else if (!(flags & RST)) {
 		flags |= ACK;
 	}

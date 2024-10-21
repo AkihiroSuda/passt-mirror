@@ -33,9 +33,7 @@
 #define OPT_EOL		0
 #define OPT_NOP		1
 #define OPT_MSS		2
-#define OPT_MSS_LEN	4
 #define OPT_WS		3
-#define OPT_WS_LEN	3
 #define OPT_SACKP	4
 #define OPT_SACK	5
 #define OPT_TS		8
@@ -77,6 +75,65 @@ struct tcp_payload_t {
 } __attribute__ ((packed, aligned(__alignof__(unsigned int))));
 #endif
 
+/** struct tcp_opt_nop - TCP NOP option
+ * @kind:	Option kind (OPT_NOP = 1)
+ */
+struct tcp_opt_nop {
+	uint8_t kind;
+} __attribute__ ((packed));
+#define TCP_OPT_NOP		((struct tcp_opt_nop){ .kind = OPT_NOP, })
+
+/** struct tcp_opt_mss - TCP MSS option
+ * @kind:	Option kind (OPT_MSS == 2)
+ * @len:	Option length (4)
+ * @mss:	Maximum Segment Size
+ */
+struct tcp_opt_mss {
+	uint8_t kind;
+	uint8_t len;
+	uint16_t mss;
+} __attribute__ ((packed));
+#define TCP_OPT_MSS(mss_)				\
+	((struct tcp_opt_mss) {				\
+		.kind = OPT_MSS,			\
+		.len = sizeof(struct tcp_opt_mss),	\
+		.mss = htons(mss_),			\
+	})
+
+/** struct tcp_opt_ws - TCP Window Scaling option
+ * @kind:	Option kind (OPT_WS == 3)
+ * @len:	Option length (3)
+ * @shift:	Window scaling shift
+ */
+struct tcp_opt_ws {
+	uint8_t kind;
+	uint8_t len;
+	uint8_t shift;
+} __attribute__ ((packed));
+#define TCP_OPT_WS(shift_)				\
+	((struct tcp_opt_ws) {				\
+		.kind = OPT_WS,				\
+		.len = sizeof(struct tcp_opt_ws),	\
+		.shift = (shift_),			\
+	})
+
+/** struct tcp_syn_opts - TCP options we apply to SYN packets
+ * @mss:	Maximum Segment Size (MSS) option
+ * @nop:	NOP opt (for alignment)
+ * @ws:		Window Scaling (WS) option
+ */
+struct tcp_syn_opts {
+	struct tcp_opt_mss mss;
+	struct tcp_opt_nop nop;
+	struct tcp_opt_ws ws;
+} __attribute__ ((packed));
+#define TCP_SYN_OPTS(mss_, ws_)				\
+	((struct tcp_syn_opts){				\
+		.mss = TCP_OPT_MSS(mss_),		\
+		.nop = TCP_OPT_NOP,			\
+		.ws = TCP_OPT_WS(ws_),			\
+	})
+
 /**
  * struct tcp_flags_t - TCP header and data to send zero-length
  *                      segments (flags)
@@ -85,7 +142,7 @@ struct tcp_payload_t {
  */
 struct tcp_flags_t {
 	struct tcphdr th;
-	char opts[OPT_MSS_LEN + OPT_WS_LEN + 1];
+	struct tcp_syn_opts opts;
 #ifdef __AVX2__
 } __attribute__ ((packed, aligned(32)));
 #else
@@ -124,7 +181,8 @@ size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 			       bool no_tcp_csum);
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 			  bool force_seq, struct tcp_info *tinfo);
-int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn, int flags,
-		      struct tcphdr *th, char *data, size_t *optlen);
+int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
+		      int flags, struct tcphdr *th, struct tcp_syn_opts *opts,
+		      size_t *optlen);
 
 #endif /* TCP_INTERNAL_H */
