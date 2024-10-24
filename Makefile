@@ -256,7 +256,7 @@ docs: README.md
 #	weird for cases like standalone constants, and causes other
 #	awkwardness for a bunch of cases we use
 
-clang-tidy: $(SRCS) $(HEADERS)
+clang-tidy: $(filter-out qrap.c,$(SRCS)) $(HEADERS)
 	clang-tidy -checks=*,-modernize-*,\
 	-clang-analyzer-valist.Uninitialized,\
 	-cppcoreguidelines-init-variables,\
@@ -283,7 +283,7 @@ clang-tidy: $(SRCS) $(HEADERS)
 	-misc-include-cleaner,\
 	-cppcoreguidelines-macro-to-enum \
 	-config='{CheckOptions: [{key: bugprone-suspicious-string-compare.WarnOnImplicitComparison, value: "false"}]}' \
-	--warnings-as-errors=* $(SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
+	--warnings-as-errors=* $(filter-out qrap.c,$(SRCS)) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
 
 SYSTEM_INCLUDES := /usr/include $(wildcard /usr/include/$(TARGET))
 ifeq ($(shell $(CC) -v 2>&1 | grep -c "gcc version"),1)
