@@ -175,12 +175,14 @@ void tcp_rst_do(const struct ctx *c, struct tcp_tap_conn *conn);
 		tcp_rst_do(c, conn);					\
 	} while (0)
 
+struct tcp_info_linux;
+
 size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 			       struct iovec *iov, size_t dlen,
 			       const uint16_t *check, uint32_t seq,
 			       bool no_tcp_csum);
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
-			  bool force_seq, struct tcp_info *tinfo);
+			  bool force_seq, struct tcp_info_linux *tinfo);
 int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 		      int flags, struct tcphdr *th, struct tcp_syn_opts *opts,
 		      size_t *optlen);

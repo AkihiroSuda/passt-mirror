@@ -274,6 +274,7 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -285,8 +286,6 @@
 #include <sys/uio.h>
 #include <time.h>
 #include <arpa/inet.h>
-
-#include <linux/tcp.h> /* For struct tcp_info */
 
 #include "checksum.h"
 #include "util.h"
@@ -303,6 +302,7 @@
 
 #include "flow_table.h"
 #include "tcp_internal.h"
+#include "tcp_info.h"
 #include "tcp_buf.h"
 
 /* MSS rounding: see SET_MSS() */
@@ -317,11 +317,6 @@
 
 #define LOW_RTT_TABLE_SIZE		8
 #define LOW_RTT_THRESHOLD		10 /* us */
-
-/* We need to include <linux/tcp.h> for tcpi_bytes_acked, instead of
- * <netinet/tcp.h>, but that doesn't include a definition for SOL_TCP
- */
-#define SOL_TCP				IPPROTO_TCP
 
 #define ACK_IF_NEEDED	0		/* See tcp_send_flag() */
 
@@ -365,14 +360,11 @@ char		tcp_buf_discard		[MAX_WINDOW];
 
 /* Does the kernel support TCP_PEEK_OFF? */
 bool peek_offset_cap;
-#ifdef HAS_SND_WND
+
 /* Does the kernel report sending window in TCP_INFO (kernel commit
  * 8f7baad7f035)
  */
 bool snd_wnd_cap;
-#else
-#define snd_wnd_cap	(false)
-#endif
 
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
@@ -678,7 +670,7 @@ static int tcp_rtt_dst_low(const struct tcp_tap_conn *conn)
  * @tinfo:	Pointer to struct tcp_info for socket
  */
 static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
-			      const struct tcp_info *tinfo)
+			      const struct tcp_info_linux *tinfo)
 {
 #ifdef HAS_MIN_RTT
 	const struct flowside *tapside = TAPFLOW(conn);
@@ -1114,13 +1106,13 @@ size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
  * Return: 1 if sequence or window were updated, 0 otherwise
  */
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
-			  bool force_seq, struct tcp_info *tinfo)
+			  bool force_seq, struct tcp_info_linux *tinfo)
 {
 	uint32_t prev_wnd_to_tap = conn->wnd_to_tap << conn->ws_to_tap;
 	uint32_t prev_ack_to_tap = conn->seq_ack_to_tap;
 	/* cppcheck-suppress [ctunullpointer, unmatchedSuppression] */
 	socklen_t sl = sizeof(*tinfo);
-	struct tcp_info tinfo_new;
+	struct tcp_info_linux tinfo_new;
 	uint32_t new_wnd_to_tap = prev_wnd_to_tap;
 	int s = conn->sock;
 
@@ -1235,7 +1227,7 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 		      int flags, struct tcphdr *th, struct tcp_syn_opts *opts,
 		      size_t *optlen)
 {
-	struct tcp_info tinfo = { 0 };
+	struct tcp_info_linux tinfo = { 0 };
 	socklen_t sl = sizeof(tinfo);
 	int s = conn->sock;
 
@@ -2578,7 +2570,6 @@ static bool tcp_probe_peek_offset_cap(sa_family_t af)
 	return ret;
 }
 
-#ifdef HAS_SND_WND
 /**
  * tcp_probe_snd_wnd_cap() - Check if TCP_INFO reports tcpi_snd_wnd
  *
@@ -2586,7 +2577,7 @@ static bool tcp_probe_peek_offset_cap(sa_family_t af)
  */
 static bool tcp_probe_snd_wnd_cap(void)
 {
-	struct tcp_info tinfo;
+	struct tcp_info_linux tinfo;
 	socklen_t sl = sizeof(tinfo);
 	int s;
 
@@ -2604,13 +2595,12 @@ static bool tcp_probe_snd_wnd_cap(void)
 
 	close(s);
 
-	if (sl < (offsetof(struct tcp_info, tcpi_snd_wnd) +
+	if (sl < (offsetof(struct tcp_info_linux, tcpi_snd_wnd) +
 		  sizeof(tinfo.tcpi_snd_wnd)))
 		return false;
 
 	return true;
 }
-#endif /* HAS_SND_WND */
 
 /**
  * tcp_init() - Get initial sequence, hash secret, initialise per-socket data
@@ -2645,9 +2635,7 @@ int tcp_init(struct ctx *c)
 			  (!c->ifi6 || tcp_probe_peek_offset_cap(AF_INET6));
 	debug("SO_PEEK_OFF%ssupported", peek_offset_cap ? " " : " not ");
 
-#ifdef HAS_SND_WND
 	snd_wnd_cap = tcp_probe_snd_wnd_cap();
-#endif
 	debug("TCP_INFO tcpi_snd_wnd field%ssupported",
 	      snd_wnd_cap ? " " : " not ");
 

@@ -67,11 +67,6 @@ PASST_HEADERS = arch.h arp.h checksum.h conf.h dhcp.h dhcpv6.h flow.h fwd.h \
 	udp.h udp_flow.h util.h
 HEADERS = $(PASST_HEADERS) seccomp.h
 
-C := \#include <linux/tcp.h>\nstruct tcp_info x = { .tcpi_snd_wnd = 0 };
-ifeq ($(shell printf "$(C)" | $(CC) -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
-	FLAGS += -DHAS_SND_WND
-endif
-
 C := \#include <linux/tcp.h>\nstruct tcp_info x = { .tcpi_bytes_acked = 0 };
 ifeq ($(shell printf "$(C)" | $(CC) -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
 	FLAGS += -DHAS_BYTES_ACKED
