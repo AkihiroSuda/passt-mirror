@@ -102,7 +102,9 @@ static int pasta_wait_for_ns(void *arg)
 	int flags = O_RDONLY | O_CLOEXEC;
 	char ns[PATH_MAX];
 
-	snprintf(ns, PATH_MAX, "/proc/%i/ns/net", pasta_child_pid);
+	if (snprintf_check(ns, PATH_MAX, "/proc/%i/ns/net", pasta_child_pid))
+		die_perror("Can't build netns path");
+
 	do {
 		while ((c->pasta_netns_fd = open(ns, flags)) < 0) {
 			if (errno != ENOENT)
@@ -239,8 +241,11 @@ void pasta_start_ns(struct ctx *c, uid_t uid, gid_t gid,
 		c->quiet = 1;
 
 	/* Configure user and group mappings */
-	snprintf(uidmap, BUFSIZ, "0 %u 1", uid);
-	snprintf(gidmap, BUFSIZ, "0 %u 1", gid);
+	if (snprintf_check(uidmap, BUFSIZ, "0 %u 1", uid))
+		die_perror("Can't build uidmap");
+
+	if (snprintf_check(gidmap, BUFSIZ, "0 %u 1", gid))
+		die_perror("Can't build gidmap");
 
 	if (write_file("/proc/self/uid_map", uidmap) ||
 	    write_file("/proc/self/setgroups", "deny") ||

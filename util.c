@@ -749,3 +749,33 @@ void close_open_files(int argc, char **argv)
 	if (rc)
 		die_perror("Failed to close files leaked by parent");
 }
+
+/**
+ * snprintf_check() - snprintf() wrapper, checking for truncation and errors
+ * @str:	Output buffer
+ * @size:	Maximum size to write to @str
+ * @format:	Message
+ *
+ * Return: false on success, true on truncation or error, sets errno on failure
+ */
+bool snprintf_check(char *str, size_t size, const char *format, ...)
+{
+	va_list ap;
+	int rc;
+
+	va_start(ap, format);
+	rc = vsnprintf(str, size, format, ap);
+	va_end(ap);
+
+	if (rc < 0) {
+		errno = EIO;
+		return true;
+	}
+
+	if ((size_t)rc >= size) {
+		errno = ENOBUFS;
+		return true;
+	}
+
+	return false;
+}

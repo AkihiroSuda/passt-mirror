@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include "log.h"
+#include "util.h"
 
 /**
  * arch_avx2_exec() - Switch to AVX2 build if supported
@@ -40,7 +41,10 @@ void arch_avx2_exec(char **argv)
 	if (__builtin_cpu_supports("avx2")) {
 		char new_path[PATH_MAX + sizeof(".avx2")];
 
-		snprintf(new_path, PATH_MAX + sizeof(".avx2"), "%s.avx2", exe);
+		if (snprintf_check(new_path, PATH_MAX + sizeof(".avx2"),
+				   "%s.avx2", exe))
+			die_perror("Can't build AVX2 executable path");
+
 		execve(new_path, argv, environ);
 		warn_perror("Can't run AVX2 build, using non-AVX2 version");
 	}

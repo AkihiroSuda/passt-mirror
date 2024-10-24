@@ -574,10 +574,15 @@ static void conf_pasta_ns(int *netns_only, char *userns, char *netns,
 			if (pidval < 0 || pidval > INT_MAX)
 				die("Invalid PID %s", argv[optind]);
 
-			snprintf(netns, PATH_MAX, "/proc/%ld/ns/net", pidval);
-			if (!*userns)
-				snprintf(userns, PATH_MAX, "/proc/%ld/ns/user",
-					 pidval);
+			if (snprintf_check(netns, PATH_MAX,
+					   "/proc/%ld/ns/net", pidval))
+				die_perror("Can't build netns path");
+
+			if (!*userns) {
+				if (snprintf_check(userns, PATH_MAX,
+						   "/proc/%ld/ns/user", pidval))
+					die_perror("Can't build userns path");
+			}
 		}
 	}
 

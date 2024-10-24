@@ -1151,8 +1151,9 @@ int tap_sock_unix_open(char *sock_path)
 
 		if (*sock_path)
 			memcpy(path, sock_path, UNIX_PATH_MAX);
-		else
-			snprintf(path, UNIX_PATH_MAX - 1, UNIX_SOCK_PATH, i);
+		else if (snprintf_check(path, UNIX_PATH_MAX - 1,
+					UNIX_SOCK_PATH, i))
+			die_perror("Can't build UNIX domain socket path");
 
 		ex = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
 		if (ex < 0)
