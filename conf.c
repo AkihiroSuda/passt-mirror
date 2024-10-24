@@ -733,19 +733,19 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 static void usage(const char *name, FILE *f, int status)
 {
 	if (strstr(name, "pasta")) {
-		fprintf(f, "Usage: %s [OPTION]... [COMMAND] [ARGS]...\n", name);
-		fprintf(f, "       %s [OPTION]... PID\n", name);
-		fprintf(f, "       %s [OPTION]... --netns [PATH|NAME]\n", name);
-		fprintf(f,
+		FPRINTF(f, "Usage: %s [OPTION]... [COMMAND] [ARGS]...\n", name);
+		FPRINTF(f, "       %s [OPTION]... PID\n", name);
+		FPRINTF(f, "       %s [OPTION]... --netns [PATH|NAME]\n", name);
+		FPRINTF(f,
 			"\n"
 			"Without PID or --netns, run the given command or a\n"
 			"default shell in a new network and user namespace, and\n"
 			"connect it via pasta.\n");
 	} else {
-		fprintf(f, "Usage: %s [OPTION]...\n", name);
+		FPRINTF(f, "Usage: %s [OPTION]...\n", name);
 	}
 
-	fprintf(f,
+	FPRINTF(f,
 		"\n"
 		"  -d, --debug		Be verbose\n"
 		"      --trace		Be extra verbose, implies --debug\n"
@@ -762,17 +762,17 @@ static void usage(const char *name, FILE *f, int status)
 		"  --version		Show version and exit\n");
 
 	if (strstr(name, "pasta")) {
-		fprintf(f,
+		FPRINTF(f,
 			"  -I, --ns-ifname NAME	namespace interface name\n"
 			"    default: same interface name as external one\n");
 	} else {
-		fprintf(f,
+		FPRINTF(f,
 			"  -s, --socket PATH	UNIX domain socket path\n"
 			"    default: probe free path starting from "
 			UNIX_SOCK_PATH "\n", 1);
 	}
 
-	fprintf(f,
+	FPRINTF(f,
 		"  -F, --fd FD		Use FD as pre-opened connected socket\n"
 		"  -p, --pcap FILE	Log tap-facing traffic to pcap file\n"
 		"  -P, --pid FILE	Write own PID to the given file\n"
@@ -803,28 +803,28 @@ static void usage(const char *name, FILE *f, int status)
 		"    can be specified multiple times\n"
 		"    a single, empty option disables DNS information\n");
 	if (strstr(name, "pasta"))
-		fprintf(f, "    default: don't use any addresses\n");
+		FPRINTF(f, "    default: don't use any addresses\n");
 	else
-		fprintf(f, "    default: use addresses from /etc/resolv.conf\n");
-	fprintf(f,
+		FPRINTF(f, "    default: use addresses from /etc/resolv.conf\n");
+	FPRINTF(f,
 		"  -S, --search LIST	Space-separated list, search domains\n"
 		"    a single, empty option disables the DNS search list\n");
 	if (strstr(name, "pasta"))
-		fprintf(f, "    default: don't use any search list\n");
+		FPRINTF(f, "    default: don't use any search list\n");
 	else
-		fprintf(f, "    default: use search list from /etc/resolv.conf\n");
+		FPRINTF(f, "    default: use search list from /etc/resolv.conf\n");
 
 	if (strstr(name, "pasta"))
-		fprintf(f, "  --dhcp-dns	\tPass DNS list via DHCP/DHCPv6/NDP\n");
+		FPRINTF(f, "  --dhcp-dns	\tPass DNS list via DHCP/DHCPv6/NDP\n");
 	else
-		fprintf(f, "  --no-dhcp-dns	No DNS list in DHCP/DHCPv6/NDP\n");
+		FPRINTF(f, "  --no-dhcp-dns	No DNS list in DHCP/DHCPv6/NDP\n");
 
 	if (strstr(name, "pasta"))
-		fprintf(f, "  --dhcp-search	Pass list via DHCP/DHCPv6/NDP\n");
+		FPRINTF(f, "  --dhcp-search	Pass list via DHCP/DHCPv6/NDP\n");
 	else
-		fprintf(f, "  --no-dhcp-search	No list in DHCP/DHCPv6/NDP\n");
+		FPRINTF(f, "  --no-dhcp-search	No list in DHCP/DHCPv6/NDP\n");
 
-	fprintf(f,
+	FPRINTF(f,
 		"  --map-host-loopback ADDR	Translate ADDR to refer to host\n"
 	        "    can be specified zero to two times (for IPv4 and IPv6)\n"
 		"    default: gateway address\n"
@@ -852,7 +852,7 @@ static void usage(const char *name, FILE *f, int status)
 	if (strstr(name, "pasta"))
 		goto pasta_opts;
 
-	fprintf(f,
+	FPRINTF(f,
 		"  -1, --one-off	Quit after handling one single client\n"
 		"  -t, --tcp-ports SPEC	TCP port forwarding to guest\n"
 		"    can be specified multiple times\n"
@@ -883,7 +883,7 @@ static void usage(const char *name, FILE *f, int status)
 
 pasta_opts:
 
-	fprintf(f,
+	FPRINTF(f,
 		"  -t, --tcp-ports SPEC	TCP port forwarding to namespace\n"
 		"    can be specified multiple times\n"
 		"    SPEC can be:\n"
@@ -1421,9 +1421,9 @@ void conf(struct ctx *c, int argc, char **argv)
 
 			break;
 		case 14:
-			fprintf(stdout,
+			FPRINTF(stdout,
 				c->mode == MODE_PASTA ? "pasta " : "passt ");
-			fprintf(stdout, VERSION_BLOB);
+			FPRINTF(stdout, VERSION_BLOB);
 			exit(EXIT_SUCCESS);
 		case 15:
 			ret = snprintf(c->ip4.ifname_out,

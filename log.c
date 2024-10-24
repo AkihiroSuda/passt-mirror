@@ -274,7 +274,7 @@ void vlogmsg(bool newline, bool cont, int pri, const char *format, va_list ap)
 		char timestr[LOGTIME_STRLEN];
 
 		logtime_fmt(timestr, sizeof(timestr), now);
-		fprintf(stderr, "%s: ", timestr);
+		FPRINTF(stderr, "%s: ", timestr);
 	}
 
 	if ((log_mask & LOG_MASK(LOG_PRI(pri))) || !log_conf_parsed) {
@@ -293,7 +293,7 @@ void vlogmsg(bool newline, bool cont, int pri, const char *format, va_list ap)
 	    (log_stderr && (log_mask & LOG_MASK(LOG_PRI(pri))))) {
 		(void)vfprintf(stderr, format, ap);
 		if (newline && format[strlen(format)] != '\n')
-			fprintf(stderr, "\n");
+			FPRINTF(stderr, "\n");
 	}
 }
 
@@ -399,7 +399,7 @@ void passt_vsyslog(bool newline, int pri, const char *format, va_list ap)
 		n += snprintf(buf + n, BUFSIZ - n, "\n");
 
 	if (log_sock >= 0 && send(log_sock, buf, n, 0) != n && log_stderr)
-		fprintf(stderr, "Failed to send %i bytes to syslog\n", n);
+		FPRINTF(stderr, "Failed to send %i bytes to syslog\n", n);
 }
 
 /**
