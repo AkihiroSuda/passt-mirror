@@ -503,7 +503,7 @@ swap:
 	lowat_act_flag = RCVLOWAT_ACT(fromsidei);
 
 	while (1) {
-		ssize_t readlen, to_write = 0, written;
+		ssize_t readlen, written, pending;
 		int more = 0;
 
 retry:
@@ -518,14 +518,11 @@ retry:
 
 			if (errno != EAGAIN)
 				goto close;
-
-			to_write = c->tcp.pipe_size;
 		} else if (!readlen) {
 			eof = 1;
-			to_write = c->tcp.pipe_size;
 		} else {
 			never_read = 0;
-			to_write += readlen;
+
 			if (readlen >= (long)c->tcp.pipe_size * 90 / 100)
 				more = SPLICE_F_MORE;
 
@@ -535,10 +532,10 @@ retry:
 
 eintr:
 		written = splice(conn->pipe[fromsidei][0], NULL,
-				 conn->s[!fromsidei], NULL, to_write,
+				 conn->s[!fromsidei], NULL, c->tcp.pipe_size,
 				 SPLICE_F_MOVE | more | SPLICE_F_NONBLOCK);
 		flow_trace(conn, "%zi from write-side call (passed %zi)",
-			   written, to_write);
+			   written, c->tcp.pipe_size);
 
 		/* Most common case: skip updating counters. */
 		if (readlen > 0 && readlen == written) {
@@ -584,10 +581,9 @@ eintr:
 		if (never_read && written == (long)(c->tcp.pipe_size))
 			goto retry;
 
-		if (!never_read && written < to_write) {
-			to_write -= written;
+		pending = conn->read[fromsidei] - conn->written[fromsidei];
+		if (!never_read && written > 0 && written < pending)
 			goto retry;
-		}
 
 		if (eof)
 			break;
