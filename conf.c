@@ -1194,7 +1194,11 @@ static void conf_open_files(struct ctx *c)
 	if (c->mode != MODE_PASTA && c->fd_tap == -1)
 		c->fd_tap_listen = tap_sock_unix_open(c->sock_path);
 
-	c->pidfile_fd = pidfile_open(c->pidfile);
+	if (*c->pidfile) {
+		c->pidfile_fd = output_file_open(c->pidfile, O_WRONLY);
+		if (c->pidfile_fd < 0)
+			die_perror("Couldn't open PID file %s", c->pidfile);
+	}
 }
 
 /**

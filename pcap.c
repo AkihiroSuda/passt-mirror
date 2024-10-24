@@ -158,18 +158,15 @@ void pcap_iov(const struct iovec *iov, size_t iovcnt, size_t offset)
  */
 void pcap_init(struct ctx *c)
 {
-	int flags = O_WRONLY | O_CREAT | O_TRUNC;
-
 	if (pcap_fd != -1)
 		return;
 
 	if (!*c->pcap)
 		return;
 
-	flags |= c->foreground ? O_CLOEXEC : 0;
-	pcap_fd = open(c->pcap, flags, S_IRUSR | S_IWUSR);
+	pcap_fd = output_file_open(c->pcap, O_WRONLY);
 	if (pcap_fd == -1) {
-		perror("open");
+		err_perror("Couldn't open pcap file %s", c->pcap);
 		return;
 	}
 

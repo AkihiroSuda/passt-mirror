@@ -416,8 +416,7 @@ void logfile_init(const char *name, const char *path, size_t size)
 	if (readlink("/proc/self/exe", exe, PATH_MAX - 1) < 0)
 		die_perror("Failed to read own /proc/self/exe link");
 
-	log_file = open(path, O_CREAT | O_TRUNC | O_APPEND | O_RDWR | O_CLOEXEC,
-			S_IRUSR | S_IWUSR);
+	log_file = output_file_open(path, O_APPEND | O_RDWR);
 	if (log_file == -1)
 		die_perror("Couldn't open log file %s", path);
 

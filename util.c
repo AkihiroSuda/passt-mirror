@@ -407,25 +407,20 @@ void pidfile_write(int fd, pid_t pid)
 }
 
 /**
- * pidfile_open() - Open PID file if needed
- * @path:	Path for PID file, empty string if no PID file is requested
+ * output_file_open() - Open file for output, if needed
+ * @path:	Path for output file
+ * @flags:	Flags for open() other than O_CREAT, O_TRUNC, O_CLOEXEC
  *
- * Return: descriptor for PID file, -1 if path is NULL, won't return on failure
+ * Return: file descriptor on success, -1 on failure with errno set by open()
  */
-int pidfile_open(const char *path)
+int output_file_open(const char *path, int flags)
 {
-	int fd;
-
-	if (!*path)
-		return -1;
-
-	if ((fd = open(path, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC,
-			     S_IRUSR | S_IWUSR)) < 0) {
-		perror("PID file open");
-		exit(EXIT_FAILURE);
-	}
-
-	return fd;
+	/* We use O_CLOEXEC here, but clang-tidy as of LLVM 16 to 19 looks for
+	 * it in the 'mode' argument if we have one
+	 */
+	return open(path, O_CREAT | O_TRUNC | O_CLOEXEC | flags,
+		    /* NOLINTNEXTLINE(android-cloexec-open) */
+		    S_IRUSR | S_IWUSR);
 }
 
 /**
