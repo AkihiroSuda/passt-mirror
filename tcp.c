@@ -370,6 +370,10 @@ socklen_t tcp_info_size;
 
 /* Kernel reports sending window in TCP_INFO (kernel commit 8f7baad7f035) */
 #define snd_wnd_cap	tcp_info_cap(snd_wnd)
+/* Kernel reports bytes acked in TCP_INFO (kernel commit 0df48c26d84) */
+#define bytes_acked_cap	tcp_info_cap(bytes_acked)
+/* Kernel reports minimum RTT in TCP_INFO (kernel commit cd9b266095f4) */
+#define min_rtt_cap	tcp_info_cap(min_rtt)
 
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
@@ -677,11 +681,10 @@ static int tcp_rtt_dst_low(const struct tcp_tap_conn *conn)
 static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 			      const struct tcp_info_linux *tinfo)
 {
-#ifdef HAS_MIN_RTT
 	const struct flowside *tapside = TAPFLOW(conn);
 	int i, hole = -1;
 
-	if (!tinfo->tcpi_min_rtt ||
+	if (!min_rtt_cap ||
 	    (int)tinfo->tcpi_min_rtt > LOW_RTT_THRESHOLD)
 		return;
 
@@ -702,10 +705,6 @@ static void tcp_rtt_dst_check(const struct tcp_tap_conn *conn,
 	if (hole == LOW_RTT_TABLE_SIZE)
 		hole = 0;
 	inany_from_af(low_rtt_dst + hole, AF_INET6, &in6addr_any);
-#else
-	(void)conn;
-	(void)tinfo;
-#endif /* HAS_MIN_RTT */
 }
 
 /**
@@ -1121,30 +1120,29 @@ int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 	uint32_t new_wnd_to_tap = prev_wnd_to_tap;
 	int s = conn->sock;
 
-#ifndef HAS_BYTES_ACKED
-	(void)force_seq;
-
-	conn->seq_ack_to_tap = conn->seq_from_tap;
-	if (SEQ_LT(conn->seq_ack_to_tap, prev_ack_to_tap))
-		conn->seq_ack_to_tap = prev_ack_to_tap;
-#else
-	if ((unsigned)SNDBUF_GET(conn) < SNDBUF_SMALL || tcp_rtt_dst_low(conn)
-	    || CONN_IS_CLOSING(conn) || (conn->flags & LOCAL) || force_seq) {
+	if (!bytes_acked_cap) {
 		conn->seq_ack_to_tap = conn->seq_from_tap;
-	} else if (conn->seq_ack_to_tap != conn->seq_from_tap) {
-		if (!tinfo) {
-			tinfo = &tinfo_new;
-			if (getsockopt(s, SOL_TCP, TCP_INFO, tinfo, &sl))
-				return 0;
-		}
-
-		conn->seq_ack_to_tap = tinfo->tcpi_bytes_acked +
-				       conn->seq_init_from_tap;
-
 		if (SEQ_LT(conn->seq_ack_to_tap, prev_ack_to_tap))
 			conn->seq_ack_to_tap = prev_ack_to_tap;
+	} else {
+		if ((unsigned)SNDBUF_GET(conn) < SNDBUF_SMALL ||
+		    tcp_rtt_dst_low(conn) || CONN_IS_CLOSING(conn) ||
+		    (conn->flags & LOCAL) || force_seq) {
+			conn->seq_ack_to_tap = conn->seq_from_tap;
+		} else if (conn->seq_ack_to_tap != conn->seq_from_tap) {
+			if (!tinfo) {
+				tinfo = &tinfo_new;
+				if (getsockopt(s, SOL_TCP, TCP_INFO, tinfo, &sl))
+					return 0;
+			}
+
+			conn->seq_ack_to_tap = tinfo->tcpi_bytes_acked +
+				conn->seq_init_from_tap;
+
+			if (SEQ_LT(conn->seq_ack_to_tap, prev_ack_to_tap))
+				conn->seq_ack_to_tap = prev_ack_to_tap;
+		}
 	}
-#endif /* !HAS_BYTES_ACKED */
 
 	if (!snd_wnd_cap) {
 		tcp_get_sndbuf(conn);
@@ -2641,6 +2639,8 @@ int tcp_init(struct ctx *c)
 #define dbg_tcpi(f_)	debug("TCP_INFO tcpi_%s field%s supported",	\
 			      STRINGIFY(f_), tcp_info_cap(f_) ? " " : " not ")
 	dbg_tcpi(snd_wnd);
+	dbg_tcpi(bytes_acked);
+	dbg_tcpi(min_rtt);
 #undef dbg_tcpi
 
 	return 0;
