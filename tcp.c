@@ -549,7 +549,8 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		 (unsigned long long)it.it_value.tv_sec,
 		 (unsigned long long)it.it_value.tv_nsec / 1000 / 1000);
 
-	timerfd_settime(conn->timer, 0, &it, NULL);
+	if (timerfd_settime(conn->timer, 0, &it, NULL))
+		flow_err(conn, "failed to set timer: %s", strerror(errno));
 }
 
 /**
@@ -2235,7 +2236,9 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 	 * timer is currently armed, this event came from a previous setting,
 	 * and we just set the timer to a new point in the future: discard it.
 	 */
-	timerfd_gettime(conn->timer, &check_armed);
+	if (timerfd_gettime(conn->timer, &check_armed))
+		flow_err(conn, "failed to read timer: %s", strerror(errno));
+
 	if (check_armed.it_value.tv_sec || check_armed.it_value.tv_nsec)
 		return;
 
@@ -2273,7 +2276,10 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 		 * case. This avoids having to preemptively reset the timer on
 		 * ~ACK_TO_TAP_DUE or ~ACK_FROM_TAP_DUE.
 		 */
-		timerfd_settime(conn->timer, 0, &new, &old);
+		if (timerfd_settime(conn->timer, 0, &new, &old))
+			flow_err(conn, "failed to set timer: %s",
+				 strerror(errno));
+
 		if (old.it_value.tv_sec == ACT_TIMEOUT) {
 			flow_dbg(conn, "activity timeout");
 			tcp_rst(c, conn);

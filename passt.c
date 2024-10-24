@@ -207,7 +207,8 @@ int main(int argc, char **argv)
 	struct timespec now;
 	struct sigaction sa;
 
-	clock_gettime(CLOCK_MONOTONIC, &log_start);
+	if (clock_gettime(CLOCK_MONOTONIC, &log_start))
+		die_perror("Failed to get CLOCK_MONOTONIC time");
 
 	arch_avx2_exec(argv);
 
@@ -265,7 +266,8 @@ int main(int argc, char **argv)
 
 	secret_init(&c);
 
-	clock_gettime(CLOCK_MONOTONIC, &now);
+	if (clock_gettime(CLOCK_MONOTONIC, &now))
+		die_perror("Failed to get CLOCK_MONOTONIC time");
 
 	flow_init();
 
@@ -313,7 +315,8 @@ loop:
 	if (nfds == -1 && errno != EINTR)
 		die_perror("epoll_wait() failed in main loop");
 
-	clock_gettime(CLOCK_MONOTONIC, &now);
+	if (clock_gettime(CLOCK_MONOTONIC, &now))
+		err_perror("Failed to get CLOCK_MONOTONIC time");
 
 	for (i = 0; i < nfds; i++) {
 		union epoll_ref ref = *((union epoll_ref *)&events[i].data.u64);

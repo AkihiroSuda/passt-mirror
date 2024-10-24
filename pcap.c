@@ -100,12 +100,14 @@ static void pcap_frame(const struct iovec *iov, size_t iovcnt,
 void pcap(const char *pkt, size_t l2len)
 {
 	struct iovec iov = { (char *)pkt, l2len };
-	struct timespec now;
+	struct timespec now = { 0 };
 
 	if (pcap_fd == -1)
 		return;
 
-	clock_gettime(CLOCK_REALTIME, &now);
+	if (clock_gettime(CLOCK_REALTIME, &now))
+		err_perror("Failed to get CLOCK_REALTIME time");
+
 	pcap_frame(&iov, 1, 0, &now);
 }
 
@@ -119,13 +121,14 @@ void pcap(const char *pkt, size_t l2len)
 void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
 		   size_t offset)
 {
-	struct timespec now;
+	struct timespec now = { 0 };
 	unsigned int i;
 
 	if (pcap_fd == -1)
 		return;
 
-	clock_gettime(CLOCK_REALTIME, &now);
+	if (clock_gettime(CLOCK_REALTIME, &now))
+		err_perror("Failed to get CLOCK_REALTIME time");
 
 	for (i = 0; i < n; i++)
 		pcap_frame(iov + i * frame_parts, frame_parts, offset, &now);
@@ -143,12 +146,14 @@ void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
 /* cppcheck-suppress unusedFunction */
 void pcap_iov(const struct iovec *iov, size_t iovcnt, size_t offset)
 {
-	struct timespec now;
+	struct timespec now = { 0 };
 
 	if (pcap_fd == -1)
 		return;
 
-	clock_gettime(CLOCK_REALTIME, &now);
+	if (clock_gettime(CLOCK_REALTIME, &now))
+		err_perror("Failed to get CLOCK_REALTIME time");
+
 	pcap_frame(iov, iovcnt, offset, &now);
 }
 
