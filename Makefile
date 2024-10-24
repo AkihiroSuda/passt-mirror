@@ -255,6 +255,12 @@ docs: README.md
 #	makes sense when those defines form an enum-like set, but
 #	weird for cases like standalone constants, and causes other
 #	awkwardness for a bunch of cases we use
+#
+# - readability-math-missing-parentheses
+#	It's been a couple of centuries since multiplication has been granted
+#	precedence over addition in modern mathematical notation. Adding
+#	parentheses to reinforce that certainly won't improve readability.
+
 
 clang-tidy: $(filter-out qrap.c,$(SRCS)) $(HEADERS)
 	clang-tidy -checks=*,-modernize-*,\
@@ -281,7 +287,8 @@ clang-tidy: $(filter-out qrap.c,$(SRCS)) $(HEADERS)
 	-concurrency-mt-unsafe,\
 	-readability-identifier-length,\
 	-misc-include-cleaner,\
-	-cppcoreguidelines-macro-to-enum \
+	-cppcoreguidelines-macro-to-enum,\
+	-readability-math-missing-parentheses \
 	-config='{CheckOptions: [{key: bugprone-suspicious-string-compare.WarnOnImplicitComparison, value: "false"}]}' \
 	--warnings-as-errors=* $(filter-out qrap.c,$(SRCS)) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
 
