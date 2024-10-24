@@ -361,10 +361,15 @@ char		tcp_buf_discard		[MAX_WINDOW];
 /* Does the kernel support TCP_PEEK_OFF? */
 bool peek_offset_cap;
 
-/* Does the kernel report sending window in TCP_INFO (kernel commit
- * 8f7baad7f035)
- */
-bool snd_wnd_cap;
+/* Size of data returned by TCP_INFO getsockopt() */
+socklen_t tcp_info_size;
+
+#define tcp_info_cap(f_)						\
+	((offsetof(struct tcp_info_linux, tcpi_##f_) +			\
+	  sizeof(((struct tcp_info_linux *)NULL)->tcpi_##f_)) <= tcp_info_size)
+
+/* Kernel reports sending window in TCP_INFO (kernel commit 8f7baad7f035) */
+#define snd_wnd_cap	tcp_info_cap(snd_wnd)
 
 /* sendmsg() to socket */
 static struct iovec	tcp_iov			[UIO_MAXIOV];
@@ -2571,11 +2576,11 @@ static bool tcp_probe_peek_offset_cap(sa_family_t af)
 }
 
 /**
- * tcp_probe_snd_wnd_cap() - Check if TCP_INFO reports tcpi_snd_wnd
+ * tcp_probe_tcp_info() - Check what data TCP_INFO reports
  *
- * Return: true if supported, false otherwise
+ * Return: Number of bytes returned by TCP_INFO getsockopt()
  */
-static bool tcp_probe_snd_wnd_cap(void)
+static socklen_t tcp_probe_tcp_info(void)
 {
 	struct tcp_info_linux tinfo;
 	socklen_t sl = sizeof(tinfo);
@@ -2595,11 +2600,7 @@ static bool tcp_probe_snd_wnd_cap(void)
 
 	close(s);
 
-	if (sl < (offsetof(struct tcp_info_linux, tcpi_snd_wnd) +
-		  sizeof(tinfo.tcpi_snd_wnd)))
-		return false;
-
-	return true;
+	return sl;
 }
 
 /**
@@ -2635,9 +2636,12 @@ int tcp_init(struct ctx *c)
 			  (!c->ifi6 || tcp_probe_peek_offset_cap(AF_INET6));
 	debug("SO_PEEK_OFF%ssupported", peek_offset_cap ? " " : " not ");
 
-	snd_wnd_cap = tcp_probe_snd_wnd_cap();
-	debug("TCP_INFO tcpi_snd_wnd field%ssupported",
-	      snd_wnd_cap ? " " : " not ");
+	tcp_info_size = tcp_probe_tcp_info();
+
+#define dbg_tcpi(f_)	debug("TCP_INFO tcpi_%s field%s supported",	\
+			      STRINGIFY(f_), tcp_info_cap(f_) ? " " : " not ")
+	dbg_tcpi(snd_wnd);
+#undef dbg_tcpi
 
 	return 0;
 }
