@@ -444,16 +444,11 @@ int __daemon(int pidfile_fd, int devnull_fd)
 		exit(EXIT_SUCCESS);
 	}
 
-	errno = 0;
-
-	setsid();
-
-	dup2(devnull_fd, STDIN_FILENO);
-	dup2(devnull_fd, STDOUT_FILENO);
-	dup2(devnull_fd, STDERR_FILENO);
-	close(devnull_fd);
-
-	if (errno)
+	if (setsid()				< 0 ||
+	    dup2(devnull_fd, STDIN_FILENO)	< 0 ||
+	    dup2(devnull_fd, STDOUT_FILENO)	< 0 ||
+	    dup2(devnull_fd, STDERR_FILENO)	< 0 ||
+	    close(devnull_fd))
 		exit(EXIT_FAILURE);
 
 	return 0;
