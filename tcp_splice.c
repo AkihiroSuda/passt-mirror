@@ -320,7 +320,7 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 			}
 
 			if (fcntl(conn->pipe[sidei][0], F_SETPIPE_SZ,
-				  c->tcp.pipe_size)) {
+				  c->tcp.pipe_size) != (int)c->tcp.pipe_size) {
 				flow_trace(conn,
 					   "cannot set %d->%d pipe size to %zu",
 					   sidei, !sidei, c->tcp.pipe_size);
@@ -672,7 +672,7 @@ static void tcp_splice_pipe_refill(const struct ctx *c)
 			continue;
 
 		if (fcntl(splice_pipe_pool[i][0], F_SETPIPE_SZ,
-			  c->tcp.pipe_size)) {
+			  c->tcp.pipe_size) != (int)c->tcp.pipe_size) {
 			trace("TCP (spliced): cannot set pool pipe size to %zu",
 			      c->tcp.pipe_size);
 		}
