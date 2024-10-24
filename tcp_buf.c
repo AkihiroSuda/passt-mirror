@@ -382,8 +382,8 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	int fill_bufs, send_bufs = 0, last_len, iov_rem = 0;
-	int sendlen, len, dlen, v4 = CONN_V4(conn);
-	int s = conn->sock, i, ret = 0;
+	int len, dlen, v4 = CONN_V4(conn);
+	int s = conn->sock, i;
 	struct msghdr mh_sock = { 0 };
 	uint16_t mss = MSS_GET(conn);
 	uint32_t already_sent, seq;
@@ -453,12 +453,19 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		len = recvmsg(s, &mh_sock, MSG_PEEK);
 	while (len < 0 && errno == EINTR);
 
-	if (len < 0)
-		goto err;
+	if (len < 0) {
+		if (errno != EAGAIN && errno != EWOULDBLOCK) {
+			tcp_rst(c, conn);
+			return -errno;
+		}
+
+		return 0;
+	}
 
 	if (!len) {
 		if ((conn->events & (SOCK_FIN_RCVD | TAP_FIN_SENT)) == SOCK_FIN_RCVD) {
-			if ((ret = tcp_buf_send_flag(c, conn, FIN | ACK))) {
+			int ret = tcp_buf_send_flag(c, conn, FIN | ACK);
+			if (ret) {
 				tcp_rst(c, conn);
 				return ret;
 			}
@@ -469,19 +476,18 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		return 0;
 	}
 
-	sendlen = len;
 	if (!peek_offset_cap)
-		sendlen -= already_sent;
+		len -= already_sent;
 
-	if (sendlen <= 0) {
+	if (len <= 0) {
 		conn_flag(c, conn, STALLED);
 		return 0;
 	}
 
 	conn_flag(c, conn, ~STALLED);
 
-	send_bufs = DIV_ROUND_UP(sendlen, mss);
-	last_len = sendlen - (send_bufs - 1) * mss;
+	send_bufs = DIV_ROUND_UP(len, mss);
+	last_len = len - (send_bufs - 1) * mss;
 
 	/* Likely, some new data was acked too. */
 	tcp_update_seqack_wnd(c, conn, false, NULL);
@@ -502,12 +508,4 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	conn_flag(c, conn, ACK_FROM_TAP_DUE);
 
 	return 0;
-
-err:
-	if (errno != EAGAIN && errno != EWOULDBLOCK) {
-		ret = -errno;
-		tcp_rst(c, conn);
-	}
-
-	return ret;
 }
