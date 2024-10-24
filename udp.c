@@ -169,11 +169,11 @@ udp_meta[UDP_MAX_FRAMES];
  * @UDP_NUM_IOVS        the number of entries in the iovec array
  */
 enum udp_iov_idx {
-	UDP_IOV_TAP	= 0,
-	UDP_IOV_ETH	= 1,
-	UDP_IOV_IP	= 2,
-	UDP_IOV_PAYLOAD	= 3,
-	UDP_NUM_IOVS
+	UDP_IOV_TAP,
+	UDP_IOV_ETH,
+	UDP_IOV_IP,
+	UDP_IOV_PAYLOAD,
+	UDP_NUM_IOVS,
 };
 
 /* IOVs and msghdr arrays for receiving datagrams from sockets */
