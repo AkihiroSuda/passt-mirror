@@ -8,7 +8,6 @@
 WGET = wget -c
 
 DEBIAN_IMGS = debian-8.11.0-openstack-amd64.qcow2 \
-	debian-9-nocloud-amd64-daily-20200210-166.qcow2 \
 	debian-10-nocloud-amd64.qcow2 \
 	debian-10-generic-arm64.qcow2 \
 	debian-10-generic-ppc64el-20220911-1135.qcow2 \
@@ -42,8 +41,7 @@ OPENSUSE_IMGS = openSUSE-Leap-15.1-JeOS.x86_64-kvm-and-xen.qcow2 \
 	openSUSE-Leap-15.2-JeOS.x86_64-kvm-and-xen.qcow2 \
 	openSUSE-Leap-15.3-JeOS.x86_64-kvm-and-xen.qcow2 \
 	openSUSE-Tumbleweed-ARM-JeOS-efi.aarch64.raw.xz \
-	openSUSE-Tumbleweed-ARM-JeOS-efi.armv7l.raw.xz \
-	openSUSE-Tumbleweed-JeOS.x86_64-kvm-and-xen.qcow2
+	openSUSE-Tumbleweed-ARM-JeOS-efi.armv7l.raw.xz
 
 UBUNTU_OLD_IMGS = trusty-server-cloudimg-amd64-disk1.img \
 	trusty-server-cloudimg-i386-disk1.img \
@@ -135,9 +133,6 @@ realclean: clean
 debian-8.11.0-openstack-%.qcow2:
 	$(WGET) -O $@ https://cloud.debian.org/images/cloud/OpenStack/archive/8.11.0/debian-8.11.0-openstack-$*.qcow2
 
-debian-9-nocloud-%-daily-20200210-166.qcow2:
-	$(WGET) -O $@ https://cloud.debian.org/images/cloud/stretch/daily/20200210-166/debian-9-nocloud-$*-daily-20200210-166.qcow2
-
 debian-10-nocloud-%.qcow2:
 	$(WGET) -O $@ https://cloud.debian.org/images/cloud/buster/latest/debian-10-nocloud-$*.qcow2
 
@@ -202,9 +197,6 @@ openSUSE-Tumbleweed-ARM-JeOS-efi.aarch64.raw.xz:
 
 openSUSE-Tumbleweed-ARM-JeOS-efi.armv7l.raw.xz:
 	$(WGET) -O $@ http://download.opensuse.org/ports/armv7hl/tumbleweed/appliances/openSUSE-Tumbleweed-ARM-JeOS-efi.armv7l.raw.xz
-
-openSUSE-Tumbleweed-JeOS.x86_64-kvm-and-xen.qcow2:
-	$(WGET) -O $@ https://download.opensuse.org/tumbleweed/appliances/openSUSE-Tumbleweed-JeOS.x86_64-kvm-and-xen.qcow2
 
 # Ubuntu downloads
 trusty-server-cloudimg-%-disk1.img:
