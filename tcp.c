@@ -2611,11 +2611,7 @@ int tcp_init(struct ctx *c)
 {
 	ASSERT(!c->no_tcp);
 
-	if (c->ifi4)
-		tcp_sock4_iov_init(c);
-
-	if (c->ifi6)
-		tcp_sock6_iov_init(c);
+	tcp_sock_iov_init(c);
 
 	memset(init_sock_pool4,		0xff,	sizeof(init_sock_pool4));
 	memset(init_sock_pool6,		0xff,	sizeof(init_sock_pool6));

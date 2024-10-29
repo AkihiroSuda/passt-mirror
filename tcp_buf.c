@@ -38,59 +38,44 @@
 	(c->mode == MODE_PASTA ? 1 : TCP_FRAMES_MEM)
 
 /* Static buffers */
-/* Ethernet header for IPv4 frames */
+
+/* Ethernet header for IPv4 and IPv6 frames */
 static struct ethhdr		tcp4_eth_src;
+static struct ethhdr		tcp6_eth_src;
 
-static struct tap_hdr		tcp4_payload_tap_hdr[TCP_FRAMES_MEM];
-/* IPv4 headers */
-static struct iphdr		tcp4_payload_ip[TCP_FRAMES_MEM];
-/* TCP segments with payload for IPv4 frames */
-static struct tcp_payload_t	tcp4_payload[TCP_FRAMES_MEM];
+static struct tap_hdr		tcp_payload_tap_hdr[TCP_FRAMES_MEM];
 
-static_assert(MSS4 <= sizeof(tcp4_payload[0].data), "MSS4 is greater than 65516");
+/* IP headers for IPv4 and IPv6 */
+struct iphdr		tcp4_payload_ip[TCP_FRAMES_MEM];
+struct ipv6hdr		tcp6_payload_ip[TCP_FRAMES_MEM];
+
+/* TCP segments with payload for IPv4 and IPv6 frames */
+static struct tcp_payload_t	tcp_payload[TCP_FRAMES_MEM];
+
+static_assert(MSS4 <= sizeof(tcp_payload[0].data), "MSS4 is greater than 65516");
+static_assert(MSS6 <= sizeof(tcp_payload[0].data), "MSS6 is greater than 65516");
 
 /* References tracking the owner connection of frames in the tap outqueue */
-static struct tcp_tap_conn *tcp4_frame_conns[TCP_FRAMES_MEM];
-static unsigned int tcp4_payload_used;
+static struct tcp_tap_conn *tcp_frame_conns[TCP_FRAMES_MEM];
+static unsigned int tcp_payload_used;
 
-static struct tap_hdr		tcp4_flags_tap_hdr[TCP_FRAMES_MEM];
+static struct tap_hdr		tcp_flags_tap_hdr[TCP_FRAMES_MEM];
 /* IPv4 headers for TCP segment without payload */
 static struct iphdr		tcp4_flags_ip[TCP_FRAMES_MEM];
 /* TCP segments without payload for IPv4 frames */
-static struct tcp_flags_t	tcp4_flags[TCP_FRAMES_MEM];
+static struct tcp_flags_t	tcp_flags[TCP_FRAMES_MEM];
 
-static unsigned int tcp4_flags_used;
+static unsigned int tcp_flags_used;
 
-/* Ethernet header for IPv6 frames */
-static struct ethhdr		tcp6_eth_src;
-
-static struct tap_hdr		tcp6_payload_tap_hdr[TCP_FRAMES_MEM];
-/* IPv6 headers */
-static struct ipv6hdr		tcp6_payload_ip[TCP_FRAMES_MEM];
-/* TCP headers and data for IPv6 frames */
-static struct tcp_payload_t	tcp6_payload[TCP_FRAMES_MEM];
-
-static_assert(MSS6 <= sizeof(tcp6_payload[0].data), "MSS6 is greater than 65516");
-
-/* References tracking the owner connection of frames in the tap outqueue */
-static struct tcp_tap_conn *tcp6_frame_conns[TCP_FRAMES_MEM];
-static unsigned int tcp6_payload_used;
-
-static struct tap_hdr		tcp6_flags_tap_hdr[TCP_FRAMES_MEM];
 /* IPv6 headers for TCP segment without payload */
 static struct ipv6hdr		tcp6_flags_ip[TCP_FRAMES_MEM];
-/* TCP segment without payload for IPv6 frames */
-static struct tcp_flags_t	tcp6_flags[TCP_FRAMES_MEM];
-
-static unsigned int tcp6_flags_used;
 
 /* recvmsg()/sendmsg() data for tap */
 static struct iovec	iov_sock		[TCP_FRAMES_MEM + 1];
 
-static struct iovec	tcp4_l2_iov		[TCP_FRAMES_MEM][TCP_NUM_IOVS];
-static struct iovec	tcp6_l2_iov		[TCP_FRAMES_MEM][TCP_NUM_IOVS];
-static struct iovec	tcp4_l2_flags_iov	[TCP_FRAMES_MEM][TCP_NUM_IOVS];
-static struct iovec	tcp6_l2_flags_iov	[TCP_FRAMES_MEM][TCP_NUM_IOVS];
+static struct iovec	tcp_l2_iov[TCP_FRAMES_MEM][TCP_NUM_IOVS];
+static struct iovec	tcp_l2_flags_iov[TCP_FRAMES_MEM][TCP_NUM_IOVS];
+
 /**
  * tcp_update_l2_buf() - Update Ethernet header buffers with addresses
  * @eth_d:	Ethernet destination address, NULL if unchanged
@@ -103,86 +88,46 @@ void tcp_update_l2_buf(const unsigned char *eth_d, const unsigned char *eth_s)
 }
 
 /**
- * tcp_sock4_iov_init() - Initialise scatter-gather L2 buffers for IPv4 sockets
+ * tcp_sock_iov_init() - Initialise scatter-gather L2 buffers for IPv4 sockets
  * @c:		Execution context
  */
-void tcp_sock4_iov_init(const struct ctx *c)
-{
-	struct iphdr iph = L2_BUF_IP4_INIT(IPPROTO_TCP);
-	struct iovec *iov;
-	int i;
-
-	tcp4_eth_src.h_proto = htons_constant(ETH_P_IP);
-
-	for (i = 0; i < ARRAY_SIZE(tcp4_payload); i++) {
-		tcp4_payload_ip[i] = iph;
-		tcp4_payload[i].th.doff = sizeof(struct tcphdr) / 4;
-		tcp4_payload[i].th.ack = 1;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(tcp4_flags); i++) {
-		tcp4_flags_ip[i] = iph;
-		tcp4_flags[i].th.doff = sizeof(struct tcphdr) / 4;
-		tcp4_flags[i].th.ack = 1;
-	}
-
-	for (i = 0; i < TCP_FRAMES_MEM; i++) {
-		iov = tcp4_l2_iov[i];
-
-		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp4_payload_tap_hdr[i]);
-		iov[TCP_IOV_ETH].iov_len = sizeof(struct ethhdr);
-		iov[TCP_IOV_PAYLOAD].iov_base = &tcp4_payload[i];
-	}
-
-	for (i = 0; i < TCP_FRAMES_MEM; i++) {
-		iov = tcp4_l2_flags_iov[i];
-
-		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp4_flags_tap_hdr[i]);
-		iov[TCP_IOV_ETH] = IOV_OF_LVALUE(tcp4_eth_src);
-		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp4_flags_ip[i]);
-		iov[TCP_IOV_PAYLOAD].iov_base = &tcp4_flags[i];
-	}
-}
-
-/**
- * tcp_sock6_iov_init() - Initialise scatter-gather L2 buffers for IPv6 sockets
- * @c:		Execution context
- */
-void tcp_sock6_iov_init(const struct ctx *c)
+void tcp_sock_iov_init(const struct ctx *c)
 {
 	struct ipv6hdr ip6 = L2_BUF_IP6_INIT(IPPROTO_TCP);
-	struct iovec *iov;
+	struct iphdr iph = L2_BUF_IP4_INIT(IPPROTO_TCP);
 	int i;
 
 	tcp6_eth_src.h_proto = htons_constant(ETH_P_IPV6);
+	tcp4_eth_src.h_proto = htons_constant(ETH_P_IP);
 
-	for (i = 0; i < ARRAY_SIZE(tcp6_payload); i++) {
+	for (i = 0; i < ARRAY_SIZE(tcp_payload); i++) {
 		tcp6_payload_ip[i] = ip6;
-		tcp6_payload[i].th.doff = sizeof(struct tcphdr) / 4;
-		tcp6_payload[i].th.ack = 1;
+		tcp4_payload_ip[i] = iph;
+		tcp_payload[i].th.doff = sizeof(struct tcphdr) / 4;
+		tcp_payload[i].th.ack = 1;
 	}
 
-	for (i = 0; i < ARRAY_SIZE(tcp6_flags); i++) {
+	for (i = 0; i < ARRAY_SIZE(tcp_flags); i++) {
 		tcp6_flags_ip[i] = ip6;
-		tcp6_flags[i].th.doff = sizeof(struct tcphdr) / 4;
-		tcp6_flags[i].th .ack = 1;
+		tcp4_flags_ip[i] = iph;
+		tcp_flags[i].th.doff = sizeof(struct tcphdr) / 4;
+		tcp_flags[i].th.ack = 1;
 	}
 
 	for (i = 0; i < TCP_FRAMES_MEM; i++) {
-		iov = tcp6_l2_iov[i];
+		struct iovec *iov = tcp_l2_iov[i];
 
-		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp6_payload_tap_hdr[i]);
+		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp_payload_tap_hdr[i]);
 		iov[TCP_IOV_ETH].iov_len = sizeof(struct ethhdr);
-		iov[TCP_IOV_PAYLOAD].iov_base = &tcp6_payload[i];
+		iov[TCP_IOV_PAYLOAD].iov_base = &tcp_payload[i];
 	}
 
 	for (i = 0; i < TCP_FRAMES_MEM; i++) {
-		iov = tcp6_l2_flags_iov[i];
+		struct iovec *iov = tcp_l2_flags_iov[i];
 
-		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp6_flags_tap_hdr[i]);
-		iov[TCP_IOV_ETH] = IOV_OF_LVALUE(tcp6_eth_src);
-		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp6_flags_ip[i]);
-		iov[TCP_IOV_PAYLOAD].iov_base = &tcp6_flags[i];
+		iov[TCP_IOV_TAP] = tap_hdr_iov(c, &tcp_flags_tap_hdr[i]);
+		iov[TCP_IOV_ETH].iov_len = sizeof(struct ethhdr);
+		iov[TCP_IOV_PAYLOAD].iov_base = &tcp_flags[i];
 	}
 }
 
@@ -192,13 +137,9 @@ void tcp_sock6_iov_init(const struct ctx *c)
  */
 void tcp_flags_flush(const struct ctx *c)
 {
-	tap_send_frames(c, &tcp6_l2_flags_iov[0][0], TCP_NUM_IOVS,
-			tcp6_flags_used);
-	tcp6_flags_used = 0;
-
-	tap_send_frames(c, &tcp4_l2_flags_iov[0][0], TCP_NUM_IOVS,
-			tcp4_flags_used);
-	tcp4_flags_used = 0;
+	tap_send_frames(c, &tcp_l2_flags_iov[0][0], TCP_NUM_IOVS,
+			tcp_flags_used);
+	tcp_flags_used = 0;
 }
 
 /**
@@ -237,21 +178,13 @@ void tcp_payload_flush(const struct ctx *c)
 {
 	size_t m;
 
-	m = tap_send_frames(c, &tcp6_l2_iov[0][0], TCP_NUM_IOVS,
-			    tcp6_payload_used);
-	if (m != tcp6_payload_used) {
-		tcp_revert_seq(c, &tcp6_frame_conns[m], &tcp6_l2_iov[m],
-			       tcp6_payload_used - m);
+	m = tap_send_frames(c, &tcp_l2_iov[0][0], TCP_NUM_IOVS,
+			    tcp_payload_used);
+	if (m != tcp_payload_used) {
+		tcp_revert_seq(c, &tcp_frame_conns[m], &tcp_l2_iov[m],
+			       tcp_payload_used - m);
 	}
-	tcp6_payload_used = 0;
-
-	m = tap_send_frames(c, &tcp4_l2_iov[0][0], TCP_NUM_IOVS,
-			    tcp4_payload_used);
-	if (m != tcp4_payload_used) {
-		tcp_revert_seq(c, &tcp4_frame_conns[m], &tcp4_l2_iov[m],
-			       tcp4_payload_used - m);
-	}
-	tcp4_payload_used = 0;
+	tcp_payload_used = 0;
 }
 
 /**
@@ -271,41 +204,30 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	uint32_t seq;
 	int ret;
 
+	iov = tcp_l2_flags_iov[tcp_flags_used];
 	if (CONN_V4(conn)) {
-		iov = tcp4_l2_flags_iov[tcp4_flags_used];
-		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp4_flags_ip[tcp4_flags_used]);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp4_flags_ip[tcp_flags_used]);
 		iov[TCP_IOV_ETH].iov_base = &tcp4_eth_src;
-		tcp4_flags_used++;
 	} else {
-		iov = tcp6_l2_flags_iov[tcp6_flags_used];
-		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp6_flags_ip[tcp6_flags_used]);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp6_flags_ip[tcp_flags_used]);
 		iov[TCP_IOV_ETH].iov_base = &tcp6_eth_src;
-		tcp6_flags_used++;
 	}
-	payload = iov[TCP_IOV_PAYLOAD].iov_base;
 
+	payload = iov[TCP_IOV_PAYLOAD].iov_base;
 	seq = conn->seq_to_tap;
 	ret = tcp_prepare_flags(c, conn, flags, &payload->th,
 				&payload->opts, &optlen);
-	if (ret <= 0) {
-		if (CONN_V4(conn))
-			tcp4_flags_used--;
-		else
-			tcp6_flags_used--;
+	if (ret <= 0)
 		return ret;
-	}
 
+	tcp_flags_used++;
 	l4len = tcp_l2_buf_fill_headers(conn, iov, optlen, NULL, seq, false);
 	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 
 	if (flags & DUP_ACK) {
 		struct iovec *dup_iov;
 
-		if (CONN_V4(conn))
-			dup_iov = tcp4_l2_flags_iov[tcp4_flags_used++];
-		else
-			dup_iov = tcp6_l2_flags_iov[tcp6_flags_used++];
-
+		dup_iov = tcp_l2_flags_iov[tcp_flags_used++];
 		memcpy(dup_iov[TCP_IOV_TAP].iov_base, iov[TCP_IOV_TAP].iov_base,
 		       iov[TCP_IOV_TAP].iov_len);
 		dup_iov[TCP_IOV_ETH].iov_base = iov[TCP_IOV_ETH].iov_base;
@@ -315,13 +237,8 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		dup_iov[TCP_IOV_PAYLOAD].iov_len = l4len;
 	}
 
-	if (CONN_V4(conn)) {
-		if (tcp4_flags_used > TCP_FRAMES_MEM - 2)
-			tcp_flags_flush(c);
-	} else {
-		if (tcp6_flags_used > TCP_FRAMES_MEM - 2)
-			tcp_flags_flush(c);
-	}
+	if (tcp_flags_used > TCP_FRAMES_MEM - 2)
+		tcp_flags_flush(c);
 
 	return 0;
 }
@@ -337,42 +254,30 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			    ssize_t dlen, int no_csum, uint32_t seq)
 {
+	const uint16_t *check = NULL;
 	struct iovec *iov;
 	size_t l4len;
 
 	conn->seq_to_tap = seq + dlen;
-
+	tcp_frame_conns[tcp_payload_used] = conn;
+	iov = tcp_l2_iov[tcp_payload_used];
 	if (CONN_V4(conn)) {
-		struct iovec *iov_prev = tcp4_l2_iov[tcp4_payload_used - 1];
-		const uint16_t *check = NULL;
-
 		if (no_csum) {
+			struct iovec *iov_prev = tcp_l2_iov[tcp_payload_used - 1];
 			struct iphdr *iph = iov_prev[TCP_IOV_IP].iov_base;
+
 			check = &iph->check;
 		}
-
-		tcp4_frame_conns[tcp4_payload_used] = conn;
-		iov = tcp4_l2_iov[tcp4_payload_used];
-		iov[TCP_IOV_IP] =
-			IOV_OF_LVALUE(tcp4_payload_ip[tcp4_payload_used++]);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp4_payload_ip[tcp_payload_used]);
 		iov[TCP_IOV_ETH].iov_base = &tcp4_eth_src;
-		l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, check, seq,
-						false);
-		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
-		if (tcp4_payload_used > TCP_FRAMES_MEM - 1)
-			tcp_payload_flush(c);
 	} else if (CONN_V6(conn)) {
-		tcp6_frame_conns[tcp6_payload_used] = conn;
-		iov = tcp6_l2_iov[tcp6_payload_used];
-		iov[TCP_IOV_IP] =
-			IOV_OF_LVALUE(tcp6_payload_ip[tcp6_payload_used++]);
+		iov[TCP_IOV_IP] = IOV_OF_LVALUE(tcp6_payload_ip[tcp_payload_used]);
 		iov[TCP_IOV_ETH].iov_base = &tcp6_eth_src;
-		l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, NULL, seq,
-						false);
-		iov[TCP_IOV_PAYLOAD].iov_len = l4len;
-		if (tcp6_payload_used > TCP_FRAMES_MEM - 1)
-			tcp_payload_flush(c);
 	}
+	l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, check, seq, false);
+	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
+	if (++tcp_payload_used > TCP_FRAMES_MEM - 1)
+		tcp_payload_flush(c);
 }
 
 /**
@@ -388,8 +293,7 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 {
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	int fill_bufs, send_bufs = 0, last_len, iov_rem = 0;
-	int len, dlen, v4 = CONN_V4(conn);
-	int s = conn->sock, i;
+	int len, dlen, i, s = conn->sock;
 	struct msghdr mh_sock = { 0 };
 	uint16_t mss = MSS_GET(conn);
 	uint32_t already_sent, seq;
@@ -436,19 +340,15 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		mh_sock.msg_iovlen = fill_bufs;
 	}
 
-	if (( v4 && tcp4_payload_used + fill_bufs > TCP_FRAMES_MEM) ||
-	    (!v4 && tcp6_payload_used + fill_bufs > TCP_FRAMES_MEM)) {
+	if (tcp_payload_used + fill_bufs > TCP_FRAMES_MEM) {
 		tcp_payload_flush(c);
 
 		/* Silence Coverity CWE-125 false positive */
-		tcp4_payload_used = tcp6_payload_used = 0;
+		tcp_payload_used = 0;
 	}
 
 	for (i = 0, iov = iov_sock + 1; i < fill_bufs; i++, iov++) {
-		if (v4)
-			iov->iov_base = &tcp4_payload[tcp4_payload_used + i].data;
-		else
-			iov->iov_base = &tcp6_payload[tcp6_payload_used + i].data;
+		iov->iov_base = &tcp_payload[tcp_payload_used + i].data;
 		iov->iov_len = mss;
 	}
 	if (iov_rem)
@@ -502,7 +402,7 @@ int tcp_buf_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	dlen = mss;
 	seq = conn->seq_to_tap;
 	for (i = 0; i < send_bufs; i++) {
-		int no_csum = i && i != send_bufs - 1 && tcp4_payload_used;
+		int no_csum = i && i != send_bufs - 1 && tcp_payload_used;
 
 		if (i == send_bufs - 1)
 			dlen = last_len;
