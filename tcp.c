@@ -766,7 +766,7 @@ static void tcp_update_check_tcp4(const struct iphdr *iph,
 	struct in_addr saddr = { .s_addr = iph->saddr };
 	struct in_addr daddr = { .s_addr = iph->daddr };
 	size_t check_ofs;
-	__sum16 *check;
+	uint16_t *check;
 	int check_idx;
 	uint32_t sum;
 	char *ptr;
@@ -797,7 +797,7 @@ static void tcp_update_check_tcp4(const struct iphdr *iph,
 		return;
 	}
 
-	check = (__sum16 *)ptr;
+	check = (uint16_t *)ptr;
 
 	*check = 0;
 	*check = csum_iov(iov, iov_cnt, l4offset, sum);
@@ -816,7 +816,7 @@ static void tcp_update_check_tcp6(const struct ipv6hdr *ip6h,
 {
 	uint16_t l4len = ntohs(ip6h->payload_len);
 	size_t check_ofs;
-	__sum16 *check;
+	uint16_t *check;
 	int check_idx;
 	uint32_t sum;
 	char *ptr;
@@ -848,7 +848,7 @@ static void tcp_update_check_tcp6(const struct ipv6hdr *ip6h,
 		return;
 	}
 
-	check = (__sum16 *)ptr;
+	check = (uint16_t *)ptr;
 
 	*check = 0;
 	*check = csum_iov(iov, iov_cnt, l4offset, sum);
