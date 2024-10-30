@@ -1288,7 +1288,7 @@ static int tap_ns_tun(void *arg)
 	if (fd < 0)
 		die_perror("Failed to open() /dev/net/tun");
 
-	rc = ioctl(fd, TUNSETIFF, &ifr);
+	rc = ioctl(fd, (int)TUNSETIFF, &ifr);
 	if (rc < 0)
 		die_perror("TUNSETIFF ioctl on /dev/net/tun failed");
 
