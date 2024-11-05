@@ -262,7 +262,7 @@ docs: README.md
 #	parentheses to reinforce that certainly won't improve readability.
 
 
-clang-tidy: $(filter-out qrap.c,$(SRCS)) $(HEADERS)
+clang-tidy: $(PASST_SRCS) $(HEADERS)
 	clang-tidy -checks=*,-modernize-*,\
 	-clang-analyzer-valist.Uninitialized,\
 	-cppcoreguidelines-init-variables,\
@@ -290,14 +290,14 @@ clang-tidy: $(filter-out qrap.c,$(SRCS)) $(HEADERS)
 	-cppcoreguidelines-macro-to-enum,\
 	-readability-math-missing-parentheses \
 	-config='{CheckOptions: [{key: bugprone-suspicious-string-compare.WarnOnImplicitComparison, value: "false"}]}' \
-	--warnings-as-errors=* $(filter-out qrap.c,$(SRCS)) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
+	--warnings-as-errors=* $(PASST_SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -DCLANG_TIDY_58992
 
 SYSTEM_INCLUDES := /usr/include $(wildcard /usr/include/$(TARGET))
 ifeq ($(shell $(CC) -v 2>&1 | grep -c "gcc version"),1)
 VER := $(shell $(CC) -dumpversion)
 SYSTEM_INCLUDES += /usr/lib/gcc/$(TARGET)/$(VER)/include
 endif
-cppcheck: $(SRCS) $(HEADERS)
+cppcheck: $(PASST_SRCS) $(HEADERS)
 	if cppcheck --check-level=exhaustive /dev/null > /dev/null 2>&1; then \
 		CPPCHECK_EXHAUSTIVE="--check-level=exhaustive";		\
 	else								\
@@ -313,4 +313,4 @@ cppcheck: $(SRCS) $(HEADERS)
 	--inline-suppr							\
 	--suppress=unusedStructMember					\
 	$(filter -D%,$(FLAGS) $(CFLAGS) $(CPPFLAGS))			\
-	$(SRCS) $(HEADERS)
+	$(PASST_SRCS) $(HEADERS)
