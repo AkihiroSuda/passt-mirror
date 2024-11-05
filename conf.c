@@ -46,6 +46,8 @@
 #include "isolation.h"
 #include "log.h"
 
+#define NETNS_RUN_DIR	"/run/netns"
+
 /**
  * next_chunk - Return the next piece of a string delimited by a character
  * @s:		String to search
