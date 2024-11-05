@@ -1,0 +1,93 @@
+---
+Checks:
+    - "clang-diagnostic-*,clang-analyzer-*,*,-modernize-*"
+
+    #	TODO: enable once https://bugs.llvm.org/show_bug.cgi?id=41311 is fixed
+    - "-clang-analyzer-valist.Uninitialized"
+
+    #	Dubious value, would kill readability
+    - "-cppcoreguidelines-init-variables"
+
+    #	Dubious value over the compiler's built-in warning.  Would
+    #	increase verbosity.
+    - "-bugprone-assignment-in-if-condition"
+
+    #	Debatable whether these improve readability, right now it would look
+    #	like a mess
+    - "-google-readability-braces-around-statements"
+    - "-hicpp-braces-around-statements"
+    - "-readability-braces-around-statements"
+
+    #	TODO: in most cases they are justified, but probably not everywhere
+    #
+    - "-readability-magic-numbers"
+    - "-cppcoreguidelines-avoid-magic-numbers"
+
+    #	TODO: this is Linux-only for the moment, nice to fix eventually
+    - "-llvmlibc-restrict-system-libc-headers"
+
+    #	Those are needed for syscalls, epoll_wait flags, etc.
+    - "-hicpp-signed-bitwise"
+
+    #	Probably not doable to impement this without plain memcpy(), memset()
+    - "-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling"
+
+    #	TODO: not really important, but nice to fix eventually
+    - "-llvm-include-order"
+
+    #	Dubious value, would kill readability
+    - "-readability-isolate-declaration"
+
+    #	TODO: nice to fix eventually
+    - "-bugprone-narrowing-conversions"
+    - "-cppcoreguidelines-narrowing-conversions"
+
+    #	TODO: check, fix, and more in general constify wherever possible
+    - "-cppcoreguidelines-avoid-non-const-global-variables"
+
+    #	TODO: check paths where it might make sense to improve performance
+    - "-altera-unroll-loops"
+    - "-altera-id-dependent-backward-branch"
+
+    #	Not much can be done about them other than being careful
+    - "-bugprone-easily-swappable-parameters"
+
+    #	TODO: split reported functions
+    - "-readability-function-cognitive-complexity"
+
+    #	"Poor" alignment needed for structs reflecting message formats/headers
+    - "-altera-struct-pack-align"
+
+    #	TODO: check again if multithreading is implemented
+    - "-concurrency-mt-unsafe"
+
+    #	Complains about any identifier <3 characters, reasonable for
+    #	globals, pointlessly verbose for locals and parameters.
+    - "-readability-identifier-length"
+
+    #	Wants to include headers which *directly* provide the things
+    #	we use.  That sounds nice, but means it will often want a OS
+    #	specific header instead of a mostly standard one, such as
+    #	<linux/limits.h> instead of <limits.h>.
+    - "-misc-include-cleaner"
+
+    #	Want to replace all #defines of integers with enums.  Kind of
+    #	makes sense when those defines form an enum-like set, but
+    #	weird for cases like standalone constants, and causes other
+    #	awkwardness for a bunch of cases we use
+    - "-cppcoreguidelines-macro-to-enum"
+
+    #	It's been a couple of centuries since multiplication has been granted
+    #	precedence over addition in modern mathematical notation. Adding
+    #	parentheses to reinforce that certainly won't improve readability.
+    - "-readability-math-missing-parentheses"
+WarningsAsErrors: "*"
+HeaderFileExtensions:
+    - h
+ImplementationFileExtensions:
+    - c
+HeaderFilterRegex: ""
+FormatStyle: none
+CheckOptions:
+    bugprone-suspicious-string-compare.WarnOnImplicitComparison: "false"
+SystemHeaders: false
