@@ -158,9 +158,6 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 
 struct ctx;
 
-/* cppcheck-suppress funcArgNamesDifferent */
-__attribute__ ((weak)) int ffsl(long int i) { return __builtin_ffsl(i); }
-
 #ifdef CLOSE_RANGE_UNSHARE	/* Linux kernel >= 5.9 */
 /* glibc < 2.34 and musl as of 1.2.5 need these */
 #ifndef SYS_close_range
