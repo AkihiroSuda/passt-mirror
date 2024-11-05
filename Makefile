@@ -37,7 +37,6 @@ FLAGS += -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
 FLAGS +=  $(FORTIFY_FLAG) -O2 -pie -fPIE
 FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
 FLAGS += -DRLIMIT_STACK_VAL=$(RLIMIT_STACK_VAL)
-FLAGS += -DARCH=\"$(TARGET_ARCH)\"
 FLAGS += -DVERSION=\"$(VERSION)\"
 FLAGS += -DDUAL_STACK_SOCKETS=$(DUAL_STACK_SOCKETS)
 
@@ -107,7 +106,7 @@ pasta.avx2 pasta.1 pasta: pasta%: passt%
 	ln -sf $< $@
 
 qrap: $(QRAP_SRCS) passt.h
-	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) $(QRAP_SRCS) -o qrap $(LDFLAGS)
+	$(CC) $(FLAGS) $(CFLAGS) $(CPPFLAGS) -DARCH=\"$(TARGET_ARCH)\" $(QRAP_SRCS) -o qrap $(LDFLAGS)
 
 valgrind: EXTRA_SYSCALLS += rt_sigprocmask rt_sigtimedwait rt_sigaction	\
 			    rt_sigreturn getpid gettid kill clock_gettime mmap \
