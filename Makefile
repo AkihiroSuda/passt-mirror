@@ -15,11 +15,6 @@ VERSION ?= $(shell git describe --tags HEAD 2>/dev/null || echo "unknown\ versio
 # the IPv6 socket API? (Linux does)
 DUAL_STACK_SOCKETS := 1
 
-RLIMIT_STACK_VAL := $(shell /bin/sh -c 'ulimit -s')
-ifeq ($(RLIMIT_STACK_VAL),unlimited)
-RLIMIT_STACK_VAL := 1024
-endif
-
 TARGET ?= $(shell $(CC) -dumpmachine)
 # Get 'uname -m'-like architecture description for target
 TARGET_ARCH := $(shell echo $(TARGET) | cut -f1 -d- | tr [A-Z] [a-z])
@@ -36,7 +31,6 @@ FLAGS := -Wall -Wextra -Wno-format-zero-length
 FLAGS += -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
 FLAGS +=  $(FORTIFY_FLAG) -O2 -pie -fPIE
 FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
-FLAGS += -DRLIMIT_STACK_VAL=$(RLIMIT_STACK_VAL)
 FLAGS += -DVERSION=\"$(VERSION)\"
 FLAGS += -DDUAL_STACK_SOCKETS=$(DUAL_STACK_SOCKETS)
 

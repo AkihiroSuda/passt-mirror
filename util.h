@@ -132,7 +132,7 @@ static inline uint32_t ntohl_unaligned(const void *p)
 	return ntohl(val);
 }
 
-#define NS_FN_STACK_SIZE	(RLIMIT_STACK_VAL * 1024 / 8)
+#define NS_FN_STACK_SIZE	(1024 * 1024) /* 1MiB */
 int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 	     void *arg);
 #define NS_CALL(fn, arg)						\
