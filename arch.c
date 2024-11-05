@@ -45,7 +45,7 @@ void arch_avx2_exec(char **argv)
 				   "%s.avx2", exe))
 			die_perror("Can't build AVX2 executable path");
 
-		execve(new_path, argv, environ);
+		execv(new_path, argv);
 		warn_perror("Can't run AVX2 build, using non-AVX2 version");
 	}
 }
