@@ -353,7 +353,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
  */
 bool nl_route_get_def_multipath(struct rtattr *rta, void *gw)
 {
-	size_t nh_len = RTA_PAYLOAD(rta);
+	int nh_len = RTA_PAYLOAD(rta);
 	struct rtnexthop *rtnh;
 	bool found = false;
 	int hops = -1;
@@ -582,7 +582,7 @@ int nl_route_dup(int s_src, unsigned int ifi_src,
 
 				*(unsigned int *)RTA_DATA(rta) = ifi_dst;
 			} else if (rta->rta_type == RTA_MULTIPATH) {
-				size_t nh_len = RTA_PAYLOAD(rta);
+				int nh_len = RTA_PAYLOAD(rta);
 				struct rtnexthop *rtnh;
 
 				for (rtnh = (struct rtnexthop *)RTA_DATA(rta);
