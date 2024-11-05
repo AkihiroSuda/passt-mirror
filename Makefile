@@ -25,14 +25,6 @@ TARGET ?= $(shell $(CC) -dumpmachine)
 TARGET_ARCH := $(shell echo $(TARGET) | cut -f1 -d- | tr [A-Z] [a-z])
 TARGET_ARCH := $(shell echo $(TARGET_ARCH) | sed 's/powerpc/ppc/')
 
-AUDIT_ARCH := $(shell echo $(TARGET_ARCH) | tr [a-z] [A-Z] | sed 's/^ARM.*/ARM/')
-AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/I[456]86/I386/')
-AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/PPC64/PPC/')
-AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/PPCLE/PPC64LE/')
-AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/MIPS64EL/MIPSEL64/')
-AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/HPPA/PARISC/')
-AUDIT_ARCH := $(shell echo $(AUDIT_ARCH) | sed 's/SH4/SH/')
-
 # On some systems enabling optimization also enables source fortification,
 # automagically. Do not override it.
 FORTIFY_FLAG :=
@@ -44,7 +36,6 @@ FLAGS := -Wall -Wextra -Wno-format-zero-length
 FLAGS += -pedantic -std=c11 -D_XOPEN_SOURCE=700 -D_GNU_SOURCE
 FLAGS +=  $(FORTIFY_FLAG) -O2 -pie -fPIE
 FLAGS += -DPAGE_SIZE=$(shell getconf PAGE_SIZE)
-FLAGS += -DPASST_AUDIT_ARCH=AUDIT_ARCH_$(AUDIT_ARCH)
 FLAGS += -DRLIMIT_STACK_VAL=$(RLIMIT_STACK_VAL)
 FLAGS += -DARCH=\"$(TARGET_ARCH)\"
 FLAGS += -DVERSION=\"$(VERSION)\"
