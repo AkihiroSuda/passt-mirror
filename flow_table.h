@@ -110,7 +110,7 @@ static inline const struct flowside *flowside_at_sidx(flow_sidx_t sidx)
 	const union flow *flow = flow_at_sidx(sidx);
 
 	if (!flow)
-		return PIF_NONE;
+		return NULL;
 
 	return &flow->f.side[sidx.sidei];
 }
