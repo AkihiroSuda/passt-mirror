@@ -299,10 +299,10 @@
 #include "log.h"
 #include "inany.h"
 #include "flow.h"
+#include "linux_dep.h"
 
 #include "flow_table.h"
 #include "tcp_internal.h"
-#include "tcp_info.h"
 #include "tcp_buf.h"
 
 /* MSS rounding: see SET_MSS() */

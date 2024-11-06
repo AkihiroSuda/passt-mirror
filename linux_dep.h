@@ -1,13 +1,15 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
  * Copyright Red Hat
  *
- * Largely derived from include/linux/tcp.h in the Linux kernel
+ * Declarations for Linux specific dependencies
  */
 
-#ifndef TCP_INFO_H
-#define TCP_INFO_H
+#ifndef LINUX_DEP_H
+#define LINUX_DEP_H
 
 /* struct tcp_info_linux - Information from Linux TCP_INFO getsockopt()
+ *
+ * Largely derived from include/linux/tcp.h in the Linux kernel
  *
  * Some fields returned by TCP_INFO have been there for ages and are shared with
  * BSD.  struct tcp_info from netinet/tcp.h has only those fields.  There are
@@ -117,4 +119,4 @@ struct tcp_info_linux {
 						 */
 };
 
-#endif /* TCP_INFO_H */
+#endif /* LINUX_DEP_H */
