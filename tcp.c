@@ -937,7 +937,6 @@ bool tcp_flow_defer(const struct tcp_tap_conn *conn)
 /* cppcheck-suppress [constParameterPointer, unmatchedSuppression] */
 void tcp_defer_handler(struct ctx *c)
 {
-	tcp_flags_flush(c);
 	tcp_payload_flush(c);
 }
 

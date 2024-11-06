@@ -134,21 +134,6 @@ struct tcp_syn_opts {
 		.ws = TCP_OPT_WS(ws_),			\
 	})
 
-/**
- * struct tcp_flags_t - TCP header and data to send zero-length
- *                      segments (flags)
- * @th:		TCP header
- * @opts	TCP options
- */
-struct tcp_flags_t {
-	struct tcphdr th;
-	struct tcp_syn_opts opts;
-#ifdef __AVX2__
-} __attribute__ ((packed, aligned(32)));
-#else
-} __attribute__ ((packed, aligned(__alignof__(unsigned int))));
-#endif
-
 extern char tcp_buf_discard [MAX_WINDOW];
 
 void conn_flag_do(const struct ctx *c, struct tcp_tap_conn *conn,
