@@ -211,7 +211,7 @@ tr	TCP throughput over IPv6: host to ns
 iperf3s	ns 10002
 
 nsout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
-nsout	ADDR6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global" and .prefixlen == 64).local'
+nsout	ADDR6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global").local'
 bw	-
 bw	-
 bw	-

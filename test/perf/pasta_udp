@@ -196,7 +196,7 @@ tr	UDP throughput over IPv6: host to ns
 iperf3s	ns 10002
 
 nsout	IFNAME ip -j link show | jq -rM '.[] | select(.link_type == "ether").ifname'
-nsout	ADDR6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global" and .prefixlen == 64).local'
+nsout	ADDR6 ip -j -6 addr show|jq -rM '.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global").local'
 iperf3	BW host __ADDR6__ 10002 __TIME__ __OPTS__ -b 8G -l 1472
 bw	__BW__ 0.3 0.5
 iperf3	BW host __ADDR6__ 10002 __TIME__ __OPTS__ -b 12G -l 3972
