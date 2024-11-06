@@ -234,8 +234,8 @@ int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr,
 		return 1;
 
 	if (ih->icmp6_type == NS) {
-		struct ndp_ns *ns = packet_get(p, 0, 0, sizeof(struct ndp_ns),
-					       NULL);
+		const struct ndp_ns *ns =
+			packet_get(p, 0, 0, sizeof(struct ndp_ns), NULL);
 
 		if (!ns)
 			return -1;
