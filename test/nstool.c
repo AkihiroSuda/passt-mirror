@@ -346,7 +346,7 @@ static int openns(const char *fmt, ...)
 }
 
 static pid_t sig_pid;
-static void sig_handler(int signum)
+static void sig_propagate(int signum)
 {
 	int err;
 
@@ -358,7 +358,7 @@ static void sig_handler(int signum)
 static void wait_for_child(pid_t pid)
 {
 	struct sigaction sa = {
-		.sa_handler = sig_handler,
+		.sa_handler = sig_propagate,
 		.sa_flags = SA_RESETHAND,
 	};
 	int status, err;
