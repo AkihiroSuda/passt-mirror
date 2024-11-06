@@ -644,11 +644,12 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 	const struct flowside *toside = flowside_at_sidx(tosidx);
 	struct udp_flow *uflow = udp_at_sidx(ref.flowside);
-	int from_s = uflow->s[ref.flowside.sidei];
 	uint8_t topif = pif_at_sidx(tosidx);
-	int n, i;
+	int n, i, from_s;
 
 	ASSERT(!c->no_udp && uflow);
+
+	from_s = uflow->s[ref.flowside.sidei];
 
 	if (udp_sock_errs(c, from_s, events) < 0) {
 		flow_err(uflow, "Unrecoverable error on reply socket");
