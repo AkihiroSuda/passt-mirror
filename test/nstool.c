@@ -31,10 +31,15 @@
 
 #define	ARRAY_SIZE(a)	((int)(sizeof(a) / sizeof((a)[0])))
 
-#define die(...)				\
-	do {					\
-		fprintf(stderr, __VA_ARGS__);	\
-		exit(1);			\
+#define die(...)						\
+	do {							\
+		fprintf(stderr, "nstool: " __VA_ARGS__);	\
+		exit(1);					\
+	} while (0)
+
+#define err(...)						\
+	do {							\
+		fprintf(stderr, "nstool: " __VA_ARGS__);	\
 	} while (0)
 
 struct ns_type {
@@ -156,6 +161,9 @@ static int connect_ctl(const char *sockpath, bool wait,
 
 static void cmd_hold(int argc, char *argv[])
 {
+	struct sigaction sa = {
+		.sa_handler = SIG_IGN,
+	};
 	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, PF_UNIX);
 	struct sockaddr_un addr;
 	const char *sockpath = argv[1];
@@ -185,6 +193,10 @@ static void cmd_hold(int argc, char *argv[])
 	if (!getcwd(info.cwd, sizeof(info.cwd)))
 		die("getcwd(): %s\n", strerror(errno));
 
+	rc = sigaction(SIGPIPE, &sa, NULL);
+	if (rc)
+		die("sigaction(SIGPIPE): %s\n", strerror(errno));
+
 	do {
 		int afd = accept(fd, NULL, NULL);
 		char buf;
@@ -193,17 +205,21 @@ static void cmd_hold(int argc, char *argv[])
 			die("accept(): %s\n", strerror(errno));
 
 		rc = write(afd, &info, sizeof(info));
-		if (rc < 0)
-			die("write(): %s\n", strerror(errno));
+		if (rc < 0) {
+			err("holder write() to control socket: %s\n",
+			    strerror(errno));
+		}
 		if ((size_t)rc < sizeof(info))
-			die("short write() on control socket\n");
+			err("holder short write() on control socket\n");
 
 		rc = read(afd, &buf, sizeof(buf));
-		if (rc < 0)
-			die("read(): %s\n", strerror(errno));
+		if (rc < 0) {
+			err("holder read() on control socket: %s\n",
+			    strerror(errno));
+		}
 
 		close(afd);
-	} while (rc == 0);
+	} while (rc <= 0);
 
 	unlink(sockpath);
 }
