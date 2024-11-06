@@ -75,8 +75,8 @@ void fwd_probe_ephemeral(void)
 	if (*end || errno)
 		goto parse_err;
 
-	if (min < 0 || min >= NUM_PORTS ||
-	    max < 0 || max >= NUM_PORTS)
+	if (min < 0 || min >= (long)NUM_PORTS ||
+	    max < 0 || max >= (long)NUM_PORTS)
 		goto parse_err;
 
 	fwd_ephemeral_min = min;
