@@ -22,8 +22,8 @@ ns	ip link set dev __IFNAME__ up
 ns	while ip -j -6 addr show tentative | jq -e '.[].addr_info'; do sleep 0.1; done
 
 test	SLAAC: prefix
-nsout	ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global" and .prefixlen == 64).local] | .[0]'
-nsout	PREFIX6 sipcalc __ADDR6__/64 | grep prefix | cut -d' ' -f4
+nsout	ADDR6 ip -j -6 addr show|jq -rM '[.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global" and .protocol == "kernel_ra") | .local + "/" + (.prefixlen | tostring)] | .[0]'
+nsout	PREFIX6 sipcalc __ADDR6__ | grep prefix | cut -d' ' -f4
 hout	HOST_ADDR6 ip -j -6 addr show|jq -rM ['.[] | select(.ifname == "__IFNAME__").addr_info[] | select(.scope == "global" and .deprecated != true).local] | .[0]'
 hout	HOST_PREFIX6 sipcalc __HOST_ADDR6__/64 | grep prefix | cut -d' ' -f4
 check	[ "__PREFIX6__" = "__HOST_PREFIX6__" ]
