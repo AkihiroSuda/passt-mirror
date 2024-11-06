@@ -68,6 +68,15 @@
 #define STRINGIFY(x)	#x
 #define STR(x)		STRINGIFY(x)
 
+#ifdef CPPCHECK_6936
+/* Some cppcheck versions get confused by aborts inside a loop, causing
+ * it to give false positive uninitialised variable warnings later in
+ * the function, because it doesn't realise the non-initialising path
+ * already exited.  See https://trac.cppcheck.net/ticket/13227
+ */
+#define ASSERT(expr)		\
+	((expr) ? (void)0 : abort())
+#else
 #define ASSERT(expr)							\
 	do {								\
 		if (!(expr)) {						\
@@ -79,6 +88,7 @@
 			abort();					\
 		}							\
 	} while (0)
+#endif
 
 #ifdef P_tmpdir
 #define TMPDIR		P_tmpdir
