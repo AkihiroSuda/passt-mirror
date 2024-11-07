@@ -309,9 +309,10 @@ int main(int argc, char **argv)
 	timer_init(&c, &now);
 
 loop:
-	/* NOLINTNEXTLINE(bugprone-branch-clone): intervals can be the same */
+	/* NOLINTBEGIN(bugprone-branch-clone): intervals can be the same */
 	/* cppcheck-suppress [duplicateValueTernary, unmatchedSuppression] */
 	nfds = epoll_wait(c.epollfd, events, EPOLL_EVENTS, TIMER_INTERVAL);
+	/* NOLINTEND(bugprone-branch-clone) */
 	if (nfds == -1 && errno != EINTR)
 		die_perror("epoll_wait() failed in main loop");
 
