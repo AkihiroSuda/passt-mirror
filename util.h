@@ -102,6 +102,9 @@
 
 #define ARRAY_SIZE(a)		((int)(sizeof(a) / sizeof((a)[0])))
 
+#define foreach(item, array)						\
+	for ((item) = (array); (item) - (array) < ARRAY_SIZE(array); (item)++)
+
 #define IN_INTERVAL(a, b, x)	((x) >= (a) && (x) <= (b))
 #define FD_PROTO(x, proto)						\
 	(IN_INTERVAL(c->proto.fd_min, c->proto.fd_max, (x)))
