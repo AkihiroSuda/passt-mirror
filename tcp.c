@@ -1410,7 +1410,7 @@ static int tcp_conn_new_sock(const struct ctx *c, sa_family_t af)
 {
 	int s;
 
-	s = socket(af, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+	s = socket(af, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
 
 	if (s > FD_REF_MAX) {
 		close(s);

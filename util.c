@@ -183,7 +183,8 @@ void sock_probe_mem(struct ctx *c)
 	int v = INT_MAX / 2, s;
 	socklen_t sl;
 
-	if ((s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+	s = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, IPPROTO_TCP);
+	if (s < 0) {
 		c->low_wmem = c->low_rmem = 1;
 		return;
 	}

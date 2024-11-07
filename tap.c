@@ -1136,7 +1136,7 @@ void tap_handler_pasta(struct ctx *c, uint32_t events,
  */
 int tap_sock_unix_open(char *sock_path)
 {
-	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	struct sockaddr_un addr = {
 		.sun_family = AF_UNIX,
 	};
@@ -1155,7 +1155,8 @@ int tap_sock_unix_open(char *sock_path)
 					UNIX_SOCK_PATH, i))
 			die_perror("Can't build UNIX domain socket path");
 
-		ex = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
+		ex = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC,
+			    0);
 		if (ex < 0)
 			die_perror("Failed to check for UNIX domain conflicts");
 
