@@ -158,9 +158,9 @@ int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 			 (void *)(arg));				\
 	} while (0)
 
-#define RCVBUF_BIG		(2UL * 1024 * 1024)
-#define SNDBUF_BIG		(4UL * 1024 * 1024)
-#define SNDBUF_SMALL		(128UL * 1024)
+#define RCVBUF_BIG		(2ULL * 1024 * 1024)
+#define SNDBUF_BIG		(4ULL * 1024 * 1024)
+#define SNDBUF_SMALL		(128ULL * 1024)
 
 #include <net/if.h>
 #include <limits.h>
