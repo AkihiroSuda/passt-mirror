@@ -28,6 +28,7 @@
 #include <linux/errqueue.h>
 #include <getopt.h>
 
+#include "linux_dep.h"
 #include "util.h"
 #include "iov.h"
 #include "passt.h"
