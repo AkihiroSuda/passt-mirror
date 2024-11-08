@@ -163,11 +163,6 @@ clang-tidy: $(PASST_SRCS) $(HEADERS)
 	clang-tidy $(PASST_SRCS) -- $(filter-out -pie,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) \
 	           -DCLANG_TIDY_58992
 
-SYSTEM_INCLUDES := /usr/include $(wildcard /usr/include/$(TARGET))
-ifeq ($(shell $(CC) -v 2>&1 | grep -c "gcc version"),1)
-VER := $(shell $(CC) -dumpversion)
-SYSTEM_INCLUDES += /usr/lib/gcc/$(TARGET)/$(VER)/include
-endif
 cppcheck: $(PASST_SRCS) $(HEADERS)
 	if cppcheck --check-level=exhaustive /dev/null > /dev/null 2>&1; then \
 		CPPCHECK_EXHAUSTIVE="--check-level=exhaustive";		\
@@ -177,11 +172,8 @@ cppcheck: $(PASST_SRCS) $(HEADERS)
 	cppcheck --std=c11 --error-exitcode=1 --enable=all --force	\
 	--inconclusive --library=posix --quiet				\
 	$${CPPCHECK_EXHAUSTIVE}						\
-	$(SYSTEM_INCLUDES:%=-I%)					\
-	$(SYSTEM_INCLUDES:%=--config-exclude=%)				\
-	$(SYSTEM_INCLUDES:%=--suppress=*:%/*)				\
-	$(SYSTEM_INCLUDES:%=--suppress=unmatchedSuppression:%/*)	\
 	--inline-suppr							\
+	--suppress=missingIncludeSystem \
 	--suppress=unusedStructMember					\
 	$(filter -D%,$(FLAGS) $(CFLAGS) $(CPPFLAGS)) -D CPPCHECK_6936  \
 	$(PASST_SRCS) $(HEADERS)
