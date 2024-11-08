@@ -127,22 +127,18 @@ struct tcp_info_linux {
 
 #include <linux/close_range.h>
 
-#ifdef CLOSE_RANGE_UNSHARE	/* Linux kernel >= 5.9 */
 /* glibc < 2.34 and musl as of 1.2.5 need these */
 #ifndef SYS_close_range
 #define SYS_close_range		436
 #endif
+#ifndef CLOSE_RANGE_UNSHARE	/* Linux kernel < 5.9 */
+#define CLOSE_RANGE_UNSHARE	(1U << 1)
+#endif
+
 __attribute__ ((weak))
 /* cppcheck-suppress funcArgNamesDifferent */
 int close_range(unsigned int first, unsigned int last, int flags) {
 	return syscall(SYS_close_range, first, last, flags);
 }
-#else
-/* No reasonable fallback option */
-/* cppcheck-suppress funcArgNamesDifferent */
-int close_range(unsigned int first, unsigned int last, int flags) {
-	return 0;
-}
-#endif
 
 #endif /* LINUX_DEP_H */

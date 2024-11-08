@@ -738,8 +738,20 @@ void close_open_files(int argc, char **argv)
 			rc = close_range(fd + 1, ~0U, CLOSE_RANGE_UNSHARE);
 	}
 
-	if (rc)
-		die_perror("Failed to close files leaked by parent");
+	if (rc) {
+		if (errno == ENOSYS || errno == EINVAL) {
+			/* This probably means close_range() or the
+			 * CLOSE_RANGE_UNSHARE flag is not supported by the
+			 * kernel.  Not much we can do here except carry on and
+			 * hope for the best.
+			 */
+			warn(
+"Can't use close_range() to ensure no files leaked by parent");
+		} else {
+			die_perror("Failed to close files leaked by parent");
+		}
+	}
+
 }
 
 /**
