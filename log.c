@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <sys/socket.h>
 
+#include "linux_dep.h"
 #include "log.h"
 #include "util.h"
 #include "passt.h"
@@ -92,7 +93,6 @@ const char *logfile_prefix[] = {
 	"         ",		/* LOG_DEBUG */
 };
 
-#ifdef FALLOC_FL_COLLAPSE_RANGE
 /**
  * logfile_rotate_fallocate() - Write header, set log_written after fallocate()
  * @fd:		Log file descriptor
@@ -126,7 +126,6 @@ static void logfile_rotate_fallocate(int fd, const struct timespec *now)
 
 	log_written -= log_cut_size;
 }
-#endif /* FALLOC_FL_COLLAPSE_RANGE */
 
 /**
  * logfile_rotate_move() - Fallback: move recent entries toward start, then cut
@@ -198,21 +197,17 @@ out:
  *
  * Return: 0 on success, negative error code on failure
  *
- * #syscalls fcntl
- *
- * fallocate() passed as EXTRA_SYSCALL only if FALLOC_FL_COLLAPSE_RANGE is there
+ * #syscalls fcntl fallocate
  */
 static int logfile_rotate(int fd, const struct timespec *now)
 {
 	if (fcntl(fd, F_SETFL, O_RDWR /* Drop O_APPEND: explicit lseek() */))
 		return -errno;
 
-#ifdef FALLOC_FL_COLLAPSE_RANGE
 	/* Only for Linux >= 3.15, extent-based ext4 or XFS, glibc >= 2.18 */
 	if (!fallocate(fd, FALLOC_FL_COLLAPSE_RANGE, 0, log_cut_size))
 		logfile_rotate_fallocate(fd, now);
 	else
-#endif
 		logfile_rotate_move(fd, now);
 
 	if (fcntl(fd, F_SETFL, O_RDWR | O_APPEND))
@@ -432,4 +427,3 @@ void logfile_init(const char *name, const char *path, size_t size)
 	/* For FALLOC_FL_COLLAPSE_RANGE: VFS block size can be up to one page */
 	log_cut_size = ROUND_UP(log_size * LOGFILE_CUT_RATIO / 100, PAGE_SIZE);
 }
-

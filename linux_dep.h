@@ -119,4 +119,10 @@ struct tcp_info_linux {
 						 */
 };
 
+#include <linux/falloc.h>
+
+#ifndef FALLOC_FL_COLLAPSE_RANGE
+#define FALLOC_FL_COLLAPSE_RANGE	0x08
+#endif
+
 #endif /* LINUX_DEP_H */

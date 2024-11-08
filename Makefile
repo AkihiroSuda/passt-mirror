@@ -59,11 +59,6 @@ ifeq ($(shell :|$(CC) -fstack-protector-strong -S -xc - -o - >/dev/null 2>&1; ec
 	FLAGS += -fstack-protector-strong
 endif
 
-C := \#define _GNU_SOURCE\n\#include <fcntl.h>\nint x = FALLOC_FL_COLLAPSE_RANGE;
-ifeq ($(shell printf "$(C)" | $(CC) -S -xc - -o - >/dev/null 2>&1; echo $$?),0)
-	EXTRA_SYSCALLS += fallocate
-endif
-
 prefix		?= /usr/local
 exec_prefix	?= $(prefix)
 bindir		?= $(exec_prefix)/bin
