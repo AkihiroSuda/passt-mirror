@@ -171,6 +171,21 @@ struct ndp_ns {
 } __attribute__((packed));
 
 /**
+ * ndp_send() - Send an NDP message
+ * @c:		Execution context
+ * @dst:	IPv6 address to send the message to
+ * @buf:	ICMPv6 header + message payload
+ * @l4len:	Length of message, including ICMPv6 header
+ */
+static void ndp_send(const struct ctx *c, const struct in6_addr *dst,
+		     const void *buf, size_t l4len)
+{
+	const struct in6_addr *src = &c->ip6.our_tap_ll;
+
+	tap_icmp6_send(c, src, dst, buf, l4len);
+}
+
+/**
  * ndp() - Check for NDP solicitations, reply as needed
  * @c:		Execution context
  * @ih:		ICMPv6 header
@@ -223,9 +238,6 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 			},
 		},
 	};
-	const struct in6_addr *rsaddr; /* src addr for reply */
-	unsigned char *ptr = NULL;
-	size_t dlen;
 
 	if (ih->icmp6_type < RS || ih->icmp6_type > NA)
 		return 0;
@@ -249,7 +261,9 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 		       sizeof(na.target_addr));
 		memcpy(na.target_l2_addr.mac, c->our_tap_mac, ETH_ALEN);
 
+		ndp_send(c, saddr, &na, sizeof(struct ndp_na));
 	} else if (ih->icmp6_type == RS) {
+		unsigned char *ptr = NULL;
 		size_t dns_s_len = 0;
 		int i, n;
 
@@ -332,18 +346,8 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 
 dns_done:
 		memcpy(&ra.source_ll.mac, c->our_tap_mac, ETH_ALEN);
-	} else {
-		return 1;
-	}
 
-	rsaddr = &c->ip6.our_tap_ll;
-
-	if (ih->icmp6_type == NS) {
-		dlen = sizeof(struct ndp_na);
-		tap_icmp6_send(c, rsaddr, saddr, &na, dlen);
-	} else if (ih->icmp6_type == RS) {
-		dlen = ptr - (unsigned char *)&ra;
-		tap_icmp6_send(c, rsaddr, saddr, &ra, dlen);
+		ndp_send(c, saddr, &ra, ptr - (unsigned char *)&ra);
 	}
 
 	return 1;
