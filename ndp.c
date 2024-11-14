@@ -186,16 +186,13 @@ static void ndp_send(const struct ctx *c, const struct in6_addr *dst,
 }
 
 /**
- * ndp() - Check for NDP solicitations, reply as needed
+ * ndp_na() - Send an NDP Neighbour Advertisement (NA) message
  * @c:		Execution context
- * @ih:		ICMPv6 header
- * @saddr:	Source IPv6 address
- * @p:		Packet pool
- *
- * Return: 0 if not handled here, 1 if handled, -1 on failure
+ * @dst:	IPv6 address to send the NA to
+ * @addr:	IPv6 address to advertise
  */
-int ndp(const struct ctx *c, const struct icmp6hdr *ih,
-	const struct in6_addr *saddr, const struct pool *p)
+static void ndp_na(const struct ctx *c, const struct in6_addr *dst,
+		   const void *addr)
 {
 	struct ndp_na na = {
 		.ih = {
@@ -212,6 +209,20 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 			},
 		}
 	};
+
+	memcpy(&na.target_addr, addr, sizeof(na.target_addr));
+	memcpy(na.target_l2_addr.mac, c->our_tap_mac, ETH_ALEN);
+
+	ndp_send(c, dst, &na, sizeof(na));
+}
+
+/**
+ * ndp_ra() - Send an NDP Router Advertisement (RA) message
+ * @c:		Execution context
+ * @dst:	IPv6 address to send the RA to
+ */
+static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
+{
 	struct ndp_ra ra = {
 		.ih = {
 			.icmp6_type		= RA,
@@ -238,57 +249,27 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 			},
 		},
 	};
+	unsigned char *ptr = NULL;
 
-	if (ih->icmp6_type < RS || ih->icmp6_type > NA)
-		return 0;
+	memcpy(&ra.prefix, &c->ip6.addr, sizeof(ra.prefix));
 
-	if (c->no_ndp)
-		return 1;
+	ptr = &ra.var[0];
 
-	if (ih->icmp6_type == NS) {
-		const struct ndp_ns *ns =
-			packet_get(p, 0, 0, sizeof(struct ndp_ns), NULL);
+	if (c->mtu != -1) {
+		struct opt_mtu *mtu = (struct opt_mtu *)ptr;
+		*mtu = (struct opt_mtu) {
+			.header = {
+				.type		= OPT_MTU,
+				.len		= 1,
+			},
+			.value			= htonl(c->mtu),
+		};
+		ptr += sizeof(struct opt_mtu);
+	}
 
-		if (!ns)
-			return -1;
-
-		if (IN6_IS_ADDR_UNSPECIFIED(saddr))
-			return 1;
-
-		info("NDP: received NS, sending NA");
-
-		memcpy(&na.target_addr, &ns->target_addr,
-		       sizeof(na.target_addr));
-		memcpy(na.target_l2_addr.mac, c->our_tap_mac, ETH_ALEN);
-
-		ndp_send(c, saddr, &na, sizeof(struct ndp_na));
-	} else if (ih->icmp6_type == RS) {
-		unsigned char *ptr = NULL;
+	if (!c->no_dhcp_dns) {
 		size_t dns_s_len = 0;
 		int i, n;
-
-		if (c->no_ra)
-			return 1;
-
-		info("NDP: received RS, sending RA");
-		memcpy(&ra.prefix, &c->ip6.addr, sizeof(ra.prefix));
-
-		ptr = &ra.var[0];
-
-		if (c->mtu != -1) {
-			struct opt_mtu *mtu = (struct opt_mtu *)ptr;
-			*mtu = (struct opt_mtu) {
-				.header = {
-					.type		= OPT_MTU,
-					.len		= 1,
-				},
-				.value			= htonl(c->mtu),
-			};
-			ptr += sizeof(struct opt_mtu);
-		}
-
-		if (c->no_dhcp_dns)
-			goto dns_done;
 
 		for (n = 0; !IN6_IS_ADDR_UNSPECIFIED(&c->ip6.dns[n]); n++);
 		if (n) {
@@ -343,11 +324,50 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 			memset(ptr, 0, 8 - dns_s_len % 8);	/* padding */
 			ptr += 8 - dns_s_len % 8;
 		}
+	}
 
-dns_done:
-		memcpy(&ra.source_ll.mac, c->our_tap_mac, ETH_ALEN);
+	memcpy(&ra.source_ll.mac, c->our_tap_mac, ETH_ALEN);
 
-		ndp_send(c, saddr, &ra, ptr - (unsigned char *)&ra);
+	ndp_send(c, dst, &ra, ptr - (unsigned char *)&ra);
+}
+
+/**
+ * ndp() - Check for NDP solicitations, reply as needed
+ * @c:		Execution context
+ * @ih:		ICMPv6 header
+ * @saddr:	Source IPv6 address
+ * @p:		Packet pool
+ *
+ * Return: 0 if not handled here, 1 if handled, -1 on failure
+ */
+int ndp(const struct ctx *c, const struct icmp6hdr *ih,
+	const struct in6_addr *saddr, const struct pool *p)
+{
+	if (ih->icmp6_type < RS || ih->icmp6_type > NA)
+		return 0;
+
+	if (c->no_ndp)
+		return 1;
+
+	if (ih->icmp6_type == NS) {
+		const struct ndp_ns *ns;
+
+		ns = packet_get(p, 0, 0, sizeof(struct ndp_ns), NULL);
+		if (!ns)
+			return -1;
+
+		if (IN6_IS_ADDR_UNSPECIFIED(saddr))
+			return 1;
+
+		info("NDP: received NS, sending NA");
+
+		ndp_na(c, saddr, &ns->target_addr);
+	} else if (ih->icmp6_type == RS) {
+		if (c->no_ra)
+			return 1;
+
+		info("NDP: received RS, sending RA");
+		ndp_ra(c, saddr);
 	}
 
 	return 1;
