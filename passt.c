@@ -110,12 +110,19 @@ static void post_handler(struct ctx *c, const struct timespec *now)
 }
 
 /**
- * secret_init() - Create secret value for SipHash calculations
+ * random_init() - Initialise things based on random data
  * @c:		Execution context
  */
-static void secret_init(struct ctx *c)
+static void random_init(struct ctx *c)
 {
+	unsigned int seed;
+
+	/* Create secret value for SipHash calculations */
 	raw_random(&c->hash_secret, sizeof(c->hash_secret));
+
+	/* Seed pseudo-RNG for things that need non-cryptographic random */
+	raw_random(&seed, sizeof(seed));
+	srandom(seed);
 }
 
 /**
@@ -236,7 +243,7 @@ int main(int argc, char **argv)
 
 	tap_sock_init(&c);
 
-	secret_init(&c);
+	random_init(&c);
 
 	if (clock_gettime(CLOCK_MONOTONIC, &now))
 		die_perror("Failed to get CLOCK_MONOTONIC time");
