@@ -68,9 +68,6 @@ require {
 	type system_dbusd_t;
 	type systemd_hostnamed_t;
 	type systemd_systemctl_exec_t;
-	type passwd_file_t;
-	type sssd_public_t;
-	type sssd_var_lib_t;
 	class dbus send_msg;
 	class system module_request;
 	class system status;
@@ -115,8 +112,7 @@ allow pasta_t self:capability { setpcap net_bind_service sys_tty_config dac_read
 allow pasta_t self:cap_userns { setpcap sys_admin sys_ptrace net_admin net_bind_service };
 allow pasta_t self:user_namespace create;
 
-allow pasta_t passwd_file_t:file read_file_perms;
-sssd_search_lib(pasta_t)
+auth_read_passwd(pasta_t)
 
 domain_auto_trans(pasta_t, bin_t, unconfined_t);
 domain_auto_trans(pasta_t, shell_exec_t, unconfined_t);
@@ -178,12 +174,9 @@ allow pasta_t init_t:system status;
 allow pasta_t unconfined_t:dir search;
 allow pasta_t unconfined_t:file read;
 allow pasta_t unconfined_t:lnk_file read;
-allow pasta_t passwd_file_t:file { getattr open read };
 allow pasta_t self:process { setpgid setcap };
 allow pasta_t shell_exec_t:file { execute execute_no_trans map };
 
-allow pasta_t sssd_var_lib_t:dir search;
-allow pasta_t sssd_public_t:dir search;
 allow pasta_t hostname_exec_t:file { execute execute_no_trans getattr open read map };
 allow pasta_t system_dbusd_t:unix_stream_socket connectto;
 allow pasta_t system_dbusd_t:dbus send_msg;
