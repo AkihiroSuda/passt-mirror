@@ -158,7 +158,7 @@ struct ndp_ra {
 
 	unsigned char var[sizeof(struct opt_mtu) + sizeof(struct opt_rdnss) +
 			  sizeof(struct opt_dnssl)];
-} __attribute__((packed));
+} __attribute__((packed, aligned(__alignof__(struct in6_addr))));
 
 /**
  * struct ndp_ns - NDP Neighbor Solicitation (NS) message
@@ -168,7 +168,7 @@ struct ndp_ra {
 struct ndp_ns {
 	struct icmp6hdr ih;
 	struct in6_addr target_addr;
-} __attribute__((packed));
+} __attribute__((packed, aligned(__alignof__(struct in6_addr))));
 
 /**
  * ndp_send() - Send an NDP message
@@ -192,7 +192,7 @@ static void ndp_send(const struct ctx *c, const struct in6_addr *dst,
  * @addr:	IPv6 address to advertise
  */
 static void ndp_na(const struct ctx *c, const struct in6_addr *dst,
-		   const void *addr)
+	    const struct in6_addr *addr)
 {
 	struct ndp_na na = {
 		.ih = {
@@ -202,6 +202,7 @@ static void ndp_na(const struct ctx *c, const struct in6_addr *dst,
 			.icmp6_solicited	= 1,
 			.icmp6_override		= 1,
 		},
+		.target_addr = *addr,
 		.target_l2_addr = {
 			.header	= {
 				.type		= OPT_TARGET_L2_ADDR,
@@ -210,7 +211,6 @@ static void ndp_na(const struct ctx *c, const struct in6_addr *dst,
 		}
 	};
 
-	memcpy(&na.target_addr, addr, sizeof(na.target_addr));
 	memcpy(na.target_l2_addr.mac, c->our_tap_mac, ETH_ALEN);
 
 	ndp_send(c, dst, &na, sizeof(na));
@@ -242,6 +242,7 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
 			.valid_lifetime		= ~0U,
 			.pref_lifetime		= ~0U,
 		},
+		.prefix = c->ip6.addr,
 		.source_ll = {
 			.header = {
 				.type		= OPT_SRC_L2_ADDR,
@@ -250,8 +251,6 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
 		},
 	};
 	unsigned char *ptr = NULL;
-
-	memcpy(&ra.prefix, &c->ip6.addr, sizeof(ra.prefix));
 
 	ptr = &ra.var[0];
 
@@ -282,8 +281,7 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
 				.lifetime		= ~0U,
 			};
 			for (i = 0; i < n; i++) {
-				memcpy(&rdnss->dns[i], &c->ip6.dns[i],
-				       sizeof(rdnss->dns[i]));
+				rdnss->dns[i] = c->ip6.dns[i];
 			}
 			ptr += offsetof(struct opt_rdnss, dns) +
 			       i * sizeof(rdnss->dns[0]);
