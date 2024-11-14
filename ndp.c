@@ -33,6 +33,8 @@
 #include "tap.h"
 #include "log.h"
 
+#define	RT_LIFETIME	65535
+
 #define RS	133
 #define RA	134
 #define NS	135
@@ -229,7 +231,7 @@ static void ndp_ra(const struct ctx *c, const struct in6_addr *dst)
 			.icmp6_code		= 0,
 			.icmp6_hop_limit	= 255,
 			/* RFC 8319 */
-			.icmp6_rt_lifetime	= htons_constant(65535),
+			.icmp6_rt_lifetime	= htons_constant(RT_LIFETIME),
 			.icmp6_addrconf_managed	= 1,
 		},
 		.prefix_info = {
