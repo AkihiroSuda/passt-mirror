@@ -36,9 +36,6 @@
 #include <sys/prctl.h>
 #include <netinet/if_ether.h>
 #include <libgen.h>
-#ifdef HAS_GETRANDOM
-#include <sys/random.h>
-#endif
 
 #include "util.h"
 #include "passt.h"
@@ -118,32 +115,7 @@ static void post_handler(struct ctx *c, const struct timespec *now)
  */
 static void secret_init(struct ctx *c)
 {
-#ifndef HAS_GETRANDOM
-	int dev_random = open("/dev/random", O_RDONLY);
-	unsigned int random_read = 0;
-
-	while (dev_random && random_read < sizeof(c->hash_secret)) {
-		int ret = read(dev_random,
-			       (uint8_t *)&c->hash_secret + random_read,
-			       sizeof(c->hash_secret) - random_read);
-
-		if (ret == -1 && errno == EINTR)
-			continue;
-
-		if (ret <= 0)
-			break;
-
-		random_read += ret;
-	}
-	if (dev_random >= 0)
-		close(dev_random);
-
-	if (random_read < sizeof(c->hash_secret))
-#else
-	if (getrandom(&c->hash_secret, sizeof(c->hash_secret),
-		      GRND_RANDOM) < 0)
-#endif /* !HAS_GETRANDOM */
-		die_perror("Failed to get random bytes for hash table and TCP");
+	raw_random(&c->hash_secret, sizeof(c->hash_secret));
 }
 
 /**

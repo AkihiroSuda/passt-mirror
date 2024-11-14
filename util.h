@@ -263,6 +263,8 @@ static inline bool mod_between(unsigned x, unsigned i, unsigned j, unsigned m)
 /* FPRINTF() intentionally silences cert-err33-c clang-tidy warnings */
 #define FPRINTF(f, ...)	(void)fprintf(f, __VA_ARGS__)
 
+void raw_random(void *buf, size_t buflen);
+
 /*
  * Workarounds for https://github.com/llvm/llvm-project/issues/58992
  *

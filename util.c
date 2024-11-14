@@ -34,6 +34,9 @@
 #include "passt.h"
 #include "packet.h"
 #include "log.h"
+#ifdef HAS_GETRANDOM
+#include <sys/random.h>
+#endif
 
 /**
  * sock_l4_sa() - Create and bind socket to socket address, add to epoll list
@@ -782,4 +785,55 @@ bool snprintf_check(char *str, size_t size, const char *format, ...)
 	}
 
 	return false;
+}
+
+#define DEV_RANDOM	"/dev/random"
+
+/**
+ * raw_random() - Get high quality random bytes
+ * @buf:	Buffer to fill with random bytes
+ * @buflen:	Number of bytes of random data to put in @buf
+ *
+ * Assumes that the random data is essential, and will die() if unable to obtain
+ * it.
+ */
+void raw_random(void *buf, size_t buflen)
+{
+	size_t random_read = 0;
+#ifndef HAS_GETRANDOM
+	int fd = open(DEV_RANDOM, O_RDONLY);
+
+	if (fd < 0)
+		die_perror("Couldn't open %s", DEV_RANDOM);
+#endif
+
+	while (random_read < buflen) {
+		ssize_t ret;
+
+#ifdef HAS_GETRANDOM
+		ret = getrandom((char *)buf + random_read,
+				buflen - random_read, GRND_RANDOM);
+#else
+		ret = read(dev_random, (char *)buf + random_read,
+			   buflen - random_read);
+#endif
+
+		if (ret == -1 && errno == EINTR)
+			continue;
+
+		if (ret < 0)
+			die_perror("Error on random data source");
+
+		if (ret == 0)
+			break;
+
+		random_read += ret;
+	}
+
+#ifndef HAS_GETRANDOM
+	close(dev_random);
+#endif
+
+	if (random_read < buflen)
+		die("Unexpected EOF on random data source");
 }
