@@ -179,8 +179,8 @@ struct ndp_ns {
  *
  * Return: 0 if not handled here, 1 if handled, -1 on failure
  */
-int ndp(struct ctx *c, const struct icmp6hdr *ih, const struct in6_addr *saddr,
-	const struct pool *p)
+int ndp(const struct ctx *c, const struct icmp6hdr *ih,
+	const struct in6_addr *saddr, const struct pool *p)
 {
 	struct ndp_na na = {
 		.ih = {
@@ -335,11 +335,6 @@ dns_done:
 	} else {
 		return 1;
 	}
-
-	if (IN6_IS_ADDR_LINKLOCAL(saddr))
-		c->ip6.addr_ll_seen = *saddr;
-	else
-		c->ip6.addr_seen = *saddr;
 
 	rsaddr = &c->ip6.our_tap_ll;
 
