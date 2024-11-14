@@ -372,3 +372,57 @@ int ndp(const struct ctx *c, const struct icmp6hdr *ih,
 
 	return 1;
 }
+
+/* Default interval between unsolicited RAs (seconds) */
+#define DEFAULT_MAX_RTR_ADV_INTERVAL	600	/* RFC 4861, 6.2.1 */
+
+/* Minimum required interval between RAs (seconds) */
+#define MIN_DELAY_BETWEEN_RAS		3	/* RFC 4861, 10 */
+
+static time_t next_ra;
+
+/**
+ * ndp_timer() - Send unsolicited NDP messages if necessary
+ * @c:		Execution context
+ * @now:	Current (monotonic) time
+ */
+void ndp_timer(const struct ctx *c, const struct timespec *now)
+{
+	time_t max_rtr_adv_interval = DEFAULT_MAX_RTR_ADV_INTERVAL;
+	time_t min_rtr_adv_interval, interval;
+
+	if (c->no_ra || now->tv_sec < next_ra)
+		return;
+
+	/* We must advertise before the route's lifetime expires */
+	max_rtr_adv_interval = MIN(max_rtr_adv_interval, RT_LIFETIME - 1);
+
+	/* But we must not go smaller than the minimum delay */
+	max_rtr_adv_interval = MAX(max_rtr_adv_interval, MIN_DELAY_BETWEEN_RAS);
+
+	/* RFC 4861, 6.2.1 */
+	min_rtr_adv_interval = MAX(max_rtr_adv_interval / 3,
+				   MIN_DELAY_BETWEEN_RAS);
+
+	/* As required by RFC 4861, we randomise the interval between
+	 * unsolicited RAs.  This is to prevent multiple routers on a link
+	 * getting synchronised (e.g. after booting a bunch of routers at once)
+	 * and causing flurries of RAs at the same time.
+	 *
+	 * This random doesn't need to be cryptographically strong, so random(3)
+	 * is fine.  Other routers on the link also want to avoid
+	 * synchronisation, and anything malicious has much easier ways to cause
+	 * trouble.
+	 *
+	 * The modulus also makes this not strictly a uniform distribution, but,
+	 * again, it's close enough for our purposes.
+	 */
+	interval = min_rtr_adv_interval +
+		random() % (max_rtr_adv_interval - min_rtr_adv_interval);
+
+	info("NDP: sending unsolicited RA, next in %llds", (long long)interval);
+
+	ndp_ra(c, &in6addr_ll_all_nodes);
+
+	next_ra = now->tv_sec + interval;
+}

@@ -49,6 +49,7 @@
 #include "arch.h"
 #include "log.h"
 #include "tcp_splice.h"
+#include "ndp.h"
 
 #define EPOLL_EVENTS		8
 
@@ -107,6 +108,8 @@ static void post_handler(struct ctx *c, const struct timespec *now)
 
 	flow_defer_handler(c, now);
 #undef CALL_PROTO_HANDLER
+
+	ndp_timer(c, now);
 }
 
 /**
