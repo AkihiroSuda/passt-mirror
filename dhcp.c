@@ -36,9 +36,9 @@
 /**
  * struct opt - DHCP option
  * @sent:	Convenience flag, set while filling replies
- * @slen:	Length of option defined for server
+ * @slen:	Length of option defined for server, -1 if not going to be sent
  * @s:		Option payload from server
- * @clen:	Length of option received from client
+ * @clen:	Length of option received from client, -1 if not received
  * @c:		Option payload from client
  */
 struct opt {
@@ -68,6 +68,11 @@ static struct opt opts[255];
  */
 void dhcp_init(void)
 {
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(opts); i++)
+		opts[i].slen = -1;
+
 	opts[1]  = (struct opt) { 0, 4, {     0 }, 0, { 0 }, };	/* Mask */
 	opts[3]  = (struct opt) { 0, 4, {     0 }, 0, { 0 }, };	/* Router */
 	opts[51] = (struct opt) { 0, 4, {  0xff,
@@ -154,17 +159,17 @@ static int fill(struct msg *m)
 	 * option 53 at the beginning of the list.
 	 * Put it there explicitly, unless requested via option 55.
 	 */
-	if (!memchr(opts[55].c, 53, opts[55].clen))
+	if (opts[55].clen > 0 && !memchr(opts[55].c, 53, opts[55].clen))
 		fill_one(m, 53, &offset);
 
 	for (i = 0; i < opts[55].clen; i++) {
 		o = opts[55].c[i];
-		if (opts[o].slen)
+		if (opts[o].slen != -1)
 			fill_one(m, o, &offset);
 	}
 
 	for (o = 0; o < 255; o++) {
-		if (opts[o].slen && !opts[o].sent)
+		if (opts[o].slen != -1 && !opts[o].sent)
 			fill_one(m, o, &offset);
 	}
 
@@ -264,6 +269,9 @@ static void opt_set_dns_search(const struct ctx *c, size_t max_len)
 						 ".\xc0");
 		}
 	}
+
+	if (!opts[119].slen)
+		opts[119].slen = -1;
 }
 
 /**
@@ -313,6 +321,9 @@ int dhcp(const struct ctx *c, const struct pool *p)
 
 	offset += offsetof(struct msg, o);
 
+	for (i = 0; i < ARRAY_SIZE(opts); i++)
+		opts[i].clen = -1;
+
 	while (opt_off + 2 < opt_len) {
 		const uint8_t *olen, *val;
 		uint8_t *type;
@@ -331,11 +342,12 @@ int dhcp(const struct ctx *c, const struct pool *p)
 		opt_off += *olen + 2;
 	}
 
-	if (opts[53].c[0] == DHCPDISCOVER) {
+	if (opts[53].clen > 0 && opts[53].c[0] == DHCPDISCOVER) {
 		info("DHCP: offer to discover");
 		opts[53].s[0] = DHCPOFFER;
-	} else if (opts[53].c[0] == DHCPREQUEST || !opts[53].clen) {
-		info("%s: ack to request", opts[53].clen ? "DHCP" : "BOOTP");
+	} else if (opts[53].clen <= 0 || opts[53].c[0] == DHCPREQUEST) {
+		info("%s: ack to request", /* DHCP needs a valid message type */
+		     (opts[53].clen <= 0) ? "BOOTP" : "DHCP");
 		opts[53].s[0] = DHCPACK;
 	} else {
 		return -1;
@@ -374,6 +386,8 @@ int dhcp(const struct ctx *c, const struct pool *p)
 		((struct in_addr *)opts[6].s)[i] = c->ip4.dns[i];
 		opts[6].slen += sizeof(uint32_t);
 	}
+	if (!opts[6].slen)
+		opts[6].slen = -1;
 
 	if (!c->no_dhcp_dns_search)
 		opt_set_dns_search(c, sizeof(m->o));
