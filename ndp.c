@@ -391,7 +391,7 @@ void ndp_timer(const struct ctx *c, const struct timespec *now)
 	time_t max_rtr_adv_interval = DEFAULT_MAX_RTR_ADV_INTERVAL;
 	time_t min_rtr_adv_interval, interval;
 
-	if (c->no_ra || now->tv_sec < next_ra)
+	if (c->fd_tap < 0 || c->no_ra || now->tv_sec < next_ra)
 		return;
 
 	/* We must advertise before the route's lifetime expires */
