@@ -342,9 +342,16 @@ int dhcp(const struct ctx *c, const struct pool *p)
 		opt_off += *olen + 2;
 	}
 
+	opts[80].slen = -1;
 	if (opts[53].clen > 0 && opts[53].c[0] == DHCPDISCOVER) {
-		info("DHCP: offer to discover");
-		opts[53].s[0] = DHCPOFFER;
+		if (opts[80].clen == -1) {
+			info("DHCP: offer to discover");
+			opts[53].s[0] = DHCPOFFER;
+		} else {
+			info("DHCP: ack to discover (Rapid Commit)");
+			opts[53].s[0] = DHCPACK;
+			opts[80].slen = 0;
+		}
 	} else if (opts[53].clen <= 0 || opts[53].c[0] == DHCPREQUEST) {
 		info("%s: ack to request", /* DHCP needs a valid message type */
 		     (opts[53].clen <= 0) ? "BOOTP" : "DHCP");
