@@ -109,7 +109,8 @@ static void post_handler(struct ctx *c, const struct timespec *now)
 	flow_defer_handler(c, now);
 #undef CALL_PROTO_HANDLER
 
-	ndp_timer(c, now);
+	if (!c->no_ndp)
+		ndp_timer(c, now);
 }
 
 /**
