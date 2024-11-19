@@ -1763,6 +1763,20 @@ static int tcp_data_from_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 			continue;
 
 		seq = ntohl(th->seq);
+		if (SEQ_LT(seq, conn->seq_from_tap) && len <= 1) {
+			flow_trace(conn,
+				   "keep-alive sequence: %u, previous: %u",
+				   seq, conn->seq_from_tap);
+
+			tcp_send_flag(c, conn, ACK);
+			tcp_timer_ctl(c, conn);
+
+			if (p->count == 1)
+				return 1;
+
+			continue;
+		}
+
 		ack_seq = ntohl(th->ack_seq);
 
 		if (th->ack) {
