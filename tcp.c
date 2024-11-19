@@ -1235,8 +1235,10 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 	int s = conn->sock;
 
 	if (SEQ_GE(conn->seq_ack_to_tap, conn->seq_from_tap) &&
-	    !flags && conn->wnd_to_tap)
+	    !flags && conn->wnd_to_tap) {
+		conn_flag(c, conn, ~ACK_TO_TAP_DUE);
 		return 0;
+	}
 
 	if (getsockopt(s, SOL_TCP, TCP_INFO, &tinfo, &sl)) {
 		conn_event(c, conn, CLOSED);
