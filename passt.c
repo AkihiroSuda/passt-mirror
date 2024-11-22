@@ -245,7 +245,7 @@ int main(int argc, char **argv)
 
 	pasta_netns_quit_init(&c);
 
-	tap_sock_init(&c);
+	tap_backend_init(&c);
 
 	random_init(&c);
 

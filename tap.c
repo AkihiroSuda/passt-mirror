@@ -1194,10 +1194,30 @@ int tap_sock_unix_open(char *sock_path)
 }
 
 /**
+ * tap_backend_show_hints() - Give help information to start QEMU
+ * @c:		Execution context
+ */
+static void tap_backend_show_hints(struct ctx *c)
+{
+	switch (c->mode) {
+	case MODE_PASTA:
+		/* No hints */
+		break;
+	case MODE_PASST:
+		info("\nYou can now start qemu (>= 7.2, with commit 13c6be96618c):");
+		info("    kvm ... -device virtio-net-pci,netdev=s -netdev stream,id=s,server=off,addr.type=unix,addr.path=%s",
+		     c->sock_path);
+		info("or qrap, for earlier qemu versions:");
+		info("    ./qrap 5 kvm ... -net socket,fd=5 -net nic,model=virtio");
+		break;
+	}
+}
+
+/**
  * tap_sock_unix_init() - Start listening for connections on AF_UNIX socket
  * @c:		Execution context
  */
-static void tap_sock_unix_init(struct ctx *c)
+static void tap_sock_unix_init(const struct ctx *c)
 {
 	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_LISTEN };
 	struct epoll_event ev = { 0 };
@@ -1208,12 +1228,6 @@ static void tap_sock_unix_init(struct ctx *c)
 	ev.events = EPOLLIN | EPOLLET;
 	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap_listen, &ev);
-
-	info("\nYou can now start qemu (>= 7.2, with commit 13c6be96618c):");
-	info("    kvm ... -device virtio-net-pci,netdev=s -netdev stream,id=s,server=off,addr.type=unix,addr.path=%s",
-	     c->sock_path);
-	info("or qrap, for earlier qemu versions:");
-	info("    ./qrap 5 kvm ... -net socket,fd=5 -net nic,model=virtio");
 }
 
 /**
@@ -1326,21 +1340,31 @@ static void tap_sock_tun_init(struct ctx *c)
 }
 
 /**
- * tap_sock_init() - Create and set up AF_UNIX socket or tuntap file descriptor
- * @c:		Execution context
+ * tap_sock_update_pool() - Set the buffer base and size for the pool of packets
+ * @base:	Buffer base
+ * @size	Buffer size
  */
-void tap_sock_init(struct ctx *c)
+static void tap_sock_update_pool(void *base, size_t size)
 {
-	size_t sz = sizeof(pkt_buf);
 	int i;
 
-	pool_tap4_storage = PACKET_INIT(pool_tap4, TAP_MSGS, pkt_buf, sz);
-	pool_tap6_storage = PACKET_INIT(pool_tap6, TAP_MSGS, pkt_buf, sz);
+	pool_tap4_storage = PACKET_INIT(pool_tap4, TAP_MSGS, base, size);
+	pool_tap6_storage = PACKET_INIT(pool_tap6, TAP_MSGS, base, size);
 
 	for (i = 0; i < TAP_SEQS; i++) {
-		tap4_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, pkt_buf, sz);
-		tap6_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, pkt_buf, sz);
+		tap4_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, base, size);
+		tap6_l4[i].p = PACKET_INIT(pool_l4, UIO_MAXIOV, base, size);
 	}
+}
+
+/**
+ * tap_backend_init() - Create and set up AF_UNIX socket or
+ *			tuntap file descriptor
+ * @c:		Execution context
+ */
+void tap_backend_init(struct ctx *c)
+{
+	tap_sock_update_pool(pkt_buf, sizeof(pkt_buf));
 
 	if (c->fd_tap != -1) { /* Passed as --fd */
 		struct epoll_event ev = { 0 };
@@ -1370,4 +1394,6 @@ void tap_sock_init(struct ctx *c)
 		 */
 		memset(&c->guest_mac, 0xff, sizeof(c->guest_mac));
 	}
+
+	tap_backend_show_hints(c);
 }
