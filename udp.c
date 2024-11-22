@@ -109,8 +109,7 @@
 #include "pcap.h"
 #include "log.h"
 #include "flow_table.h"
-
-#define UDP_MAX_FRAMES		32  /* max # of frames to receive at once */
+#include "udp_internal.h"
 
 /* "Spliced" sockets indexed by bound port (host order) */
 static int udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
@@ -118,20 +117,8 @@ static int udp_splice_init[IP_VERSIONS][NUM_PORTS];
 
 /* Static buffers */
 
-/**
- * struct udp_payload_t - UDP header and data for inbound messages
- * @uh:		UDP header
- * @data:	UDP data
- */
-static struct udp_payload_t {
-	struct udphdr uh;
-	char data[USHRT_MAX - sizeof(struct udphdr)];
-#ifdef __AVX2__
-} __attribute__ ((packed, aligned(32)))
-#else
-} __attribute__ ((packed, aligned(__alignof__(unsigned int))))
-#endif
-udp_payload[UDP_MAX_FRAMES];
+/* UDP header and data for inbound messages */
+static struct udp_payload_t udp_payload[UDP_MAX_FRAMES];
 
 /* Ethernet header for IPv4 frames */
 static struct ethhdr udp4_eth_hdr;
@@ -302,9 +289,9 @@ static void udp_splice_send(const struct ctx *c, size_t start, size_t n,
  *
  * Return: size of IPv4 payload (UDP header + data)
  */
-static size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
-			      const struct flowside *toside, size_t dlen,
-			      bool no_udp_csum)
+size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
+		       const struct flowside *toside, size_t dlen,
+		       bool no_udp_csum)
 {
 	const struct in_addr *src = inany_v4(&toside->oaddr);
 	const struct in_addr *dst = inany_v4(&toside->eaddr);
@@ -345,9 +332,9 @@ static size_t udp_update_hdr4(struct iphdr *ip4h, struct udp_payload_t *bp,
  *
  * Return: size of IPv6 payload (UDP header + data)
  */
-static size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
-			      const struct flowside *toside, size_t dlen,
-			      bool no_udp_csum)
+size_t udp_update_hdr6(struct ipv6hdr *ip6h, struct udp_payload_t *bp,
+		       const struct flowside *toside, size_t dlen,
+		       bool no_udp_csum)
 {
 	uint16_t l4len = dlen + sizeof(bp->uh);
 
@@ -477,7 +464,7 @@ static int udp_sock_recverr(int s)
  *
  * Return: Number of errors handled, or < 0 if we have an unrecoverable error
  */
-static int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
+int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
 {
 	unsigned n_err = 0;
 	socklen_t errlen;
@@ -554,7 +541,7 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
 }
 
 /**
- * udp_listen_sock_handler() - Handle new data from socket
+ * udp_buf_listen_sock_handler() - Handle new data from socket
  * @c:		Execution context
  * @ref:	epoll reference
  * @events:	epoll events bitmap
@@ -562,8 +549,9 @@ static int udp_sock_recv(const struct ctx *c, int s, uint32_t events,
  *
  * #syscalls recvmmsg
  */
-void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
-			     uint32_t events, const struct timespec *now)
+static void udp_buf_listen_sock_handler(const struct ctx *c,
+					union epoll_ref ref, uint32_t events,
+					const struct timespec *now)
 {
 	const socklen_t sasize = sizeof(udp_meta[0].s_in);
 	int n, i;
@@ -630,7 +618,21 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
 }
 
 /**
- * udp_reply_sock_handler() - Handle new data from flow specific socket
+ * udp_listen_sock_handler() - Handle new data from socket
+ * @c:		Execution context
+ * @ref:	epoll reference
+ * @events:	epoll events bitmap
+ * @now:	Current timestamp
+ */
+void udp_listen_sock_handler(const struct ctx *c,
+			     union epoll_ref ref, uint32_t events,
+			     const struct timespec *now)
+{
+	udp_buf_listen_sock_handler(c, ref, events, now);
+}
+
+/**
+ * udp_buf_reply_sock_handler() - Handle new data from flow specific socket
  * @c:		Execution context
  * @ref:	epoll reference
  * @events:	epoll events bitmap
@@ -638,8 +640,9 @@ void udp_listen_sock_handler(const struct ctx *c, union epoll_ref ref,
  *
  * #syscalls recvmmsg
  */
-void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
-			    uint32_t events, const struct timespec *now)
+static void udp_buf_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
+				       uint32_t events,
+				       const struct timespec *now)
 {
 	flow_sidx_t tosidx = flow_sidx_opposite(ref.flowside);
 	const struct flowside *toside = flowside_at_sidx(tosidx);
@@ -683,6 +686,19 @@ void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 		flow_err(uflow, "No support for forwarding UDP from %s to %s",
 			 pif_name(frompif), pif_name(topif));
 	}
+}
+
+/**
+ * udp_reply_sock_handler() - Handle new data from flow specific socket
+ * @c:		Execution context
+ * @ref:	epoll reference
+ * @events:	epoll events bitmap
+ * @now:	Current timestamp
+ */
+void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
+			    uint32_t events, const struct timespec *now)
+{
+	udp_buf_reply_sock_handler(c, ref, events, now);
 }
 
 /**
