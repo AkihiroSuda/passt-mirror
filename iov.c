@@ -68,7 +68,6 @@ size_t iov_skip_bytes(const struct iovec *iov, size_t n,
  *
  * Returns:    The number of bytes successfully copied.
  */
-/* cppcheck-suppress unusedFunction */
 size_t iov_from_buf(const struct iovec *iov, size_t iov_cnt,
 		    size_t offset, const void *buf, size_t bytes)
 {

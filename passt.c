@@ -50,6 +50,7 @@
 #include "log.h"
 #include "tcp_splice.h"
 #include "ndp.h"
+#include "vu_common.h"
 
 #define EPOLL_EVENTS		8
 
@@ -72,6 +73,8 @@ char *epoll_type_str[] = {
 	[EPOLL_TYPE_TAP_PASTA]		= "/dev/net/tun device",
 	[EPOLL_TYPE_TAP_PASST]		= "connected qemu socket",
 	[EPOLL_TYPE_TAP_LISTEN]		= "listening qemu socket",
+	[EPOLL_TYPE_VHOST_CMD]		= "vhost-user command socket",
+	[EPOLL_TYPE_VHOST_KICK]		= "vhost-user kick socket",
 };
 static_assert(ARRAY_SIZE(epoll_type_str) == EPOLL_NUM_TYPES,
 	      "epoll_type_str[] doesn't match enum epoll_type");
@@ -346,6 +349,12 @@ loop:
 			break;
 		case EPOLL_TYPE_PING:
 			icmp_sock_handler(&c, ref);
+			break;
+		case EPOLL_TYPE_VHOST_CMD:
+			vu_control_handler(c.vdev, c.fd_tap, eventmask);
+			break;
+		case EPOLL_TYPE_VHOST_KICK:
+			vu_kick_cb(c.vdev, ref, &now);
 			break;
 		default:
 			/* Can't happen */

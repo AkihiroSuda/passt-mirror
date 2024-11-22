@@ -304,6 +304,7 @@
 #include "flow_table.h"
 #include "tcp_internal.h"
 #include "tcp_buf.h"
+#include "tcp_vu.h"
 
 /* MSS rounding: see SET_MSS() */
 #define MSS_DEFAULT			536
@@ -1314,6 +1315,9 @@ int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,
 static int tcp_send_flag(const struct ctx *c, struct tcp_tap_conn *conn,
 			 int flags)
 {
+	if (c->mode == MODE_VU)
+		return tcp_vu_send_flag(c, conn, flags);
+
 	return tcp_buf_send_flag(c, conn, flags);
 }
 
@@ -1707,6 +1711,9 @@ static int tcp_sock_consume(const struct tcp_tap_conn *conn, uint32_t ack_seq)
  */
 static int tcp_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 {
+	if (c->mode == MODE_VU)
+		return tcp_vu_data_from_sock(c, conn);
+
 	return tcp_buf_data_from_sock(c, conn);
 }
 

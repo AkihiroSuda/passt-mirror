@@ -36,6 +36,17 @@
 static int packet_check_range(const struct pool *p, size_t offset, size_t len,
 			      const char *start, const char *func, int line)
 {
+	if (p->buf_size == 0) {
+		int ret;
+
+		ret = vu_packet_check_range((void *)p->buf, offset, len, start);
+
+		if (ret == -1)
+			trace("cannot find region, %s:%i", func, line);
+
+		return ret;
+	}
+
 	if (start < p->buf) {
 		trace("packet start %p before buffer start %p, "
 		      "%s:%i", (void *)start, (void *)p->buf, func, line);

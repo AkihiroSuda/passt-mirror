@@ -8,8 +8,10 @@
 
 /**
  * struct pool - Generic pool of packets stored in a buffer
- * @buf:	Buffer storing packet descriptors
- * @buf_size:	Total size of buffer
+ * @buf:	Buffer storing packet descriptors,
+ * 		a struct vu_dev_region array for passt vhost-user mode
+ * @buf_size:	Total size of buffer,
+ * 		0 for passt vhost-user mode
  * @size:	Number of usable descriptors for the pool
  * @count:	Number of used descriptors for the pool
  * @pkt:	Descriptors: see macros below
@@ -22,6 +24,8 @@ struct pool {
 	struct iovec pkt[1];
 };
 
+int vu_packet_check_range(void *buf, size_t offset, size_t len,
+			  const char *start);
 void packet_add_do(struct pool *p, size_t len, const char *start,
 		   const char *func, int line);
 void *packet_get_do(const struct pool *p, const size_t idx,

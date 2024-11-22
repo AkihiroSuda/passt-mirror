@@ -325,7 +325,6 @@ static bool vring_can_notify(const struct vu_dev *dev, struct vu_virtq *vq)
  * @dev:	Vhost-user device
  * @vq:		Virtqueue
  */
-/* cppcheck-suppress unusedFunction */
 void vu_queue_notify(const struct vu_dev *dev, struct vu_virtq *vq)
 {
 	if (!vring_can_notify(dev, vq)) {
@@ -498,7 +497,6 @@ static int vu_queue_map_desc(struct vu_dev *dev, struct vu_virtq *vq, unsigned i
  *
  * Return: -1 if there is an error, 0 otherwise
  */
-/* cppcheck-suppress unusedFunction */
 int vu_queue_pop(struct vu_dev *dev, struct vu_virtq *vq, struct vu_virtq_element *elem)
 {
 	unsigned int head;
@@ -556,7 +554,6 @@ void vu_queue_unpop(struct vu_virtq *vq)
  * @vq:		Virtqueue
  * @num:	Number of element to unpop
  */
-/* cppcheck-suppress unusedFunction */
 bool vu_queue_rewind(struct vu_virtq *vq, unsigned int num)
 {
 	if (num > vq->inuse)
@@ -609,7 +606,6 @@ void vu_queue_fill_by_index(struct vu_virtq *vq, unsigned int index,
  * @len:	Size of the element
  * @idx:	Used ring entry index
  */
-/* cppcheck-suppress unusedFunction */
 void vu_queue_fill(struct vu_virtq *vq, const struct vu_virtq_element *elem,
 		   unsigned int len, unsigned int idx)
 {
@@ -633,7 +629,6 @@ static inline void vring_used_idx_set(struct vu_virtq *vq, uint16_t val)
  * @vq:		Virtqueue
  * @count:	Number of entry to flush
  */
-/* cppcheck-suppress unusedFunction */
 void vu_queue_flush(struct vu_virtq *vq, unsigned int count)
 {
 	uint16_t old, new;

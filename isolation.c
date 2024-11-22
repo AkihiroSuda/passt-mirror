@@ -379,12 +379,21 @@ void isolate_postfork(const struct ctx *c)
 
 	prctl(PR_SET_DUMPABLE, 0);
 
-	if (c->mode == MODE_PASTA) {
-		prog.len = (unsigned short)ARRAY_SIZE(filter_pasta);
-		prog.filter = filter_pasta;
-	} else {
+	switch (c->mode) {
+	case MODE_PASST:
 		prog.len = (unsigned short)ARRAY_SIZE(filter_passt);
 		prog.filter = filter_passt;
+		break;
+	case MODE_PASTA:
+		prog.len = (unsigned short)ARRAY_SIZE(filter_pasta);
+		prog.filter = filter_pasta;
+		break;
+	case MODE_VU:
+		prog.len = (unsigned short)ARRAY_SIZE(filter_vu);
+		prog.filter = filter_vu;
+		break;
+	default:
+		ASSERT(0);
 	}
 
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) ||

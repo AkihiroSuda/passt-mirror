@@ -45,6 +45,7 @@
 #include "lineread.h"
 #include "isolation.h"
 #include "log.h"
+#include "vhost_user.h"
 
 #define NETNS_RUN_DIR	"/run/netns"
 
@@ -807,9 +808,14 @@ static void usage(const char *name, FILE *f, int status)
 			"    default: same interface name as external one\n");
 	} else {
 		FPRINTF(f,
-			"  -s, --socket PATH	UNIX domain socket path\n"
+			"  -s, --socket, --socket-path PATH	UNIX domain socket path\n"
 			"    default: probe free path starting from "
 			UNIX_SOCK_PATH "\n", 1);
+		FPRINTF(f,
+			"  --vhost-user		Enable vhost-user mode\n"
+			"    UNIX domain socket is provided by -s option\n"
+			"  --print-capabilities	print back-end capabilities in JSON format,\n"
+			"    only meaningful for vhost-user mode\n");
 	}
 
 	FPRINTF(f,
@@ -1345,6 +1351,10 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"map-guest-addr", required_argument,	NULL,		22 },
 		{"host-lo-to-ns-lo", no_argument, 	NULL,		23 },
 		{"dns-host",	required_argument,	NULL,		24 },
+		{"vhost-user",	no_argument,		NULL,		25 },
+		/* vhost-user backend program convention */
+		{"print-capabilities", no_argument,	NULL,		26 },
+		{"socket-path",	required_argument,	NULL,		's' },
 		{ 0 },
 	};
 	const char *logname = (c->mode == MODE_PASTA) ? "pasta" : "passt";
@@ -1538,6 +1548,13 @@ void conf(struct ctx *c, int argc, char **argv)
 				break;
 
 			die("Invalid host nameserver address: %s", optarg);
+		case 25:
+			if (c->mode == MODE_PASTA)
+				die("--vhost-user is for passt mode only");
+			c->mode = MODE_VU;
+			break;
+		case 26:
+			vu_print_capabilities();
 			break;
 		case 'd':
 			c->debug = 1;

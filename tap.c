@@ -58,6 +58,8 @@
 #include "packet.h"
 #include "tap.h"
 #include "log.h"
+#include "vhost_user.h"
+#include "vu_common.h"
 
 /* IPv4 (plus ARP) and IPv6 message batches from tap/guest to IP handlers */
 static PACKET_POOL_NOINIT(pool_tap4, TAP_MSGS, pkt_buf);
@@ -78,16 +80,22 @@ void tap_send_single(const struct ctx *c, const void *data, size_t l2len)
 	struct iovec iov[2];
 	size_t iovcnt = 0;
 
-	if (c->mode == MODE_PASST) {
+	switch (c->mode) {
+	case MODE_PASST:
 		iov[iovcnt] = IOV_OF_LVALUE(vnet_len);
 		iovcnt++;
+		/* fall through */
+	case MODE_PASTA:
+		iov[iovcnt].iov_base = (void *)data;
+		iov[iovcnt].iov_len = l2len;
+		iovcnt++;
+
+		tap_send_frames(c, iov, iovcnt, 1);
+		break;
+	case MODE_VU:
+		vu_send_single(c, data, l2len);
+		break;
 	}
-
-	iov[iovcnt].iov_base = (void *)data;
-	iov[iovcnt].iov_len = l2len;
-	iovcnt++;
-
-	tap_send_frames(c, iov, iovcnt, 1);
 }
 
 /**
@@ -414,10 +422,18 @@ size_t tap_send_frames(const struct ctx *c, const struct iovec *iov,
 	if (!nframes)
 		return 0;
 
-	if (c->mode == MODE_PASTA)
+	switch (c->mode) {
+	case MODE_PASTA:
 		m = tap_send_frames_pasta(c, iov, bufs_per_frame, nframes);
-	else
+		break;
+	case MODE_PASST:
 		m = tap_send_frames_passt(c, iov, bufs_per_frame, nframes);
+		break;
+	case MODE_VU:
+		/* fall through */
+	default:
+		ASSERT(0);
+	}
 
 	if (m < nframes)
 		debug("tap: failed to send %zu frames of %zu",
@@ -979,7 +995,7 @@ void tap_add_packet(struct ctx *c, ssize_t l2len, char *p)
  * tap_sock_reset() - Handle closing or failure of connect AF_UNIX socket
  * @c:		Execution context
  */
-static void tap_sock_reset(struct ctx *c)
+void tap_sock_reset(struct ctx *c)
 {
 	info("Client connection closed%s", c->one_off ? ", exiting" : "");
 
@@ -990,6 +1006,8 @@ static void tap_sock_reset(struct ctx *c)
 	epoll_ctl(c->epollfd, EPOLL_CTL_DEL, c->fd_tap, NULL);
 	close(c->fd_tap);
 	c->fd_tap = -1;
+	if (c->mode == MODE_VU)
+		vu_cleanup(c->vdev);
 }
 
 /**
@@ -1210,6 +1228,11 @@ static void tap_backend_show_hints(struct ctx *c)
 		info("or qrap, for earlier qemu versions:");
 		info("    ./qrap 5 kvm ... -net socket,fd=5 -net nic,model=virtio");
 		break;
+	case MODE_VU:
+		info("You can start qemu with:");
+		info("    kvm ... -chardev socket,id=chr0,path=%s -netdev vhost-user,id=netdev0,chardev=chr0 -device virtio-net,netdev=netdev0 -object memory-backend-memfd,id=memfd0,share=on,size=$RAMSIZE -numa node,memdev=memfd0\n",
+		     c->sock_path);
+		break;
 	}
 }
 
@@ -1237,8 +1260,8 @@ static void tap_sock_unix_init(const struct ctx *c)
  */
 void tap_listen_handler(struct ctx *c, uint32_t events)
 {
-	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_PASST };
 	struct epoll_event ev = { 0 };
+	union epoll_ref ref = { 0 };
 	int v = INT_MAX / 2;
 	struct ucred ucred;
 	socklen_t len;
@@ -1278,6 +1301,10 @@ void tap_listen_handler(struct ctx *c, uint32_t events)
 		trace("tap: failed to set SO_SNDBUF to %i", v);
 
 	ref.fd = c->fd_tap;
+	if (c->mode == MODE_VU)
+		ref.type = EPOLL_TYPE_VHOST_CMD;
+	else
+		ref.type = EPOLL_TYPE_TAP_PASST;
 	ev.events = EPOLLIN | EPOLLRDHUP;
 	ev.data.u64 = ref.u64;
 	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
@@ -1344,7 +1371,7 @@ static void tap_sock_tun_init(struct ctx *c)
  * @base:	Buffer base
  * @size	Buffer size
  */
-static void tap_sock_update_pool(void *base, size_t size)
+void tap_sock_update_pool(void *base, size_t size)
 {
 	int i;
 
@@ -1364,7 +1391,10 @@ static void tap_sock_update_pool(void *base, size_t size)
  */
 void tap_backend_init(struct ctx *c)
 {
-	tap_sock_update_pool(pkt_buf, sizeof(pkt_buf));
+	if (c->mode == MODE_VU)
+		tap_sock_update_pool(NULL, 0);
+	else
+		tap_sock_update_pool(pkt_buf, sizeof(pkt_buf));
 
 	if (c->fd_tap != -1) { /* Passed as --fd */
 		struct epoll_event ev = { 0 };
@@ -1372,10 +1402,17 @@ void tap_backend_init(struct ctx *c)
 
 		ASSERT(c->one_off);
 		ref.fd = c->fd_tap;
-		if (c->mode == MODE_PASST)
+		switch (c->mode) {
+		case MODE_PASST:
 			ref.type = EPOLL_TYPE_TAP_PASST;
-		else
+			break;
+		case MODE_PASTA:
 			ref.type = EPOLL_TYPE_TAP_PASTA;
+			break;
+		case MODE_VU:
+			ref.type = EPOLL_TYPE_VHOST_CMD;
+			break;
+		}
 
 		ev.events = EPOLLIN | EPOLLRDHUP;
 		ev.data.u64 = ref.u64;
@@ -1383,9 +1420,14 @@ void tap_backend_init(struct ctx *c)
 		return;
 	}
 
-	if (c->mode == MODE_PASTA) {
+	switch (c->mode) {
+	case MODE_PASTA:
 		tap_sock_tun_init(c);
-	} else {
+		break;
+	case MODE_VU:
+		vu_init(c);
+		/* fall through */
+	case MODE_PASST:
 		tap_sock_unix_init(c);
 
 		/* In passt mode, we don't know the guest's MAC address until it
@@ -1393,6 +1435,7 @@ void tap_backend_init(struct ctx *c)
 		 * first packets will reach it.
 		 */
 		memset(&c->guest_mac, 0xff, sizeof(c->guest_mac));
+		break;
 	}
 
 	tap_backend_show_hints(c);

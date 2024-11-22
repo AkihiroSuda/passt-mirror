@@ -183,7 +183,6 @@ struct vhost_user_msg {
  *
  * Return: true if the virqueue is enabled, false otherwise
  */
-/* cppcheck-suppress unusedFunction */
 static inline bool vu_queue_enabled(const struct vu_virtq *vq)
 {
 	return vq->enable;
@@ -195,14 +194,13 @@ static inline bool vu_queue_enabled(const struct vu_virtq *vq)
  *
  * Return: true if the virqueue is started, false otherwise
  */
-/* cppcheck-suppress unusedFunction */
 static inline bool vu_queue_started(const struct vu_virtq *vq)
 {
 	return vq->started;
 }
 
 void vu_print_capabilities(void);
-void vu_init(struct ctx *c, struct vu_dev *vdev);
+void vu_init(struct ctx *c);
 void vu_cleanup(struct vu_dev *vdev);
 void vu_control_handler(struct vu_dev *vdev, int fd, uint32_t events);
 #endif /* VHOST_USER_H */

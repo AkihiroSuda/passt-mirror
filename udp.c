@@ -110,6 +110,7 @@
 #include "log.h"
 #include "flow_table.h"
 #include "udp_internal.h"
+#include "udp_vu.h"
 
 /* "Spliced" sockets indexed by bound port (host order) */
 static int udp_splice_ns  [IP_VERSIONS][NUM_PORTS];
@@ -628,6 +629,11 @@ void udp_listen_sock_handler(const struct ctx *c,
 			     union epoll_ref ref, uint32_t events,
 			     const struct timespec *now)
 {
+	if (c->mode == MODE_VU) {
+		udp_vu_listen_sock_handler(c, ref, events, now);
+		return;
+	}
+
 	udp_buf_listen_sock_handler(c, ref, events, now);
 }
 
@@ -698,6 +704,11 @@ static void udp_buf_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 void udp_reply_sock_handler(const struct ctx *c, union epoll_ref ref,
 			    uint32_t events, const struct timespec *now)
 {
+	if (c->mode == MODE_VU) {
+		udp_vu_reply_sock_handler(c, ref, events, now);
+		return;
+	}
+
 	udp_buf_reply_sock_handler(c, ref, events, now);
 }
 

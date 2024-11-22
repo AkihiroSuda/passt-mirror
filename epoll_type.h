@@ -36,6 +36,10 @@ enum epoll_type {
 	EPOLL_TYPE_TAP_PASST,
 	/* socket listening for qemu socket connections */
 	EPOLL_TYPE_TAP_LISTEN,
+	/* vhost-user command socket */
+	EPOLL_TYPE_VHOST_CMD,
+	/* vhost-user kick event socket */
+	EPOLL_TYPE_VHOST_KICK,
 
 	EPOLL_NUM_TYPES,
 };

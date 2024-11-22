@@ -25,6 +25,7 @@ union epoll_ref;
 #include "fwd.h"
 #include "tcp.h"
 #include "udp.h"
+#include "vhost_user.h"
 
 /* Default address for our end on the tap interface.  Bit 0 of byte 0 must be 0
  * (unicast) and bit 1 of byte 1 must be 1 (locally administered).  Otherwise
@@ -43,6 +44,7 @@ union epoll_ref;
  * @icmp:	ICMP-specific reference part
  * @data:	Data handled by protocol handlers
  * @nsdir_fd:	netns dirfd for fallback timer checking if namespace is gone
+ * @queue:	vhost-user queue index for this fd
  * @u64:	Opaque reference for epoll_ctl() and epoll_wait()
  */
 union epoll_ref {
@@ -58,6 +60,7 @@ union epoll_ref {
 			union udp_listen_epoll_ref udp;
 			uint32_t data;
 			int nsdir_fd;
+			int queue;
 		};
 	};
 	uint64_t u64;
@@ -94,6 +97,7 @@ struct fqdn {
 enum passt_modes {
 	MODE_PASST,
 	MODE_PASTA,
+	MODE_VU,
 };
 
 /**
@@ -229,6 +233,7 @@ struct ip6_ctx {
  * @freebind:		Allow binding of non-local addresses for forwarding
  * @low_wmem:		Low probed net.core.wmem_max
  * @low_rmem:		Low probed net.core.rmem_max
+ * @vdev:		vhost-user device
  */
 struct ctx {
 	enum passt_modes mode;
@@ -291,6 +296,8 @@ struct ctx {
 
 	int low_wmem;
 	int low_rmem;
+
+	struct vu_dev *vdev;
 };
 
 void proto_update_l2_buf(const unsigned char *eth_d,

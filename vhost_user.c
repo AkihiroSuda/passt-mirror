@@ -48,12 +48,13 @@
 /* vhost-user version we are compatible with */
 #define VHOST_USER_VERSION 1
 
+static struct vu_dev vdev_storage;
+
 /**
  * vu_print_capabilities() - print vhost-user capabilities
  * 			     this is part of the vhost-user backend
  * 			     convention.
  */
-/* cppcheck-suppress unusedFunction */
 void vu_print_capabilities(void)
 {
 	info("{");
@@ -163,9 +164,7 @@ static void vmsg_close_fds(const struct vhost_user_msg *vmsg)
  */
 static void vu_remove_watch(const struct vu_dev *vdev, int fd)
 {
-	/* Placeholder to add passt related code */
-	(void)vdev;
-	(void)fd;
+	epoll_ctl(vdev->context->epollfd, EPOLL_CTL_DEL, fd, NULL);
 }
 
 /**
@@ -487,6 +486,14 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 		}
 	}
 
+	/* As vu_packet_check_range() has no access to the number of
+	 * memory regions, mark the end of the array with mmap_addr = 0
+	 */
+	ASSERT(vdev->nregions < VHOST_USER_MAX_RAM_SLOTS - 1);
+	vdev->regions[vdev->nregions].mmap_addr = 0;
+
+	tap_sock_update_pool(vdev->regions, 0);
+
 	return false;
 }
 
@@ -615,9 +622,16 @@ static bool vu_get_vring_base_exec(struct vu_dev *vdev,
  */
 static void vu_set_watch(const struct vu_dev *vdev, int idx)
 {
-	/* Placeholder to add passt related code */
-	(void)vdev;
-	(void)idx;
+	union epoll_ref ref = {
+		.type = EPOLL_TYPE_VHOST_KICK,
+		.fd = vdev->vq[idx].kick_fd,
+		.queue = idx
+	 };
+	struct epoll_event ev = { 0 };
+
+	ev.data.u64 = ref.u64;
+	ev.events = EPOLLIN;
+	epoll_ctl(vdev->context->epollfd, EPOLL_CTL_ADD, ref.fd, &ev);
 }
 
 /**
@@ -829,14 +843,14 @@ static bool vu_set_vring_enable_exec(struct vu_dev *vdev,
  * @c:		execution context
  * @vdev:	vhost-user device
  */
-/* cppcheck-suppress unusedFunction */
-void vu_init(struct ctx *c, struct vu_dev *vdev)
+void vu_init(struct ctx *c)
 {
 	int i;
 
-	vdev->context = c;
+	c->vdev = &vdev_storage;
+	c->vdev->context = c;
 	for (i = 0; i < VHOST_USER_MAX_QUEUES; i++) {
-		vdev->vq[i] = (struct vu_virtq){
+		c->vdev->vq[i] = (struct vu_virtq){
 			.call_fd = -1,
 			.kick_fd = -1,
 			.err_fd = -1,
@@ -849,7 +863,6 @@ void vu_init(struct ctx *c, struct vu_dev *vdev)
  * vu_cleanup() - Reset vhost-user device
  * @vdev:	vhost-user device
  */
-/* cppcheck-suppress unusedFunction */
 void vu_cleanup(struct vu_dev *vdev)
 {
 	unsigned int i;
@@ -896,8 +909,7 @@ void vu_cleanup(struct vu_dev *vdev)
  */
 static void vu_sock_reset(struct vu_dev *vdev)
 {
-	/* Placeholder to add passt related code */
-	(void)vdev;
+	tap_sock_reset(vdev->context);
 }
 
 static bool (*vu_handle[VHOST_USER_MAX])(struct vu_dev *vdev,
@@ -925,7 +937,6 @@ static bool (*vu_handle[VHOST_USER_MAX])(struct vu_dev *vdev,
  * @fd:		vhost-user message socket
  * @events:	epoll events
  */
-/* cppcheck-suppress unusedFunction */
 void vu_control_handler(struct vu_dev *vdev, int fd, uint32_t events)
 {
 	struct vhost_user_msg msg = { 0 };

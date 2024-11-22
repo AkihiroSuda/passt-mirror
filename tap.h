@@ -40,7 +40,8 @@ static inline struct iovec tap_hdr_iov(const struct ctx *c,
  */
 static inline void tap_hdr_update(struct tap_hdr *thdr, size_t l2len)
 {
-	thdr->vnet_len = htonl(l2len);
+	if (thdr)
+		thdr->vnet_len = htonl(l2len);
 }
 
 void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
@@ -68,6 +69,8 @@ void tap_handler_pasta(struct ctx *c, uint32_t events,
 void tap_handler_passt(struct ctx *c, uint32_t events,
 		       const struct timespec *now);
 int tap_sock_unix_open(char *sock_path);
+void tap_sock_reset(struct ctx *c);
+void tap_sock_update_pool(void *base, size_t size);
 void tap_backend_init(struct ctx *c);
 void tap_flush_pools(void);
 void tap_handler(struct ctx *c, const struct timespec *now);

@@ -404,11 +404,19 @@ interface address are configured on a given host interface.
 .SS \fBpasst\fR-only options
 
 .TP
-.BR \-s ", " \-\-socket " " \fIpath
+.BR \-s ", " \-\-socket-path ", " \-\-socket " " \fIpath
 Path for UNIX domain socket used by \fBqemu\fR(1) or \fBqrap\fR(1) to connect to
 \fBpasst\fR.
 Default is to probe a free socket, not accepting connections, starting from
 \fI/tmp/passt_1.socket\fR to \fI/tmp/passt_64.socket\fR.
+
+.TP
+.BR \-\-vhost-user
+Enable vhost-user. The vhost-user command socket is provided by \fB--socket\fR.
+
+.TP
+.BR \-\-print-capabilities
+Print back-end capabilities in JSON format, only meaningful for vhost-user mode.
 
 .TP
 .BR \-F ", " \-\-fd " " \fIFD

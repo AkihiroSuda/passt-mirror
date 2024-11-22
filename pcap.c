@@ -143,7 +143,6 @@ void pcap_multiple(const struct iovec *iov, size_t frame_parts, unsigned int n,
  * @iovcnt:	Number of buffers (@iov entries)
  * @offset:	Offset of the L2 frame within the full data length
  */
-/* cppcheck-suppress unusedFunction */
 void pcap_iov(const struct iovec *iov, size_t iovcnt, size_t offset)
 {
 	struct timespec now = { 0 };
