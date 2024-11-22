@@ -144,7 +144,16 @@ static inline uint32_t ntohl_unaligned(const void *p)
 	return ntohl(val);
 }
 
+static inline void barrier(void) { __asm__ __volatile__("" ::: "memory"); }
+#define smp_mb()		do { barrier(); __atomic_thread_fence(__ATOMIC_SEQ_CST); } while (0)
+#define smp_mb_release()	do { barrier(); __atomic_thread_fence(__ATOMIC_RELEASE); } while (0)
+#define smp_mb_acquire()	do { barrier(); __atomic_thread_fence(__ATOMIC_ACQUIRE); } while (0)
+
+#define smp_wmb()	smp_mb_release()
+#define smp_rmb()	smp_mb_acquire()
+
 #define NS_FN_STACK_SIZE	(1024 * 1024) /* 1MiB */
+
 int do_clone(int (*fn)(void *), char *stack_area, size_t stack_size, int flags,
 	     void *arg);
 #define NS_CALL(fn, arg)						\
