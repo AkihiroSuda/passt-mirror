@@ -758,9 +758,9 @@ static void tcp_sock_set_bufsize(const struct ctx *c, int s)
  * @iov_cnt:	Length of the array
  * @l4offset:	IPv4 payload offset in the iovec array
  */
-static void tcp_update_check_tcp4(const struct iphdr *iph,
-				  const struct iovec *iov, int iov_cnt,
-				  size_t l4offset)
+void tcp_update_check_tcp4(const struct iphdr *iph,
+			   const struct iovec *iov, int iov_cnt,
+			   size_t l4offset)
 {
 	uint16_t l4len = ntohs(iph->tot_len) - sizeof(struct iphdr);
 	struct in_addr saddr = { .s_addr = iph->saddr };
@@ -810,9 +810,9 @@ static void tcp_update_check_tcp4(const struct iphdr *iph,
  * @iov_cnt:	Length of the array
  * @l4offset:	IPv6 payload offset in the iovec array
  */
-static void tcp_update_check_tcp6(const struct ipv6hdr *ip6h,
-				  const struct iovec *iov, int iov_cnt,
-				  size_t l4offset)
+void tcp_update_check_tcp6(const struct ipv6hdr *ip6h,
+			   const struct iovec *iov, int iov_cnt,
+			   size_t l4offset)
 {
 	uint16_t l4len = ntohs(ip6h->payload_len);
 	size_t check_ofs;
@@ -978,11 +978,11 @@ static void tcp_fill_header(struct tcphdr *th,
  *
  * Return: The IPv4 payload length, host order
  */
-static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
-				struct tap_hdr *taph,
-				struct iphdr *iph, struct tcp_payload_t *bp,
-				size_t dlen, const uint16_t *check,
-				uint32_t seq, bool no_tcp_csum)
+size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
+			 struct tap_hdr *taph,
+			 struct iphdr *iph, struct tcp_payload_t *bp,
+			 size_t dlen, const uint16_t *check,
+			 uint32_t seq, bool no_tcp_csum)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
 	const struct in_addr *src4 = inany_v4(&tapside->oaddr);
@@ -1030,10 +1030,10 @@ static size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
  *
  * Return: The IPv6 payload length, host order
  */
-static size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
-				struct tap_hdr *taph,
-				struct ipv6hdr *ip6h, struct tcp_payload_t *bp,
-				size_t dlen, uint32_t seq, bool no_tcp_csum)
+size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
+			 struct tap_hdr *taph,
+			 struct ipv6hdr *ip6h, struct tcp_payload_t *bp,
+			 size_t dlen, uint32_t seq, bool no_tcp_csum)
 {
 	const struct flowside *tapside = TAPFLOW(conn);
 	size_t l4len = dlen + sizeof(bp->th);
