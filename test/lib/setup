@@ -15,8 +15,7 @@
 
 INITRAMFS="${BASEPATH}/mbuto.img"
 VCPUS="$( [ $(nproc) -ge 8 ] && echo 6 || echo $(( $(nproc) / 2 + 1 )) )"
-__mem_kib="$(sed -n 's/MemTotal:[ ]*\([0-9]*\) kB/\1/p' /proc/meminfo)"
-VMEM="$((${__mem_kib} / 1024 / 4))"
+MEM_KIB="$(sed -n 's/MemTotal:[ ]*\([0-9]*\) kB/\1/p' /proc/meminfo)"
 QEMU_ARCH="$(uname -m)"
 [ "${QEMU_ARCH}" = "i686" ] && QEMU_ARCH=i386
 
@@ -46,6 +45,7 @@ setup_passt() {
 	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt.pcap"
 	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
+	[ ${VHOST_USER} -eq 1 ] && __opts="${__opts} --vhost-user"
 
 	context_run passt "make clean"
 	context_run passt "make valgrind"
@@ -54,16 +54,29 @@ setup_passt() {
 	# pidfile isn't created until passt is listening
 	wait_for [ -f "${STATESETUP}/passt.pid" ]
 
+	__vmem="$((${MEM_KIB} / 1024 / 4))"
+	if [ ${VHOST_USER} -eq 1 ]; then
+		__vmem="$(((${__vmem} + 500) / 1000))G"
+		__qemu_netdev="						       \
+			-chardev socket,id=c,path=${STATESETUP}/passt.socket   \
+			-netdev vhost-user,id=v,chardev=c		       \
+			-device virtio-net,netdev=v			       \
+			-object memory-backend-memfd,id=m,share=on,size=${__vmem} \
+			-numa node,memdev=m"
+	else
+		__qemu_netdev="-device virtio-net-pci,netdev=s		       \
+			-netdev stream,id=s,server=off,addr.type=unix,addr.path=${STATESETUP}/passt.socket"
+	fi
+
 	GUEST_CID=94557
 	context_run_bg qemu 'qemu-system-'"${QEMU_ARCH}"		   \
 		' -machine accel=kvm'                                      \
-		' -m '${VMEM}' -cpu host -smp '${VCPUS}                    \
+		' -m '${__vmem}' -cpu host -smp '${VCPUS}		   \
 		' -kernel '"${KERNEL}"					   \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	   \
 		' -nodefaults'						   \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	   \
-		' -device virtio-net-pci,netdev=s0 '			   \
-		" -netdev stream,id=s0,server=off,addr.type=unix,addr.path=${STATESETUP}/passt.socket " \
+		" ${__qemu_netdev}"					   \
 		" -pidfile ${STATESETUP}/qemu.pid"			   \
 		" -device vhost-vsock-pci,guest-cid=$GUEST_CID"
 
@@ -142,6 +155,7 @@ setup_passt_in_ns() {
 	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt_in_pasta.pcap"
 	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
+	[ ${VHOST_USER} -eq 1 ] && __opts="${__opts} --vhost-user"
 
 	if [ ${VALGRIND} -eq 1 ]; then
 		context_run passt "make clean"
@@ -154,17 +168,30 @@ setup_passt_in_ns() {
 	fi
 	wait_for [ -f "${STATESETUP}/passt.pid" ]
 
+	__vmem="$((${MEM_KIB} / 1024 / 4))"
+	if [ ${VHOST_USER} -eq 1 ]; then
+		__vmem="$(((${__vmem} + 500) / 1000))G"
+		__qemu_netdev="						       \
+			-chardev socket,id=c,path=${STATESETUP}/passt.socket   \
+			-netdev vhost-user,id=v,chardev=c		       \
+			-device virtio-net,netdev=v			       \
+			-object memory-backend-memfd,id=m,share=on,size=${__vmem} \
+			-numa node,memdev=m"
+	else
+		__qemu_netdev="-device virtio-net-pci,netdev=s		       \
+			-netdev stream,id=s,server=off,addr.type=unix,addr.path=${STATESETUP}/passt.socket"
+	fi
+
 	GUEST_CID=94557
 	context_run_bg qemu 'qemu-system-'"${QEMU_ARCH}"		   \
 		' -machine accel=kvm'                                      \
 		' -M accel=kvm:tcg'                                        \
-		' -m '${VMEM}' -cpu host -smp '${VCPUS}                    \
+		' -m '${__vmem}' -cpu host -smp '${VCPUS}		   \
 		' -kernel '"${KERNEL}"					   \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	   \
 		' -nodefaults'						   \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	   \
-		' -device virtio-net-pci,netdev=s0 '			   \
-		" -netdev stream,id=s0,server=off,addr.type=unix,addr.path=${STATESETUP}/passt.socket " \
+		" ${__qemu_netdev}"					   \
 		" -pidfile ${STATESETUP}/qemu.pid"			   \
 		" -device vhost-vsock-pci,guest-cid=$GUEST_CID"
 
@@ -214,6 +241,7 @@ setup_two_guests() {
 	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt_1.pcap"
 	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
+	[ ${VHOST_USER} -eq 1 ] && __opts="${__opts} --vhost-user"
 
 	context_run_bg passt_1 "./passt -s ${STATESETUP}/passt_1.socket -P ${STATESETUP}/passt_1.pid -f ${__opts} -t 10001 -u 10001"
 	wait_for [ -f "${STATESETUP}/passt_1.pid" ]
@@ -222,33 +250,54 @@ setup_two_guests() {
 	[ ${PCAP} -eq 1 ] && __opts="${__opts} -p ${LOGDIR}/passt_2.pcap"
 	[ ${DEBUG} -eq 1 ] && __opts="${__opts} -d"
 	[ ${TRACE} -eq 1 ] && __opts="${__opts} --trace"
+	[ ${VHOST_USER} -eq 1 ] && __opts="${__opts} --vhost-user"
 
 	context_run_bg passt_2 "./passt -s ${STATESETUP}/passt_2.socket -P ${STATESETUP}/passt_2.pid -f ${__opts} -t 10004 -u 10004"
 	wait_for [ -f "${STATESETUP}/passt_2.pid" ]
 
+	__vmem="$((${MEM_KIB} / 1024 / 4))"
+	if [ ${VHOST_USER} -eq 1 ]; then
+		__vmem="$(((${__vmem} + 500) / 1000))G"
+		__qemu_netdev1="					       \
+			-chardev socket,id=c,path=${STATESETUP}/passt_1.socket \
+			-netdev vhost-user,id=v,chardev=c		       \
+			-device virtio-net,netdev=v			       \
+			-object memory-backend-memfd,id=m,share=on,size=${__vmem} \
+			-numa node,memdev=m"
+		__qemu_netdev2="					       \
+			-chardev socket,id=c,path=${STATESETUP}/passt_2.socket \
+			-netdev vhost-user,id=v,chardev=c		       \
+			-device virtio-net,netdev=v			       \
+			-object memory-backend-memfd,id=m,share=on,size=${__vmem} \
+			-numa node,memdev=m"
+	else
+		__qemu_netdev1="-device virtio-net-pci,netdev=s		       \
+			-netdev stream,id=s,server=off,addr.type=unix,addr.path=${STATESETUP}/passt_1.socket"
+		__qemu_netdev2="-device virtio-net-pci,netdev=s		       \
+			-netdev stream,id=s,server=off,addr.type=unix,addr.path=${STATESETUP}/passt_2.socket"
+	fi
+
 	GUEST_1_CID=94557
 	context_run_bg qemu_1 'qemu-system-'"${QEMU_ARCH}"		     \
 		' -M accel=kvm:tcg'                                          \
-		' -m '${VMEM}' -cpu host -smp '${VCPUS}                      \
+		' -m '${__vmem}' -cpu host -smp '${VCPUS}		     \
 		' -kernel '"${KERNEL}"					     \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	     \
 		' -nodefaults'						     \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	     \
-		' -device virtio-net-pci,netdev=s0 '			     \
-		" -netdev stream,id=s0,server=off,addr.type=unix,addr.path=${STATESETUP}/passt_1.socket " \
+		" ${__qemu_netdev1}"					     \
 		" -pidfile ${STATESETUP}/qemu_1.pid"			     \
 		" -device vhost-vsock-pci,guest-cid=$GUEST_1_CID"
 
 	GUEST_2_CID=94558
 	context_run_bg qemu_2 'qemu-system-'"${QEMU_ARCH}"		     \
 		' -M accel=kvm:tcg'                                          \
-		' -m '${VMEM}' -cpu host -smp '${VCPUS}                      \
+		' -m '${__vmem}' -cpu host -smp '${VCPUS}		     \
 		' -kernel '"${KERNEL}"					     \
 		' -initrd '${INITRAMFS}' -nographic -serial stdio'	     \
 		' -nodefaults'						     \
 		' -append "console=ttyS0 mitigations=off apparmor=0" '	     \
-		' -device virtio-net-pci,netdev=s0 '			     \
-		" -netdev stream,id=s0,server=off,addr.type=unix,addr.path=${STATESETUP}/passt_2.socket " \
+		" ${__qemu_netdev2}"					     \
 		" -pidfile ${STATESETUP}/qemu_2.pid"			     \
 		" -device vhost-vsock-pci,guest-cid=$GUEST_2_CID"
 

@@ -93,6 +93,7 @@ run() {
 	test memory/passt
 	teardown memory
 
+	VHOST_USER=0
 	setup passt
 	test passt/ndp
 	test passt/dhcp
@@ -115,7 +116,22 @@ run() {
 	test two_guests/basic
 	teardown two_guests
 
+	VHOST_USER=1
+	setup passt_in_ns
+	test passt_vu/ndp
+	test passt_vu_in_ns/dhcp
+	test passt_vu_in_ns/icmp
+	test passt_vu_in_ns/tcp
+	test passt_vu_in_ns/udp
+	test passt_vu_in_ns/shutdown
+	teardown passt_in_ns
+
+	setup two_guests
+	test two_guests_vu/basic
+	teardown two_guests
+
 	VALGRIND=0
+	VHOST_USER=0
 	setup passt_in_ns
 	test passt/ndp
 	test passt_in_ns/dhcp
@@ -124,6 +140,15 @@ run() {
 	test perf/pasta_tcp
 	test perf/pasta_udp
 	test passt_in_ns/shutdown
+	teardown passt_in_ns
+
+	VHOST_USER=1
+	setup passt_in_ns
+	test passt_vu/ndp
+	test passt_vu_in_ns/dhcp
+	test perf/passt_vu_tcp
+	test perf/passt_vu_udp
+	test passt_vu_in_ns/shutdown
 	teardown passt_in_ns
 
 	# TODO: Make those faster by at least pre-installing gcc and make on

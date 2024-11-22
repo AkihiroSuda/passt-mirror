@@ -33,7 +33,7 @@ setup_memory() {
 
 	pane_or_context_run guest 'qemu-system-$(uname -m)'		   \
 		' -machine accel=kvm'                                      \
-		' -m '${VMEM}' -cpu host -smp '${VCPUS}                    \
+		' -m '$((${MEM_KIB} / 1024 / 4))' -cpu host -smp '${VCPUS}                    \
 		' -kernel ' "/boot/vmlinuz-$(uname -r)"			   \
 		' -initrd '${INITRAMFS_MEM}' -nographic -serial stdio'	   \
 		' -nodefaults'						   \

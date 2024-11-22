@@ -49,6 +49,21 @@ td:empty { visibility: hidden; }
 	__passt_tcp_LINE__ __passt_udp_LINE__
 </table>
 
+</li><li><p>passt with vhost-user support</p>
+<table class="passt" width="70%">
+	<tr>
+		<th/>
+		<th id="perf_passt_vu_tcp" colspan="__passt_vu_tcp_cols__">TCP, __passt_vu_tcp_threads__ at __passt_vu_tcp_freq__ GHz</th>
+		<th id="perf_passt_vu_udp" colspan="__passt_vu_udp_cols__">UDP, __passt_vu_udp_threads__ at __passt_vu_udp_freq__ GHz</th>
+	</tr>
+	<tr>
+		<td align="right">MTU:</td>
+		__passt_vu_tcp_header__
+		__passt_vu_udp_header__
+	</tr>
+	__passt_vu_tcp_LINE__ __passt_vu_udp_LINE__
+</table>
+
 <style type="text/CSS">
 table.pasta_local td { border: 0px solid; padding: 6px; line-height: 1; }
 table.pasta_local td { text-align: right; }
