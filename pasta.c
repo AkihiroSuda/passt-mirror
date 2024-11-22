@@ -369,8 +369,11 @@ void pasta_ns_conf(struct ctx *c)
 					  0, IFF_NOARP);
 
 			if (c->ip6.no_copy_addrs) {
-				rc = nl_addr_set(nl_sock_ns, c->pasta_ifi,
-						 AF_INET6, &c->ip6.addr, 64);
+				if (!IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)) {
+					rc = nl_addr_set(nl_sock_ns,
+							 c->pasta_ifi, AF_INET6,
+							 &c->ip6.addr, 64);
+				}
 			} else {
 				rc = nl_addr_dup(nl_sock, c->ifi6,
 						 nl_sock_ns, c->pasta_ifi,

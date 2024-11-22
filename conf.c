@@ -48,6 +48,20 @@
 
 #define NETNS_RUN_DIR	"/run/netns"
 
+#define IP4_LL_GUEST_ADDR	(struct in_addr){ htonl_constant(0xa9fe0201) }
+				/* 169.254.2.1, libslirp default: 10.0.2.1 */
+
+#define IP4_LL_GUEST_GW		(struct in_addr){ htonl_constant(0xa9fe0202) }
+				/* 169.254.2.2, libslirp default: 10.0.2.2 */
+
+#define IP4_LL_PREFIX_LEN	16
+
+#define IP6_LL_GUEST_GW		(struct in6_addr)			\
+				{{{ 0xfe, 0x80, 0, 0, 0, 0, 0, 0,	\
+				       0, 0, 0, 0, 0, 0, 0, 0x01 }}}
+
+const char *pasta_default_ifn = "tap0";
+
 /**
  * next_chunk - Return the next piece of a string delimited by a character
  * @s:		String to search
@@ -631,7 +645,7 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 		ifi = nl_get_ext_if(nl_sock, AF_INET);
 
 	if (!ifi) {
-		info("Couldn't pick external interface: disabling IPv4");
+		debug("Failed to detect external interface for IPv4");
 		return 0;
 	}
 
@@ -639,8 +653,8 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 		int rc = nl_route_get_def(nl_sock, ifi, AF_INET,
 					  &ip4->guest_gw);
 		if (rc < 0) {
-			err("Couldn't discover IPv4 gateway address: %s",
-			    strerror(-rc));
+			debug("Couldn't discover IPv4 gateway address: %s",
+			      strerror(-rc));
 			return 0;
 		}
 	}
@@ -649,8 +663,8 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 		int rc = nl_addr_get(nl_sock, ifi, AF_INET,
 				     &ip4->addr, &ip4->prefix_len, NULL);
 		if (rc < 0) {
-			err("Couldn't discover IPv4 address: %s",
-			    strerror(-rc));
+			debug("Couldn't discover IPv4 address: %s",
+			      strerror(-rc));
 			return 0;
 		}
 	}
@@ -678,6 +692,19 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 }
 
 /**
+ * conf_ip4_local() - Configure IPv4 addresses and attributes for local mode
+ * @ip4:	IPv4 context (will be written)
+ */
+static void conf_ip4_local(struct ip4_ctx *ip4)
+{
+	ip4->addr_seen = ip4->addr = IP4_LL_GUEST_ADDR;
+	ip4->our_tap_addr = ip4->guest_gw = IP4_LL_GUEST_GW;
+	ip4->prefix_len = IP4_LL_PREFIX_LEN;
+
+	ip4->no_copy_addrs = ip4->no_copy_routes = true;
+}
+
+/**
  * conf_ip6() - Verify or detect IPv6 support, get relevant addresses
  * @ifi:	Host interface to attempt (0 to determine one)
  * @ip6:	IPv6 context (will be written)
@@ -693,15 +720,15 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 		ifi = nl_get_ext_if(nl_sock, AF_INET6);
 
 	if (!ifi) {
-		info("Couldn't pick external interface: disabling IPv6");
+		debug("Failed to detect external interface for IPv6");
 		return 0;
 	}
 
 	if (IN6_IS_ADDR_UNSPECIFIED(&ip6->guest_gw)) {
 		rc = nl_route_get_def(nl_sock, ifi, AF_INET6, &ip6->guest_gw);
 		if (rc < 0) {
-			err("Couldn't discover IPv6 gateway address: %s",
-			    strerror(-rc));
+			debug("Couldn't discover IPv6 gateway address: %s",
+			      strerror(-rc));
 			return 0;
 		}
 	}
@@ -710,7 +737,7 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 			 IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ? &ip6->addr : NULL,
 			 &prefix_len, &ip6->our_tap_ll);
 	if (rc < 0) {
-		err("Couldn't discover IPv6 address: %s", strerror(-rc));
+		debug("Couldn't discover IPv6 address: %s", strerror(-rc));
 		return 0;
 	}
 
@@ -724,6 +751,17 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 		return 0;
 
 	return ifi;
+}
+
+/**
+ * conf_ip6_local() - Configure IPv6 addresses and attributes for local mode
+ * @ip6:	IPv6 context (will be written)
+ */
+static void conf_ip6_local(struct ip6_ctx *ip6)
+{
+	ip6->our_tap_ll = ip6->guest_gw = IP6_LL_GUEST_GW;
+
+	ip6->no_copy_addrs = ip6->no_copy_routes = true;
 }
 
 /**
@@ -948,12 +986,14 @@ static void conf_print(const struct ctx *c)
 	char bufmac[ETH_ADDRSTRLEN], ifn[IFNAMSIZ];
 	int i;
 
-	info("Template interface: %s%s%s%s%s",
-	     c->ifi4 ? if_indextoname(c->ifi4, ifn) : "",
-	     c->ifi4 ? " (IPv4)" : "",
-	     (c->ifi4 && c->ifi6) ? ", " : "",
-	     c->ifi6 ? if_indextoname(c->ifi6, ifn) : "",
-	     c->ifi6 ? " (IPv6)" : "");
+	if (c->ifi4 > 0 || c->ifi6 > 0) {
+		info("Template interface: %s%s%s%s%s",
+		     c->ifi4 > 0 ? if_indextoname(c->ifi4, ifn) : "",
+		     c->ifi4 > 0 ? " (IPv4)" : "",
+		     (c->ifi4 && c->ifi6) ? ", " : "",
+		     c->ifi6 > 0 ? if_indextoname(c->ifi6, ifn) : "",
+		     c->ifi6 > 0 ? " (IPv6)" : "");
+	}
 
 	if (*c->ip4.ifname_out || *c->ip6.ifname_out) {
 		info("Outbound interface: %s%s%s%s%s",
@@ -1024,9 +1064,9 @@ static void conf_print(const struct ctx *c)
 
 		if (!c->no_ndp && !c->no_dhcpv6)
 			info("NDP/DHCPv6:");
-		else if (!c->no_ndp)
-			info("DHCPv6:");
 		else if (!c->no_dhcpv6)
+			info("DHCPv6:");
+		else if (!c->no_ndp)
 			info("NDP:");
 		else
 			goto dns6;
@@ -1733,10 +1773,23 @@ void conf(struct ctx *c, int argc, char **argv)
 		c->ifi4 = conf_ip4(ifi4, &c->ip4);
 	if (!v4_only)
 		c->ifi6 = conf_ip6(ifi6, &c->ip6);
-	if ((!c->ifi4 && !c->ifi6) ||
-	    (*c->ip4.ifname_out && !c->ifi4) ||
+	if ((*c->ip4.ifname_out && !c->ifi4) ||
 	    (*c->ip6.ifname_out && !c->ifi6))
 		die("External interface not usable");
+	if (!c->ifi4 && !c->ifi6) {
+		info("No external interface as template, switch to local mode");
+
+		conf_ip4_local(&c->ip4);
+		c->ifi4 = -1;
+
+		conf_ip6_local(&c->ip6);
+		c->ifi6 = -1;
+
+		if (!*c->pasta_ifn) {
+			strncpy(c->pasta_ifn, pasta_default_ifn,
+				sizeof(c->pasta_ifn) - 1);
+		}
+	}
 
 	if (c->ifi4 && !no_map_gw &&
 	    IN4_IS_ADDR_UNSPECIFIED(&c->ip4.map_host_loopback))
@@ -1840,6 +1893,8 @@ void conf(struct ctx *c, int argc, char **argv)
 	if (!c->ifi6) {
 		c->no_ndp = 1;
 		c->no_dhcpv6 = 1;
+	} else if (IN6_IS_ADDR_UNSPECIFIED(&c->ip6.addr)) {
+		c->no_dhcpv6 = 1;
 	}
 
 	if (!c->mtu)
@@ -1848,9 +1903,9 @@ void conf(struct ctx *c, int argc, char **argv)
 	get_dns(c);
 
 	if (!*c->pasta_ifn) {
-		if (c->ifi4)
+		if (c->ifi4 > 0)
 			if_indextoname(c->ifi4, c->pasta_ifn);
-		else
+		else if (c->ifi6 > 0)
 			if_indextoname(c->ifi6, c->pasta_ifn);
 	}
 

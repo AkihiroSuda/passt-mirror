@@ -202,10 +202,10 @@ struct ip6_ctx {
  * @our_tap_mac:	Pasta/passt's MAC on the tap link
  * @guest_mac:		MAC address of guest or namespace, seen or configured
  * @hash_secret:	128-bit secret for siphash functions
- * @ifi4:		Index of template interface for IPv4, 0 if IPv4 disabled
+ * @ifi4:		Template interface for IPv4, -1: none, 0: IPv4 disabled
  * @ip:			IPv4 configuration
  * @dns_search:		DNS search list
- * @ifi6:		Index of template interface for IPv6, 0 if IPv6 disabled
+ * @ifi6:		Template interface for IPv6, -1: none, 0: IPv6 disabled
  * @ip6:		IPv6 configuration
  * @pasta_ifn:		Name of namespace interface for pasta
  * @pasta_ifi:		Index of namespace interface for pasta
@@ -258,12 +258,12 @@ struct ctx {
 	unsigned char guest_mac[ETH_ALEN];
 	uint64_t hash_secret[2];
 
-	unsigned int ifi4;
+	int ifi4;
 	struct ip4_ctx ip4;
 
 	struct fqdn dns_search[MAXDNSRCH];
 
-	unsigned int ifi6;
+	int ifi6;
 	struct ip6_ctx ip6;
 
 	char pasta_ifn[IF_NAMESIZE];
