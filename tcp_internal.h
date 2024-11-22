@@ -168,19 +168,15 @@ void tcp_update_check_tcp4(const struct iphdr *iph,
 void tcp_update_check_tcp6(const struct ipv6hdr *ip6h,
 			   const struct iovec *iov, int iov_cnt,
 			   size_t l4offset);
-size_t tcp_fill_headers4(const struct tcp_tap_conn *conn,
-			 struct tap_hdr *taph,
-			 struct iphdr *iph, struct tcp_payload_t *bp,
-			 size_t dlen, const uint16_t *check,
-			 uint32_t seq, bool no_tcp_csum);
-size_t tcp_fill_headers6(const struct tcp_tap_conn *conn,
-			 struct tap_hdr *taph,
-			 struct ipv6hdr *ip6h, struct tcp_payload_t *bp,
-			 size_t dlen, uint32_t seq, bool no_tcp_csum);
-size_t tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
-			       struct iovec *iov, size_t dlen,
-			       const uint16_t *check, uint32_t seq,
-			       bool no_tcp_csum);
+void tcp_fill_headers4(const struct tcp_tap_conn *conn,
+		       struct tap_hdr *taph, struct iphdr *iph,
+		       struct tcp_payload_t *bp, size_t dlen,
+		       const uint16_t *check, uint32_t seq, bool no_tcp_csum);
+void tcp_fill_headers6(const struct tcp_tap_conn *conn,
+		       struct tap_hdr *taph, struct ipv6hdr *ip6h,
+		       struct tcp_payload_t *bp, size_t dlen,
+		       uint32_t seq, bool no_tcp_csum);
+
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,
 			  bool force_seq, struct tcp_info_linux *tinfo);
 int tcp_prepare_flags(const struct ctx *c, struct tcp_tap_conn *conn,

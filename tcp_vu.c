@@ -98,7 +98,7 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
 	const struct flowside *tapside = TAPFLOW(conn);
-	size_t l2len, l4len, optlen, hdrlen;
+	size_t optlen, hdrlen;
 	struct vu_virtq_element flags_elem[2];
 	struct tcp_payload_t *payload;
 	struct ipv6hdr *ip6h = NULL;
@@ -157,19 +157,15 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		return ret;
 	}
 
-	if (CONN_V4(conn)) {
-		l4len = tcp_fill_headers4(conn, NULL, iph, payload, optlen,
-					  NULL, seq, true);
-		l2len = sizeof(*iph);
-	} else {
-		l4len = tcp_fill_headers6(conn, NULL, ip6h, payload, optlen,
-					  seq, true);
-		l2len = sizeof(*ip6h);
-	}
-	l2len += l4len + sizeof(struct ethhdr);
+	flags_elem[0].in_sg[0].iov_len = hdrlen + optlen;
 
-	flags_elem[0].in_sg[0].iov_len = l2len +
-				   sizeof(struct virtio_net_hdr_mrg_rxbuf);
+	if (CONN_V4(conn)) {
+		tcp_fill_headers4(conn, NULL, iph, payload, optlen, NULL, seq,
+				  true);
+	} else {
+		tcp_fill_headers6(conn, NULL, ip6h, payload, optlen, seq, true);
+	}
+
 	if (*c->pcap) {
 		tcp_vu_update_check(tapside, &flags_elem[0].in_sg[0], 1);
 		pcap_iov(&flags_elem[0].in_sg[0], 1,

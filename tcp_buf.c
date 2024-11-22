@@ -148,6 +148,36 @@ void tcp_payload_flush(const struct ctx *c)
 }
 
 /**
+ * tcp_buf_fill_headers() - Fill 802.3, IP, TCP headers in pre-cooked buffers
+ * @conn:	Connection pointer
+ * @iov:	Pointer to an array of iovec of TCP pre-cooked buffers
+ * @dlen:	TCP payload length
+ * @check:	Checksum, if already known
+ * @seq:	Sequence number for this segment
+ * @no_tcp_csum: Do not set TCP checksum
+ */
+static void tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
+				    struct iovec *iov, size_t dlen,
+				    const uint16_t *check, uint32_t seq,
+				    bool no_tcp_csum)
+{
+	const struct flowside *tapside = TAPFLOW(conn);
+	const struct in_addr *a4 = inany_v4(&tapside->oaddr);
+
+	if (a4) {
+		tcp_fill_headers4(conn, iov[TCP_IOV_TAP].iov_base,
+				  iov[TCP_IOV_IP].iov_base,
+				  iov[TCP_IOV_PAYLOAD].iov_base, dlen,
+				  check, seq, no_tcp_csum);
+	} else {
+		tcp_fill_headers6(conn, iov[TCP_IOV_TAP].iov_base,
+				  iov[TCP_IOV_IP].iov_base,
+				  iov[TCP_IOV_PAYLOAD].iov_base, dlen,
+				  seq, no_tcp_csum);
+	}
+}
+
+/**
  * tcp_buf_send_flag() - Send segment with flags to tap (no payload)
  * @c:         Execution context
  * @conn:      Connection pointer
@@ -181,8 +211,10 @@ int tcp_buf_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		return ret;
 
 	tcp_payload_used++;
-	l4len = tcp_l2_buf_fill_headers(conn, iov, optlen, NULL, seq, false);
+	l4len = optlen + sizeof(struct tcphdr);
 	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
+	tcp_l2_buf_fill_headers(conn, iov, optlen, NULL, seq, false);
+
 	if (flags & DUP_ACK) {
 		struct iovec *dup_iov = tcp_l2_iov[tcp_payload_used++];
 
@@ -215,7 +247,6 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 	struct tcp_payload_t *payload;
 	const uint16_t *check = NULL;
 	struct iovec *iov;
-	size_t l4len;
 
 	conn->seq_to_tap = seq + dlen;
 	tcp_frame_conns[tcp_payload_used] = conn;
@@ -238,8 +269,8 @@ static void tcp_data_to_tap(const struct ctx *c, struct tcp_tap_conn *conn,
 	payload->th.th_x2 = 0;
 	payload->th.th_flags = 0;
 	payload->th.ack = 1;
-	l4len = tcp_l2_buf_fill_headers(conn, iov, dlen, check, seq, false);
-	iov[TCP_IOV_PAYLOAD].iov_len = l4len;
+	iov[TCP_IOV_PAYLOAD].iov_len = dlen + sizeof(struct tcphdr);
+	tcp_l2_buf_fill_headers(conn, iov, dlen, check, seq, false);
 	if (++tcp_payload_used > TCP_FRAMES_MEM - 1)
 		tcp_payload_flush(c);
 }
