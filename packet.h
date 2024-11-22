@@ -7,16 +7,6 @@
 #define PACKET_H
 
 /**
- * struct desc - Generic offset-based descriptor within buffer
- * @offset:	Offset of descriptor relative to buffer start, 32-bit limit
- * @len:	Length of descriptor, host order, 16-bit limit
- */
-struct desc {
-	uint32_t offset;
-	uint16_t len;
-};
-
-/**
  * struct pool - Generic pool of packets stored in a buffer
  * @buf:	Buffer storing packet descriptors
  * @buf_size:	Total size of buffer
@@ -29,7 +19,7 @@ struct pool {
 	size_t buf_size;
 	size_t size;
 	size_t count;
-	struct desc pkt[1];
+	struct iovec pkt[1];
 };
 
 void packet_add_do(struct pool *p, size_t len, const char *start,
@@ -54,7 +44,7 @@ struct _name ## _t {							\
 	size_t buf_size;						\
 	size_t size;							\
 	size_t count;							\
-	struct desc pkt[_size];						\
+	struct iovec pkt[_size];					\
 }
 
 #define PACKET_POOL_INIT_NOCAST(_size, _buf, _buf_size)			\
