@@ -37,7 +37,7 @@ FLAGS += -DDUAL_STACK_SOCKETS=$(DUAL_STACK_SOCKETS)
 PASST_SRCS = arch.c arp.c checksum.c conf.c dhcp.c dhcpv6.c flow.c fwd.c \
 	icmp.c igmp.c inany.c iov.c ip.c isolation.c lineread.c log.c mld.c \
 	ndp.c netlink.c packet.c passt.c pasta.c pcap.c pif.c tap.c tcp.c \
-	tcp_buf.c tcp_splice.c udp.c udp_flow.c util.c virtio.c
+	tcp_buf.c tcp_splice.c udp.c udp_flow.c util.c vhost_user.c virtio.c
 QRAP_SRCS = qrap.c
 SRCS = $(PASST_SRCS) $(QRAP_SRCS)
 
@@ -47,7 +47,7 @@ PASST_HEADERS = arch.h arp.h checksum.h conf.h dhcp.h dhcpv6.h flow.h fwd.h \
 	flow_table.h icmp.h icmp_flow.h inany.h iov.h ip.h isolation.h \
 	lineread.h log.h ndp.h netlink.h packet.h passt.h pasta.h pcap.h pif.h \
 	siphash.h tap.h tcp.h tcp_buf.h tcp_conn.h tcp_internal.h tcp_splice.h \
-	udp.h udp_flow.h util.h virtio.h
+	udp.h udp_flow.h util.h vhost_user.h virtio.h
 HEADERS = $(PASST_HEADERS) seccomp.h
 
 C := \#include <sys/random.h>\nint main(){int a=getrandom(0, 0, 0);}

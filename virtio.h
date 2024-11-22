@@ -105,6 +105,7 @@ struct vu_dev_region {
  * @protocol_features:	Vhost-user protocol features
  */
 struct vu_dev {
+	struct ctx *context;
 	uint32_t nregions;
 	struct vu_dev_region regions[VHOST_USER_MAX_RAM_SLOTS];
 	struct vu_virtq vq[VHOST_USER_MAX_QUEUES];
