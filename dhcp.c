@@ -112,6 +112,8 @@ struct msg {
 	uint32_t xid;
 	uint16_t secs;
 	uint16_t flags;
+#define FLAG_BROADCAST	htons_constant(0x8000)
+
 	uint32_t ciaddr;
 	struct in_addr yiaddr;
 	uint32_t siaddr;
@@ -285,10 +287,10 @@ int dhcp(const struct ctx *c, const struct pool *p)
 {
 	size_t mlen, dlen, offset = 0, opt_len, opt_off = 0;
 	char macstr[ETH_ADDRSTRLEN];
+	struct in_addr mask, dst;
 	const struct ethhdr *eh;
 	const struct iphdr *iph;
 	const struct udphdr *uh;
-	struct in_addr mask;
 	unsigned int i;
 	struct msg *m;
 
@@ -400,7 +402,13 @@ int dhcp(const struct ctx *c, const struct pool *p)
 		opt_set_dns_search(c, sizeof(m->o));
 
 	dlen = offsetof(struct msg, o) + fill(m);
-	tap_udp4_send(c, c->ip4.our_tap_addr, 67, c->ip4.addr, 68, m, dlen);
+
+	if (m->flags & FLAG_BROADCAST)
+		dst = in4addr_broadcast;
+	else
+		dst = c->ip4.addr;
+
+	tap_udp4_send(c, c->ip4.our_tap_addr, 67, dst, 68, m, dlen);
 
 	return 1;
 }

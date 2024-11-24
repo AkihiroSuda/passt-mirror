@@ -101,4 +101,7 @@ static const struct in6_addr in6addr_ll_all_nodes = {
 	},
 };
 
+/* IPv4 Limited Broadcast (RFC 919, Section 7), 255.255.255.255 */
+static const struct in_addr in4addr_broadcast = { 0xffffffff };
+
 #endif /* IP_H */
