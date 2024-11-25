@@ -788,7 +788,7 @@ static void usage(const char *name, FILE *f, int status)
 		"  -n, --netmask MASK	Assign IPv4 MASK, dot-decimal or bits\n"
 		"    default: netmask from matching address on the host\n"
 		"  -M, --mac-addr ADDR	Use source MAC address ADDR\n"
-		"    default: MAC address from interface with default route\n"
+		"    default: 9a:55:9a:55:9a:55 (locally administered)\n"
 		"  -g, --gateway ADDR	Pass IPv4 or IPv6 address as gateway\n"
 		"    default: gateway from interface with default route\n"
 		"  -i, --interface NAME	Interface for addresses and routes\n"
