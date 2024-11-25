@@ -373,14 +373,14 @@ Translate \fIaddr\fR in the guest to be equal to the guest's assigned
 address on the host.  That is, packets from the guest to \fIaddr\fR
 will be redirected to the address assigned to the guest with \fB-a\fR,
 or by default the host's global address.  This allows the guest to
-access services availble on the host's global address, even though its
+access services available on the host's global address, even though its
 own address shadows that of the host.
 
 If \fIaddr\fR is 'none', no address is mapped.  Only one IPv4 and one
 IPv6 address can be translated, and if the option is specified
 multiple times, the last one for each address type takes effect.
 
-Default is no mapping.
+By default, mapping happens as described for the \-\-map-host-loopback option.
 
 .TP
 .BR \-4 ", " \-\-ipv4-only
