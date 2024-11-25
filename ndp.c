@@ -420,9 +420,13 @@ void ndp_timer(const struct ctx *c, const struct timespec *now)
 	interval = min_rtr_adv_interval +
 		random() % (max_rtr_adv_interval - min_rtr_adv_interval);
 
+	if (!next_ra)
+		goto first;
+
 	info("NDP: sending unsolicited RA, next in %llds", (long long)interval);
 
 	ndp_ra(c, &in6addr_ll_all_nodes);
 
+first:
 	next_ra = now->tv_sec + interval;
 }
