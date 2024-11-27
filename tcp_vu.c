@@ -73,15 +73,19 @@ static void tcp_vu_update_check(const struct flowside *tapside,
 	char *base = iov[0].iov_base;
 
 	if (inany_v4(&tapside->oaddr)) {
+		struct tcphdr *th = vu_payloadv4(base);
 		const struct iphdr *iph = vu_ip(base);
+		struct iov_tail payload = IOV_TAIL(iov, iov_cnt,
+						   (char *)(th + 1) - base);
 
-		tcp_update_check_tcp4(iph, iov, iov_cnt,
-				      (char *)vu_payloadv4(base) - base);
+		tcp_update_check_tcp4(iph, th, &payload);
 	} else {
+		struct tcphdr *th = vu_payloadv6(base);
 		const struct ipv6hdr *ip6h = vu_ip(base);
+		struct iov_tail payload = IOV_TAIL(iov, iov_cnt,
+						   (char *)(th + 1) - base);
 
-		tcp_update_check_tcp6(ip6h, iov, iov_cnt,
-				      (char *)vu_payloadv6(base) - base);
+		tcp_update_check_tcp6(ip6h, th, &payload);
 	}
 }
 
