@@ -185,7 +185,6 @@ bool iov_tail_prune(struct iov_tail *tail)
  *
  * Returns:    The total size in bytes.
  */
-/* cppcheck-suppress unusedFunction */
 size_t iov_tail_size(struct iov_tail *tail)
 {
 	iov_tail_prune(tail);

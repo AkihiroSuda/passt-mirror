@@ -184,11 +184,12 @@ void tap_udp4_send(const struct ctx *c, struct in_addr src, in_port_t sport,
 		.iov_base = (void *)in,
 		.iov_len = dlen
 	};
+	struct iov_tail payload = IOV_TAIL(&iov, 1, 0);
 
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
 	uh->len = htons(l4len);
-	csum_udp4(uh, src, dst, &iov, 1, 0);
+	csum_udp4(uh, src, dst, &payload);
 	memcpy(data, in, dlen);
 
 	tap_send_single(c, buf, dlen + (data - buf));
@@ -271,11 +272,12 @@ void tap_udp6_send(const struct ctx *c,
 		.iov_base = in,
 		.iov_len = dlen
 	};
+	struct iov_tail payload = IOV_TAIL(&iov, 1, 0);
 
 	uh->source = htons(sport);
 	uh->dest = htons(dport);
 	uh->len = htons(l4len);
-	csum_udp6(uh, src, dst, &iov, 1, 0);
+	csum_udp6(uh, src, dst, &payload);
 	memcpy(data, in, dlen);
 
 	tap_send_single(c, buf, dlen + (data - buf));

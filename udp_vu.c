@@ -199,15 +199,16 @@ static void udp_vu_csum(const struct flowside *toside, int iov_used)
 	const struct in_addr *dst4 = inany_v4(&toside->eaddr);
 	char *base = iov_vu[0].iov_base;
 	struct udp_payload_t *bp;
+	struct iov_tail data;
 
 	if (src4 && dst4) {
 		bp = vu_payloadv4(base);
-		csum_udp4(&bp->uh, *src4, *dst4, iov_vu, iov_used,
-			  (char *)&bp->data - base);
+		data = IOV_TAIL(iov_vu, iov_used, (char *)&bp->data - base);
+		csum_udp4(&bp->uh, *src4, *dst4, &data);
 	} else {
 		bp = vu_payloadv6(base);
-		csum_udp6(&bp->uh, &toside->oaddr.a6, &toside->eaddr.a6,
-			  iov_vu, iov_used, (char *)&bp->data - base);
+		data = IOV_TAIL(iov_vu, iov_used, (char *)&bp->data - base);
+		csum_udp6(&bp->uh, &toside->oaddr.a6, &toside->eaddr.a6, &data);
 	}
 }
 
