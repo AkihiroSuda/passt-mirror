@@ -168,11 +168,11 @@ void tcp_update_check_tcp6(const struct ipv6hdr *ip6h, struct tcphdr *th,
 			   struct iov_tail *payload);
 void tcp_fill_headers4(const struct tcp_tap_conn *conn,
 		       struct tap_hdr *taph, struct iphdr *iph,
-		       struct tcp_payload_t *bp, size_t dlen,
+		       struct tcphdr *th, struct iov_tail *payload,
 		       const uint16_t *check, uint32_t seq, bool no_tcp_csum);
 void tcp_fill_headers6(const struct tcp_tap_conn *conn,
 		       struct tap_hdr *taph, struct ipv6hdr *ip6h,
-		       struct tcp_payload_t *bp, size_t dlen,
+		       struct tcphdr *th, struct iov_tail *payload,
 		       uint32_t seq, bool no_tcp_csum);
 
 int tcp_update_seqack_wnd(const struct ctx *c, struct tcp_tap_conn *conn,

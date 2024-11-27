@@ -104,10 +104,12 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	const struct flowside *tapside = TAPFLOW(conn);
 	size_t optlen, hdrlen;
 	struct vu_virtq_element flags_elem[2];
-	struct tcp_payload_t *payload;
 	struct ipv6hdr *ip6h = NULL;
 	struct iovec flags_iov[2];
+	struct tcp_syn_opts *opts;
 	struct iphdr *iph = NULL;
+	struct iov_tail payload;
+	struct tcphdr *th;
 	struct ethhdr *eh;
 	uint32_t seq;
 	int elem_cnt;
@@ -139,35 +141,35 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 		iph = vu_ip(flags_elem[0].in_sg[0].iov_base);
 		*iph = (struct iphdr)L2_BUF_IP4_INIT(IPPROTO_TCP);
 
-		payload = vu_payloadv4(flags_elem[0].in_sg[0].iov_base);
+		th = vu_payloadv4(flags_elem[0].in_sg[0].iov_base);
 	} else {
 		eh->h_proto = htons(ETH_P_IPV6);
 
 		ip6h = vu_ip(flags_elem[0].in_sg[0].iov_base);
 		*ip6h = (struct ipv6hdr)L2_BUF_IP6_INIT(IPPROTO_TCP);
-		payload = vu_payloadv6(flags_elem[0].in_sg[0].iov_base);
+		th = vu_payloadv6(flags_elem[0].in_sg[0].iov_base);
 	}
 
-	memset(&payload->th, 0, sizeof(payload->th));
-	payload->th.doff = offsetof(struct tcp_payload_t, data) / 4;
-	payload->th.ack = 1;
+	memset(th, 0, sizeof(*th));
+	th->doff = sizeof(*th) / 4;
+	th->ack = 1;
 
 	seq = conn->seq_to_tap;
-	ret = tcp_prepare_flags(c, conn, flags, &payload->th,
-				(struct tcp_syn_opts *)payload->data,
-				&optlen);
+	opts = (struct tcp_syn_opts *)(th + 1);
+	ret = tcp_prepare_flags(c, conn, flags, th, opts, &optlen);
 	if (ret <= 0) {
 		vu_queue_rewind(vq, 1);
 		return ret;
 	}
 
 	flags_elem[0].in_sg[0].iov_len = hdrlen + optlen;
+	payload = IOV_TAIL(flags_elem[0].in_sg, 1, hdrlen);
 
 	if (CONN_V4(conn)) {
-		tcp_fill_headers4(conn, NULL, iph, payload, optlen, NULL, seq,
-				  true);
+		tcp_fill_headers4(conn, NULL, iph, th, &payload,
+				  NULL, seq, true);
 	} else {
-		tcp_fill_headers6(conn, NULL, ip6h, payload, optlen, seq, true);
+		tcp_fill_headers6(conn, NULL, ip6h, th, &payload, seq, true);
 	}
 
 	if (*c->pcap) {
@@ -317,23 +319,28 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c,
  * tcp_vu_prepare() - Prepare the frame header
  * @c:		Execution context
  * @conn:	Connection pointer
- * @first:	Pointer to the array of IO vectors
- * @dlen:	Packet data length
+ * @iov:	Pointer to the array of IO vectors
+ * @iov_cnt:	Number of entries in @iov
  * @check:	Checksum, if already known
  */
-static void tcp_vu_prepare(const struct ctx *c,
-			   struct tcp_tap_conn *conn, char *base,
-			   size_t dlen, const uint16_t **check)
+static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
+			   struct iovec *iov, size_t iov_cnt,
+			   const uint16_t **check)
 {
 	const struct flowside *toside = TAPFLOW(conn);
-	struct tcp_payload_t *payload;
+	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
+	size_t hdrlen = tcp_vu_hdrlen(v6);
+	struct iov_tail payload = IOV_TAIL(iov, iov_cnt, hdrlen);
+	char *base = iov[0].iov_base;
 	struct ipv6hdr *ip6h = NULL;
 	struct iphdr *iph = NULL;
+	struct tcphdr *th;
 	struct ethhdr *eh;
 
 	/* we guess the first iovec provided by the guest can embed
 	 * all the headers needed by L2 frame
 	 */
+	ASSERT(iov[0].iov_len >= hdrlen);
 
 	eh = vu_eth(base);
 
@@ -342,31 +349,31 @@ static void tcp_vu_prepare(const struct ctx *c,
 
 	/* initialize header */
 
-	if (inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr)) {
+	if (!v6) {
 		eh->h_proto = htons(ETH_P_IP);
 
 		iph = vu_ip(base);
 		*iph = (struct iphdr)L2_BUF_IP4_INIT(IPPROTO_TCP);
-		payload = vu_payloadv4(base);
+		th = vu_payloadv4(base);
 	} else {
 		eh->h_proto = htons(ETH_P_IPV6);
 
 		ip6h = vu_ip(base);
 		*ip6h = (struct ipv6hdr)L2_BUF_IP6_INIT(IPPROTO_TCP);
 
-		payload = vu_payloadv6(base);
+		th = vu_payloadv6(base);
 	}
 
-	memset(&payload->th, 0, sizeof(payload->th));
-	payload->th.doff = offsetof(struct tcp_payload_t, data) / 4;
-	payload->th.ack = 1;
+	memset(th, 0, sizeof(*th));
+	th->doff = sizeof(*th) / 4;
+	th->ack = 1;
 
-	if (inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr)) {
-		tcp_fill_headers4(conn, NULL, iph, payload, dlen,
+	if (!v6) {
+		tcp_fill_headers4(conn, NULL, iph, th, &payload,
 				  *check, conn->seq_to_tap, true);
 		*check = &iph->check;
 	} else {
-		tcp_fill_headers6(conn, NULL, ip6h, payload, dlen,
+		tcp_fill_headers6(conn, NULL, ip6h, th, &payload,
 				  conn->seq_to_tap, true);
 	}
 }
@@ -478,7 +485,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		if (i + 1 == head_cnt)
 			check = NULL;
 
-		tcp_vu_prepare(c, conn, iov->iov_base, dlen, &check);
+		tcp_vu_prepare(c, conn, iov, buf_cnt, &check);
 
 		if (*c->pcap) {
 			tcp_vu_update_check(tapside, iov, buf_cnt);

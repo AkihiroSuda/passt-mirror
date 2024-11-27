@@ -236,7 +236,6 @@ void *iov_peek_header_(struct iov_tail *tail, size_t len, size_t align)
  *	    overruns the IO vector, is not contiguous or doesn't have the
  *	    requested alignment.
  */
-/* cppcheck-suppress unusedFunction */
 void *iov_remove_header_(struct iov_tail *tail, size_t len, size_t align)
 {
 	char *p = iov_peek_header_(tail, len, align);
