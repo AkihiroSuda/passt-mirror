@@ -463,7 +463,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	for (i = 0, check = NULL; i < head_cnt; i++) {
 		struct iovec *iov = &elem[head[i]].in_sg[0];
 		int buf_cnt = head[i + 1] - head[i];
-		int dlen = iov_size(iov, buf_cnt) - hdrlen;
+		ssize_t dlen = iov_size(iov, buf_cnt) - hdrlen;
 
 		vu_set_vnethdr(vdev, iov->iov_base, buf_cnt);
 
