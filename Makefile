@@ -17,8 +17,9 @@ DUAL_STACK_SOCKETS := 1
 
 TARGET ?= $(shell $(CC) -dumpmachine)
 # Get 'uname -m'-like architecture description for target
-TARGET_ARCH := $(shell echo $(TARGET) | cut -f1 -d- | tr [A-Z] [a-z])
-TARGET_ARCH := $(shell echo $(TARGET_ARCH) | sed 's/powerpc/ppc/')
+TARGET_ARCH := $(firstword $(subst -, ,$(TARGET)))
+TARGET_ARCH := $(patsubst [:upper:],[:lower:],$(TARGET_ARCH))
+TARGET_ARCH := $(subst powerpc,ppc,$(TARGET_ARCH))
 
 # On some systems enabling optimization also enables source fortification,
 # automagically. Do not override it.
