@@ -62,40 +62,6 @@ static size_t tcp_vu_hdrlen(bool v6)
 }
 
 /**
- * tcp_vu_update_check() - Calculate TCP checksum
- * @tapside:	Address information for one side of the flow
- * @iov:	Pointer to the array of IO vectors
- * @iov_cnt:	Length of the array
- */
-static void tcp_vu_update_check(const struct flowside *tapside,
-			        struct iovec *iov, int iov_cnt)
-{
-	char *base = iov[0].iov_base;
-	struct iov_tail payload;
-	struct tcphdr *th;
-	uint32_t psum;
-
-	if (inany_v4(&tapside->oaddr)) {
-		const struct in_addr *src4 = inany_v4(&tapside->oaddr);
-		const struct in_addr *dst4 = inany_v4(&tapside->eaddr);
-		const struct iphdr *iph = vu_ip(base);
-		size_t l4len = ntohs(iph->tot_len) - sizeof(*iph);
-
-		th = vu_payloadv4(base);
-		psum = proto_ipv4_header_psum(l4len, IPPROTO_TCP, *src4, *dst4);
-	} else {
-		const struct ipv6hdr *ip6h = vu_ip(base);
-		size_t l4len = ntohs(ip6h->payload_len);
-
-		th = vu_payloadv6(base);
-		psum = proto_ipv6_header_psum(l4len, IPPROTO_TCP,
-					      &ip6h->saddr, &ip6h->daddr);
-	}
-	payload = IOV_TAIL(iov, iov_cnt, (char *)(th + 1) - base);
-	tcp_update_csum(psum, th, &payload);
-}
-
-/**
  * tcp_vu_send_flag() - Send segment with flags to vhost-user (no payload)
  * @c:		Execution context
  * @conn:	Connection pointer
@@ -107,7 +73,6 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 {
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
-	const struct flowside *tapside = TAPFLOW(conn);
 	size_t optlen, hdrlen;
 	struct vu_virtq_element flags_elem[2];
 	struct ipv6hdr *ip6h = NULL;
@@ -172,10 +137,9 @@ int tcp_vu_send_flag(const struct ctx *c, struct tcp_tap_conn *conn, int flags)
 	payload = IOV_TAIL(flags_elem[0].in_sg, 1, hdrlen);
 
 	tcp_fill_headers(conn, NULL, ip4h, ip6h, th, &payload,
-			 NULL, seq, true);
+			 NULL, seq, !*c->pcap);
 
 	if (*c->pcap) {
-		tcp_vu_update_check(tapside, &flags_elem[0].in_sg[0], 1);
 		pcap_iov(&flags_elem[0].in_sg[0], 1,
 			 sizeof(struct virtio_net_hdr_mrg_rxbuf));
 	}
@@ -319,15 +283,16 @@ static ssize_t tcp_vu_sock_recv(const struct ctx *c,
 
 /**
  * tcp_vu_prepare() - Prepare the frame header
- * @c:		Execution context
- * @conn:	Connection pointer
- * @iov:	Pointer to the array of IO vectors
- * @iov_cnt:	Number of entries in @iov
- * @check:	Checksum, if already known
+ * @c:			Execution context
+ * @conn:		Connection pointer
+ * @iov:		Pointer to the array of IO vectors
+ * @iov_cnt:		Number of entries in @iov
+ * @check:		Checksum, if already known
+ * @no_tcp_csum:	Do not set TCP checksum
  */
 static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 			   struct iovec *iov, size_t iov_cnt,
-			   const uint16_t **check)
+			   const uint16_t **check, bool no_tcp_csum)
 {
 	const struct flowside *toside = TAPFLOW(conn);
 	bool v6 = !(inany_v4(&toside->eaddr) && inany_v4(&toside->oaddr));
@@ -371,7 +336,7 @@ static void tcp_vu_prepare(const struct ctx *c, struct tcp_tap_conn *conn,
 	th->ack = 1;
 
 	tcp_fill_headers(conn, NULL, ip4h, ip6h, th, &payload,
-			 *check, conn->seq_to_tap, true);
+			 *check, conn->seq_to_tap, no_tcp_csum);
 	if (ip4h)
 		*check = &ip4h->check;
 }
@@ -389,8 +354,7 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
-	const struct flowside *tapside = TAPFLOW(conn);
-	size_t fillsize, hdrlen;
+	size_t hdrlen, fillsize;
 	int v6 = CONN_V6(conn);
 	uint32_t already_sent;
 	const uint16_t *check;
@@ -483,10 +447,9 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 		if (i + 1 == head_cnt)
 			check = NULL;
 
-		tcp_vu_prepare(c, conn, iov, buf_cnt, &check);
+		tcp_vu_prepare(c, conn, iov, buf_cnt, &check, !*c->pcap);
 
 		if (*c->pcap) {
-			tcp_vu_update_check(tapside, iov, buf_cnt);
 			pcap_iov(iov, buf_cnt,
 				 sizeof(struct virtio_net_hdr_mrg_rxbuf));
 		}
