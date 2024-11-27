@@ -284,6 +284,9 @@ static int virtqueue_read_next_desc(const struct vring_desc *desc,
  */
 bool vu_queue_empty(struct vu_virtq *vq)
 {
+	if (!vq->vring.avail)
+		return true;
+
 	if (vq->shadow_avail_idx != vq->last_avail_idx)
 		return false;
 
@@ -327,6 +330,9 @@ static bool vring_can_notify(const struct vu_dev *dev, struct vu_virtq *vq)
  */
 void vu_queue_notify(const struct vu_dev *dev, struct vu_virtq *vq)
 {
+	if (!vq->vring.avail)
+		return;
+
 	if (!vring_can_notify(dev, vq)) {
 		debug("vhost-user: virtqueue can skip notify...");
 		return;
@@ -502,6 +508,9 @@ int vu_queue_pop(struct vu_dev *dev, struct vu_virtq *vq, struct vu_virtq_elemen
 	unsigned int head;
 	int ret;
 
+	if (!vq->vring.avail)
+		return -1;
+
 	if (vu_queue_empty(vq))
 		return -1;
 
@@ -591,6 +600,9 @@ void vu_queue_fill_by_index(struct vu_virtq *vq, unsigned int index,
 {
 	struct vring_used_elem uelem;
 
+	if (!vq->vring.avail)
+		return;
+
 	idx = (idx + vq->used_idx) % vq->vring.num;
 
 	uelem.id = htole32(index);
@@ -632,6 +644,9 @@ static inline void vring_used_idx_set(struct vu_virtq *vq, uint16_t val)
 void vu_queue_flush(struct vu_virtq *vq, unsigned int count)
 {
 	uint16_t old, new;
+
+	if (!vq->vring.avail)
+		return;
 
 	/* Make sure buffer is written before we update index. */
 	smp_wmb();
