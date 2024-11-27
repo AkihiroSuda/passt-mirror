@@ -161,18 +161,19 @@ static void tcp_l2_buf_fill_headers(const struct tcp_tap_conn *conn,
 {
 	struct iov_tail tail = IOV_TAIL(&iov[TCP_IOV_PAYLOAD], 1, 0);
 	struct tcphdr *th = IOV_REMOVE_HEADER(&tail, struct tcphdr);
+	struct tap_hdr *taph = iov[TCP_IOV_TAP].iov_base;
 	const struct flowside *tapside = TAPFLOW(conn);
 	const struct in_addr *a4 = inany_v4(&tapside->oaddr);
+	struct ipv6hdr *ip6h = NULL;
+	struct iphdr *ip4h = NULL;
 
-	if (a4) {
-		tcp_fill_headers4(conn, iov[TCP_IOV_TAP].iov_base,
-				  iov[TCP_IOV_IP].iov_base, th,
-				  &tail,  check, seq, no_tcp_csum);
-	} else {
-		tcp_fill_headers6(conn, iov[TCP_IOV_TAP].iov_base,
-				  iov[TCP_IOV_IP].iov_base, th,
-				  &tail, seq, no_tcp_csum);
-	}
+	if (a4)
+		ip4h = iov[TCP_IOV_IP].iov_base;
+	else
+		ip6h = iov[TCP_IOV_IP].iov_base;
+
+	tcp_fill_headers(conn, taph, ip4h, ip6h, th, &tail,
+			 check, seq, no_tcp_csum);
 }
 
 /**
