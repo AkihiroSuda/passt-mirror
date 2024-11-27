@@ -54,7 +54,7 @@ static int packet_check_range(const struct pool *p, size_t offset, size_t len,
 	}
 
 	if (start + len + offset > p->buf + p->buf_size) {
-		trace("packet offset plus length %lu from size %lu, "
+		trace("packet offset plus length %zu from size %zu, "
 		      "%s:%i", start - p->buf + len + offset,
 		      p->buf_size, func, line);
 		return -1;

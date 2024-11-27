@@ -35,7 +35,7 @@ int vu_packet_check_range(void *buf, size_t offset, size_t len,
 
 	for (dev_region = buf; dev_region->mmap_addr; dev_region++) {
 		/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-		char *m = (char *)dev_region->mmap_addr;
+		char *m = (char *)(uintptr_t)dev_region->mmap_addr;
 
 		if (m <= start &&
 		    start + offset + len <= m + dev_region->mmap_offset +

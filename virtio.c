@@ -108,8 +108,9 @@ static void *vu_gpa_to_va(struct vu_dev *dev, uint64_t *plen, uint64_t guest_add
 			if ((guest_addr + *plen) > (r->gpa + r->size))
 				*plen = r->gpa + r->size - guest_addr;
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-			return (void *)(guest_addr - r->gpa + r->mmap_addr +
-						     r->mmap_offset);
+			return (void *)(uintptr_t)(guest_addr - r->gpa +
+						   r->mmap_addr +
+						   r->mmap_offset);
 		}
 	}
 

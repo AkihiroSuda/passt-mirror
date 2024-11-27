@@ -136,8 +136,9 @@ static void *qva_to_va(struct vu_dev *dev, uint64_t qemu_addr)
 
 		if ((qemu_addr >= r->qva) && (qemu_addr < (r->qva + r->size))) {
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-			return (void *)(qemu_addr - r->qva + r->mmap_addr +
-					r->mmap_offset);
+			return (void *)(uintptr_t)(qemu_addr - r->qva +
+						   r->mmap_addr +
+						   r->mmap_offset);
 		}
 	}
 
@@ -436,7 +437,8 @@ static bool vu_set_mem_table_exec(struct vu_dev *vdev,
 
 		if (r->mmap_addr) {
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-			munmap((void *)r->mmap_addr, r->size + r->mmap_offset);
+			munmap((void *)(uintptr_t)r->mmap_addr,
+			       r->size + r->mmap_offset);
 		}
 	}
 	vdev->nregions = memory->nregions;
@@ -897,7 +899,8 @@ void vu_cleanup(struct vu_dev *vdev)
 
 		if (r->mmap_addr) {
 			/* NOLINTNEXTLINE(performance-no-int-to-ptr) */
-			munmap((void *)r->mmap_addr, r->size + r->mmap_offset);
+			munmap((void *)(uintptr_t)r->mmap_addr,
+			       r->size + r->mmap_offset);
 		}
 	}
 	vdev->nregions = 0;
