@@ -753,44 +753,16 @@ static void tcp_sock_set_bufsize(const struct ctx *c, int s)
 }
 
 /**
- * tcp_update_check_tcp4() - Calculate TCP checksum for IPv4
- * @iph:	IPv4 header
+ * tcp_update_csum() - Calculate TCP checksum
+ * @psum:	Unfolded partial checksum of the IPv4 or IPv6 pseudo-header
  * @th:		TCP header (updated)
  * @payload:	TCP payload
  */
-void tcp_update_check_tcp4(const struct iphdr *iph, struct tcphdr *th,
-			   struct iov_tail *payload)
+void tcp_update_csum(uint32_t psum, struct tcphdr *th, struct iov_tail *payload)
 {
-	uint16_t l4len = ntohs(iph->tot_len) - sizeof(struct iphdr);
-	struct in_addr saddr = { .s_addr = iph->saddr };
-	struct in_addr daddr = { .s_addr = iph->daddr };
-	uint32_t sum;
-
-	sum = proto_ipv4_header_psum(l4len, IPPROTO_TCP, saddr, daddr);
-
 	th->check = 0;
-	sum = csum_unfolded(th, sizeof(*th), sum);
-	th->check = csum_iov_tail(payload, sum);
-}
-
-/**
- * tcp_update_check_tcp6() - Calculate TCP checksum for IPv6
- * @ip6h:	IPv6 header
- * @th:		TCP header (updated)
- * @payload:	TCP payload
- */
-void tcp_update_check_tcp6(const struct ipv6hdr *ip6h, struct tcphdr *th,
-			   struct iov_tail *payload)
-{
-	uint16_t l4len = ntohs(ip6h->payload_len);
-	uint32_t sum;
-
-	sum = proto_ipv6_header_psum(l4len, IPPROTO_TCP, &ip6h->saddr,
-				     &ip6h->daddr);
-
-	th->check = 0;
-	sum = csum_unfolded(th, sizeof(*th), sum);
-	th->check = csum_iov_tail(payload, sum);
+	psum = csum_unfolded(th, sizeof(*th), psum);
+	th->check = csum_iov_tail(payload, psum);
 }
 
 /**
@@ -937,10 +909,14 @@ void tcp_fill_headers4(const struct tcp_tap_conn *conn,
 
 	tcp_fill_header(th, conn, seq);
 
-	if (no_tcp_csum)
+	if (no_tcp_csum) {
 		th->check = 0;
-	else
-		tcp_update_check_tcp4(iph, th, payload);
+	} else {
+		uint32_t psum = proto_ipv4_header_psum(l4len, IPPROTO_TCP,
+						       *src4, *dst4);
+
+		tcp_update_csum(psum, th, payload);
+	}
 
 	tap_hdr_update(taph, l3len + sizeof(struct ethhdr));
 }
@@ -978,10 +954,15 @@ void tcp_fill_headers6(const struct tcp_tap_conn *conn,
 
 	tcp_fill_header(th, conn, seq);
 
-	if (no_tcp_csum)
+	if (no_tcp_csum) {
 		th->check = 0;
-	else
-		tcp_update_check_tcp6(ip6h, th, payload);
+	} else {
+		uint32_t psum = proto_ipv6_header_psum(l4len, IPPROTO_TCP,
+						       &ip6h->saddr,
+						       &ip6h->daddr);
+
+		tcp_update_csum(psum, th, payload);
+	}
 
 	tap_hdr_update(taph, l4len + sizeof(*ip6h) + sizeof(struct ethhdr));
 }

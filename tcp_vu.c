@@ -71,22 +71,28 @@ static void tcp_vu_update_check(const struct flowside *tapside,
 			        struct iovec *iov, int iov_cnt)
 {
 	char *base = iov[0].iov_base;
+	struct iov_tail payload;
+	struct tcphdr *th;
+	uint32_t psum;
 
 	if (inany_v4(&tapside->oaddr)) {
-		struct tcphdr *th = vu_payloadv4(base);
+		const struct in_addr *src4 = inany_v4(&tapside->oaddr);
+		const struct in_addr *dst4 = inany_v4(&tapside->eaddr);
 		const struct iphdr *iph = vu_ip(base);
-		struct iov_tail payload = IOV_TAIL(iov, iov_cnt,
-						   (char *)(th + 1) - base);
+		size_t l4len = ntohs(iph->tot_len) - sizeof(*iph);
 
-		tcp_update_check_tcp4(iph, th, &payload);
+		th = vu_payloadv4(base);
+		psum = proto_ipv4_header_psum(l4len, IPPROTO_TCP, *src4, *dst4);
 	} else {
-		struct tcphdr *th = vu_payloadv6(base);
 		const struct ipv6hdr *ip6h = vu_ip(base);
-		struct iov_tail payload = IOV_TAIL(iov, iov_cnt,
-						   (char *)(th + 1) - base);
+		size_t l4len = ntohs(ip6h->payload_len);
 
-		tcp_update_check_tcp6(ip6h, th, &payload);
+		th = vu_payloadv6(base);
+		psum = proto_ipv6_header_psum(l4len, IPPROTO_TCP,
+					      &ip6h->saddr, &ip6h->daddr);
 	}
+	payload = IOV_TAIL(iov, iov_cnt, (char *)(th + 1) - base);
+	tcp_update_csum(psum, th, &payload);
 }
 
 /**
