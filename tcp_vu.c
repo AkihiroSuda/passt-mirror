@@ -354,12 +354,12 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	uint32_t wnd_scaled = conn->wnd_from_tap << conn->ws_from_tap;
 	struct vu_dev *vdev = c->vdev;
 	struct vu_virtq *vq = &vdev->vq[VHOST_USER_RX_QUEUE];
+	ssize_t len, previous_dlen;
 	size_t hdrlen, fillsize;
 	int v6 = CONN_V6(conn);
 	uint32_t already_sent;
 	const uint16_t *check;
 	int i, iov_cnt;
-	ssize_t len;
 
 	if (!vu_queue_enabled(vq) || !vu_queue_started(vq)) {
 		debug("Got packet, but RX virtqueue not usable yet");
@@ -433,19 +433,17 @@ int tcp_vu_data_from_sock(const struct ctx *c, struct tcp_tap_conn *conn)
 	 */
 
 	hdrlen = tcp_vu_hdrlen(v6);
-	for (i = 0, check = NULL; i < head_cnt; i++) {
+	for (i = 0, previous_dlen = -1, check = NULL; i < head_cnt; i++) {
 		struct iovec *iov = &elem[head[i]].in_sg[0];
 		int buf_cnt = head[i + 1] - head[i];
 		ssize_t dlen = iov_size(iov, buf_cnt) - hdrlen;
 
 		vu_set_vnethdr(vdev, iov->iov_base, buf_cnt);
 
-		/* we compute IPv4 header checksum only for the
-		 * first and the last, all other checksums are the
-		 * same as the first one
-		 */
-		if (i + 1 == head_cnt)
+		/* The IPv4 header checksum varies only with dlen */
+		if (previous_dlen != dlen)
 			check = NULL;
+		previous_dlen = dlen;
 
 		tcp_vu_prepare(c, conn, iov, buf_cnt, &check, !*c->pcap);
 
