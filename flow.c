@@ -597,12 +597,7 @@ static uint64_t flow_sidx_hash(const struct ctx *c, flow_sidx_t sidx)
 	const struct flowside *side = &f->side[sidx.sidei];
 	uint8_t pif = f->pif[sidx.sidei];
 
-	/* For the hash table to work, entries must have complete endpoint
-	 * information, and at least a forwarding port.
-	 */
-	ASSERT(pif != PIF_NONE && !inany_is_unspecified(&side->eaddr) &&
-	       side->eport != 0 && side->oport != 0);
-
+	ASSERT(pif != PIF_NONE);
 	return flow_hash(c, FLOW_PROTO(f), pif, side);
 }
 
