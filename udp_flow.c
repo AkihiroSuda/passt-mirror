@@ -75,15 +75,9 @@ void udp_flow_close(const struct ctx *c, struct udp_flow *uflow)
 static flow_sidx_t udp_flow_new(const struct ctx *c, union flow *flow,
 				int s_ini, const struct timespec *now)
 {
-	const struct flowside *ini = &flow->f.side[INISIDE];
 	struct udp_flow *uflow = NULL;
 	const struct flowside *tgt;
 	uint8_t tgtpif;
-
-	if (!inany_is_unicast(&ini->eaddr) || ini->eport == 0) {
-		flow_trace(flow, "Invalid endpoint to initiate UDP flow");
-		goto cancel;
-	}
 
 	if (!(tgt = flow_target(c, flow, IPPROTO_UDP)))
 		goto cancel;
@@ -189,6 +183,7 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 			       const union sockaddr_inany *s_in,
 			       const struct timespec *now)
 {
+	const struct flowside *ini;
 	struct udp_flow *uflow;
 	union flow *flow;
 	flow_sidx_t sidx;
@@ -210,7 +205,19 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 		return FLOW_SIDX_NONE;
 	}
 
-	flow_initiate_sa(flow, ref.udp.pif, s_in, ref.udp.port);
+	ini = flow_initiate_sa(flow, ref.udp.pif, s_in, ref.udp.port);
+
+	if (!inany_is_unicast(&ini->eaddr) ||
+	    ini->eport == 0 || ini->oport == 0) {
+		/* In principle ini->oddr also must be unicast, but when we've
+		 * been initiated from a socket bound to 0.0.0.0 or ::, we don't
+		 * know our address, so we have to leave it unpopulated.
+		 */
+		flow_err(flow, "Invalid endpoint on UDP recvfrom()");
+		flow_alloc_cancel(flow);
+		return FLOW_SIDX_NONE;
+	}
+
 	return udp_flow_new(c, flow, ref.fd, now);
 }
 
@@ -233,6 +240,7 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 			      in_port_t srcport, in_port_t dstport,
 			      const struct timespec *now)
 {
+	const struct flowside *ini;
 	struct udp_flow *uflow;
 	union flow *flow;
 	flow_sidx_t sidx;
@@ -256,7 +264,15 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 		return FLOW_SIDX_NONE;
 	}
 
-	flow_initiate_af(flow, PIF_TAP, af, saddr, srcport, daddr, dstport);
+	ini = flow_initiate_af(flow, PIF_TAP, af, saddr, srcport,
+			       daddr, dstport);
+
+	if (!inany_is_unicast(&ini->eaddr) || ini->eport == 0 ||
+	    !inany_is_unicast(&ini->oaddr) || ini->oport == 0) {
+		flow_dbg(flow, "Invalid endpoint on UDP packet");
+		flow_alloc_cancel(flow);
+		return FLOW_SIDX_NONE;
+	}
 
 	return udp_flow_new(c, flow, -1, now);
 }
