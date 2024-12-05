@@ -104,7 +104,8 @@ static int udp_vu_sock_recv(const struct ctx *c, int s, uint32_t events,
 	vu_init_elem(elem, iov_vu, VIRTQUEUE_MAX_SIZE);
 
 	iov_cnt = vu_collect(vdev, vq, elem, VIRTQUEUE_MAX_SIZE,
-			     IP_MAX_MTU - sizeof(struct udphdr) + hdrlen,
+			     IP_MAX_MTU + ETH_HLEN +
+			     sizeof(struct virtio_net_hdr_mrg_rxbuf),
 			     NULL);
 	if (iov_cnt == 0)
 		return 0;
