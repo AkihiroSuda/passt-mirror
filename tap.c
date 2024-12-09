@@ -1405,10 +1405,12 @@ void tap_sock_update_pool(void *base, size_t size)
  */
 void tap_backend_init(struct ctx *c)
 {
-	if (c->mode == MODE_VU)
+	if (c->mode == MODE_VU) {
 		tap_sock_update_pool(NULL, 0);
-	else
+		vu_init(c);
+	} else {
 		tap_sock_update_pool(pkt_buf, sizeof(pkt_buf));
+	}
 
 	if (c->fd_tap != -1) { /* Passed as --fd */
 		ASSERT(c->one_off);
@@ -1421,8 +1423,6 @@ void tap_backend_init(struct ctx *c)
 		tap_sock_tun_init(c);
 		break;
 	case MODE_VU:
-		vu_init(c);
-		/* fall through */
 	case MODE_PASST:
 		tap_sock_unix_init(c);
 
