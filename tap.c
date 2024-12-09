@@ -1256,14 +1256,39 @@ static void tap_sock_unix_init(const struct ctx *c)
 }
 
 /**
+ * tap_start_connection() - start a new connection
+ * @c:		Execution context
+ */
+static void tap_start_connection(const struct ctx *c)
+{
+	struct epoll_event ev = { 0 };
+	union epoll_ref ref = { 0 };
+
+	ref.fd = c->fd_tap;
+	switch (c->mode) {
+	case MODE_PASST:
+		ref.type = EPOLL_TYPE_TAP_PASST;
+		break;
+	case MODE_PASTA:
+		ref.type = EPOLL_TYPE_TAP_PASTA;
+		break;
+	case MODE_VU:
+		ref.type = EPOLL_TYPE_VHOST_CMD;
+		break;
+	}
+
+	ev.events = EPOLLIN | EPOLLRDHUP;
+	ev.data.u64 = ref.u64;
+	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
+}
+
+/**
  * tap_listen_handler() - Handle new connection on listening socket
  * @c:		Execution context
  * @events:	epoll events
  */
 void tap_listen_handler(struct ctx *c, uint32_t events)
 {
-	struct epoll_event ev = { 0 };
-	union epoll_ref ref = { 0 };
 	int v = INT_MAX / 2;
 	struct ucred ucred;
 	socklen_t len;
@@ -1302,14 +1327,7 @@ void tap_listen_handler(struct ctx *c, uint32_t events)
 	    setsockopt(c->fd_tap, SOL_SOCKET, SO_SNDBUF, &v, sizeof(v)))
 		trace("tap: failed to set SO_SNDBUF to %i", v);
 
-	ref.fd = c->fd_tap;
-	if (c->mode == MODE_VU)
-		ref.type = EPOLL_TYPE_VHOST_CMD;
-	else
-		ref.type = EPOLL_TYPE_TAP_PASST;
-	ev.events = EPOLLIN | EPOLLRDHUP;
-	ev.data.u64 = ref.u64;
-	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
+	tap_start_connection(c);
 }
 
 /**
@@ -1353,19 +1371,13 @@ static int tap_ns_tun(void *arg)
  */
 static void tap_sock_tun_init(struct ctx *c)
 {
-	union epoll_ref ref = { .type = EPOLL_TYPE_TAP_PASTA };
-	struct epoll_event ev = { 0 };
-
 	NS_CALL(tap_ns_tun, c);
 	if (c->fd_tap == -1)
 		die("Failed to set up tap device in namespace");
 
 	pasta_ns_conf(c);
 
-	ref.fd = c->fd_tap;
-	ev.events = EPOLLIN | EPOLLRDHUP;
-	ev.data.u64 = ref.u64;
-	epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
+	tap_start_connection(c);
 }
 
 /**
@@ -1399,26 +1411,8 @@ void tap_backend_init(struct ctx *c)
 		tap_sock_update_pool(pkt_buf, sizeof(pkt_buf));
 
 	if (c->fd_tap != -1) { /* Passed as --fd */
-		struct epoll_event ev = { 0 };
-		union epoll_ref ref;
-
 		ASSERT(c->one_off);
-		ref.fd = c->fd_tap;
-		switch (c->mode) {
-		case MODE_PASST:
-			ref.type = EPOLL_TYPE_TAP_PASST;
-			break;
-		case MODE_PASTA:
-			ref.type = EPOLL_TYPE_TAP_PASTA;
-			break;
-		case MODE_VU:
-			ref.type = EPOLL_TYPE_VHOST_CMD;
-			break;
-		}
-
-		ev.events = EPOLLIN | EPOLLRDHUP;
-		ev.data.u64 = ref.u64;
-		epoll_ctl(c->epollfd, EPOLL_CTL_ADD, c->fd_tap, &ev);
+		tap_start_connection(c);
 		return;
 	}
 
