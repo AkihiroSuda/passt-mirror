@@ -275,6 +275,38 @@ static inline bool mod_between(unsigned x, unsigned i, unsigned j, unsigned m)
 void raw_random(void *buf, size_t buflen);
 
 /*
+ * Starting from glibc 2.40.9000 and commit 25a5eb4010df ("string: strerror,
+ * strsignal cannot use buffer after dlmopen (bug 32026)"), strerror() needs
+ * getrandom(2) and brk(2) as it allocates memory for the locale-translated
+ * error description, but our seccomp profiles forbid both.
+ *
+ * Use the strerror_() wrapper instead, calling into strerrordesc_np() to get
+ * a static untranslated string. It's a GNU implementation, but also defined by
+ * bionic.
+ *
+ * If strerrordesc_np() is not defined (e.g. musl), call strerror(). C libraries
+ * not defining strerrordesc_np() are expected to provide strerror()
+ * implementations that are simple enough for us to call.
+ */
+__attribute__ ((weak)) const char *strerrordesc_np(int errnum);
+
+/**
+ * strerror_() - strerror() wrapper calling strerrordesc_np() if available
+ * @errnum:	Error code
+ *
+ * Return: error description string
+ */
+static inline const char *strerror_(int errnum)
+{
+	if (strerrordesc_np)
+		return strerrordesc_np(errnum);
+
+	return strerror(errnum);
+}
+
+#define strerror(x) @ "Don't call strerror() directly, use strerror_() instead"
+
+/*
  * Workarounds for https://github.com/llvm/llvm-project/issues/58992
  *
  * For a number (maybe all) system calls that _write_ a socket address,

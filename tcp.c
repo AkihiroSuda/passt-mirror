@@ -516,7 +516,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		fd = timerfd_create(CLOCK_MONOTONIC, 0);
 		if (fd == -1 || fd > FD_REF_MAX) {
 			flow_dbg(conn, "failed to get timer: %s",
-				 strerror(errno));
+				 strerror_(errno));
 			if (fd > -1)
 				close(fd);
 			conn->timer = -1;
@@ -526,7 +526,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 
 		if (epoll_ctl(c->epollfd, EPOLL_CTL_ADD, conn->timer, &ev)) {
 			flow_dbg(conn, "failed to add timer: %s",
-				 strerror(errno));
+				 strerror_(errno));
 			close(conn->timer);
 			conn->timer = -1;
 			return;
@@ -551,7 +551,7 @@ static void tcp_timer_ctl(const struct ctx *c, struct tcp_tap_conn *conn)
 		 (unsigned long long)it.it_value.tv_nsec / 1000 / 1000);
 
 	if (timerfd_settime(conn->timer, 0, &it, NULL))
-		flow_err(conn, "failed to set timer: %s", strerror(errno));
+		flow_err(conn, "failed to set timer: %s", strerror_(errno));
 }
 
 /**
@@ -1307,7 +1307,7 @@ int tcp_conn_sock(const struct ctx *c, sa_family_t af)
 		return s;
 
 	err("TCP: Unable to open socket for new connection: %s",
-	    strerror(-s));
+	    strerror_(-s));
 	return -1;
 }
 
@@ -1360,7 +1360,7 @@ static void tcp_bind_outbound(const struct ctx *c,
 			flow_dbg(conn,
 				 "Can't bind TCP outbound socket to %s:%hu: %s",
 				 inany_ntop(&tgt->oaddr, sstr, sizeof(sstr)),
-				 tgt->oport, strerror(errno));
+				 tgt->oport, strerror_(errno));
 		}
 	}
 
@@ -1371,7 +1371,7 @@ static void tcp_bind_outbound(const struct ctx *c,
 				       strlen(c->ip4.ifname_out))) {
 				flow_dbg(conn, "Can't bind IPv4 TCP socket to"
 					 " interface %s: %s", c->ip4.ifname_out,
-					 strerror(errno));
+					 strerror_(errno));
 			}
 		}
 	} else if (bind_sa.sa_family == AF_INET6) {
@@ -1381,7 +1381,7 @@ static void tcp_bind_outbound(const struct ctx *c,
 				       strlen(c->ip6.ifname_out))) {
 				flow_dbg(conn, "Can't bind IPv6 TCP socket to"
 					 " interface %s: %s", c->ip6.ifname_out,
-					 strerror(errno));
+					 strerror_(errno));
 			}
 		}
 	}
@@ -2113,7 +2113,7 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 	 * and we just set the timer to a new point in the future: discard it.
 	 */
 	if (timerfd_gettime(conn->timer, &check_armed))
-		flow_err(conn, "failed to read timer: %s", strerror(errno));
+		flow_err(conn, "failed to read timer: %s", strerror_(errno));
 
 	if (check_armed.it_value.tv_sec || check_armed.it_value.tv_nsec)
 		return;
@@ -2154,7 +2154,7 @@ void tcp_timer_handler(const struct ctx *c, union epoll_ref ref)
 		 */
 		if (timerfd_settime(conn->timer, 0, &new, &old))
 			flow_err(conn, "failed to set timer: %s",
-				 strerror(errno));
+				 strerror_(errno));
 
 		if (old.it_value.tv_sec == ACT_TIMEOUT) {
 			flow_dbg(conn, "activity timeout");
@@ -2422,13 +2422,13 @@ static void tcp_sock_refill_init(const struct ctx *c)
 		int rc = tcp_sock_refill_pool(c, init_sock_pool4, AF_INET);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv4 host socket pool: %s",
-			     strerror(-rc));
+			     strerror_(-rc));
 	}
 	if (c->ifi6) {
 		int rc = tcp_sock_refill_pool(c, init_sock_pool6, AF_INET6);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv6 host socket pool: %s",
-			     strerror(-rc));
+			     strerror_(-rc));
 	}
 }
 

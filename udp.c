@@ -453,7 +453,7 @@ static int udp_sock_recverr(int s)
 
 	/* TODO: When possible propagate and otherwise handle errors */
 	debug("%s error on UDP socket %i: %s",
-	      str_ee_origin(ee), s, strerror(ee->ee_errno));
+	      str_ee_origin(ee), s, strerror_(ee->ee_errno));
 
 	return 1;
 }
@@ -492,7 +492,7 @@ int udp_sock_errs(const struct ctx *c, int s, uint32_t events)
 	}
 
 	if (err) {
-		debug("Unqueued error on UDP socket %i: %s", s, strerror(err));
+		debug("Unqueued error on UDP socket %i: %s", s, strerror_(err));
 		n_err++;
 	}
 

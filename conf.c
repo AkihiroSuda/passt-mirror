@@ -365,7 +365,7 @@ mode_conflict:
 	die("Port forwarding mode '%s' conflicts with previous mode", optarg);
 bind_fail:
 	die("Failed to bind port %u (%s) for option '-%c %s', exiting",
-	    i, strerror(-ret), optname, optarg);
+	    i, strerror_(-ret), optname, optarg);
 bind_all_fail:
 	die("Failed to bind any port for '-%c %s', exiting", optname, optarg);
 }
@@ -655,7 +655,7 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 					  &ip4->guest_gw);
 		if (rc < 0) {
 			debug("Couldn't discover IPv4 gateway address: %s",
-			      strerror(-rc));
+			      strerror_(-rc));
 			return 0;
 		}
 	}
@@ -665,7 +665,7 @@ static unsigned int conf_ip4(unsigned int ifi, struct ip4_ctx *ip4)
 				     &ip4->addr, &ip4->prefix_len, NULL);
 		if (rc < 0) {
 			debug("Couldn't discover IPv4 address: %s",
-			      strerror(-rc));
+			      strerror_(-rc));
 			return 0;
 		}
 	}
@@ -729,7 +729,7 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 		rc = nl_route_get_def(nl_sock, ifi, AF_INET6, &ip6->guest_gw);
 		if (rc < 0) {
 			debug("Couldn't discover IPv6 gateway address: %s",
-			      strerror(-rc));
+			      strerror_(-rc));
 			return 0;
 		}
 	}
@@ -738,7 +738,7 @@ static unsigned int conf_ip6(unsigned int ifi, struct ip6_ctx *ip6)
 			 IN6_IS_ADDR_UNSPECIFIED(&ip6->addr) ? &ip6->addr : NULL,
 			 &prefix_len, &ip6->our_tap_ll);
 	if (rc < 0) {
-		debug("Couldn't discover IPv6 address: %s", strerror(-rc));
+		debug("Couldn't discover IPv6 address: %s", strerror_(-rc));
 		return 0;
 	}
 

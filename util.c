@@ -90,7 +90,7 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 
 	ret = -errno;
 	if (fd < 0) {
-		warn("L4 socket: %s", strerror(-ret));
+		warn("L4 socket: %s", strerror_(-ret));
 		return ret;
 	}
 
@@ -162,7 +162,7 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 
 	if (type == EPOLL_TYPE_TCP_LISTEN && listen(fd, 128) < 0) {
 		ret = -errno;
-		warn("TCP socket listen: %s", strerror(-ret));
+		warn("TCP socket listen: %s", strerror_(-ret));
 		close(fd);
 		return ret;
 	}
@@ -171,7 +171,7 @@ int sock_l4_sa(const struct ctx *c, enum epoll_type type,
 	ev.data.u64 = ref.u64;
 	if (epoll_ctl(c->epollfd, EPOLL_CTL_ADD, fd, &ev) == -1) {
 		ret = -errno;
-		warn("L4 epoll_ctl: %s", strerror(-ret));
+		warn("L4 epoll_ctl: %s", strerror_(-ret));
 		return ret;
 	}
 

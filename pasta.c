@@ -296,7 +296,7 @@ void pasta_ns_conf(struct ctx *c)
 	rc = nl_link_set_flags(nl_sock_ns, 1 /* lo */, IFF_UP, IFF_UP);
 	if (rc < 0)
 		die("Couldn't bring up loopback interface in namespace: %s",
-		    strerror(-rc));
+		    strerror_(-rc));
 
 	/* Get or set MAC in target namespace */
 	if (MAC_IS_ZERO(c->guest_mac))
@@ -305,7 +305,7 @@ void pasta_ns_conf(struct ctx *c)
 		rc = nl_link_set_mac(nl_sock_ns, c->pasta_ifi, c->guest_mac);
 	if (rc < 0)
 		die("Couldn't set MAC address in namespace: %s",
-		    strerror(-rc));
+		    strerror_(-rc));
 
 	if (c->pasta_conf_ns) {
 		unsigned int flags = IFF_UP;
@@ -332,7 +332,7 @@ void pasta_ns_conf(struct ctx *c)
 
 			if (rc < 0) {
 				die("Couldn't set IPv4 address(es) in namespace: %s",
-				    strerror(-rc));
+				    strerror_(-rc));
 			}
 
 			if (c->ip4.no_copy_routes) {
@@ -346,7 +346,7 @@ void pasta_ns_conf(struct ctx *c)
 
 			if (rc < 0) {
 				die("Couldn't set IPv4 route(s) in guest: %s",
-				    strerror(-rc));
+				    strerror_(-rc));
 			}
 		}
 
@@ -355,13 +355,13 @@ void pasta_ns_conf(struct ctx *c)
 					    &c->ip6.addr_ll_seen);
 			if (rc < 0) {
 				warn("Can't get LL address from namespace: %s",
-				    strerror(-rc));
+				    strerror_(-rc));
 			}
 
 			rc = nl_addr_set_ll_nodad(nl_sock_ns, c->pasta_ifi);
 			if (rc < 0) {
 				warn("Can't set nodad for LL in namespace: %s",
-				    strerror(-rc));
+				    strerror_(-rc));
 			}
 
 			/* We dodged DAD: re-enable neighbour solicitations */
@@ -382,7 +382,7 @@ void pasta_ns_conf(struct ctx *c)
 
 			if (rc < 0) {
 				die("Couldn't set IPv6 address(es) in namespace: %s",
-				    strerror(-rc));
+				    strerror_(-rc));
 			}
 
 			if (c->ip6.no_copy_routes) {
@@ -397,7 +397,7 @@ void pasta_ns_conf(struct ctx *c)
 
 			if (rc < 0) {
 				die("Couldn't set IPv6 route(s) in guest: %s",
-				    strerror(-rc));
+				    strerror_(-rc));
 			}
 		}
 	}
@@ -446,18 +446,18 @@ void pasta_netns_quit_init(const struct ctx *c)
 		return;
 
 	if ((dir_fd = open(c->netns_dir, O_CLOEXEC | O_RDONLY)) < 0)
-		die("netns dir open: %s, exiting", strerror(errno));
+		die("netns dir open: %s, exiting", strerror_(errno));
 
 	if (fstatfs(dir_fd, &s)          || s.f_type == DEVPTS_SUPER_MAGIC ||
 	    s.f_type == PROC_SUPER_MAGIC || s.f_type == SYSFS_MAGIC)
 		try_inotify = false;
 
 	if (try_inotify && (fd = inotify_init1(flags)) < 0)
-		warn("inotify_init1(): %s, use a timer", strerror(errno));
+		warn("inotify_init1(): %s, use a timer", strerror_(errno));
 
 	if (fd >= 0 && inotify_add_watch(fd, c->netns_dir, IN_DELETE) < 0) {
 		warn("inotify_add_watch(): %s, use a timer",
-		     strerror(errno));
+		     strerror_(errno));
 		close(fd);
 		fd = -1;
 	}

@@ -322,7 +322,7 @@ void logmsg_perror(int pri, const char *format, ...)
 	vlogmsg(false, false, pri, format, ap);
 	va_end(ap);
 
-	logmsg(true, true, pri, ": %s", strerror(errno_copy));
+	logmsg(true, true, pri, ": %s", strerror_(errno_copy));
 }
 
 /**

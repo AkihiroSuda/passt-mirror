@@ -320,7 +320,7 @@ unsigned int nl_get_ext_if(int s, sa_family_t af)
 	}
 
 	if (status < 0)
-		warn("netlink: RTM_GETROUTE failed: %s", strerror(-status));
+		warn("netlink: RTM_GETROUTE failed: %s", strerror_(-status));
 
 	if (defifi) {
 		if (ndef > 1) {

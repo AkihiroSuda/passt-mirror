@@ -160,7 +160,7 @@ static int tcp_splice_epoll_ctl(const struct ctx *c,
 	if (epoll_ctl(c->epollfd, m, conn->s[0], &ev[0]) ||
 	    epoll_ctl(c->epollfd, m, conn->s[1], &ev[1])) {
 		int ret = -errno;
-		flow_err(conn, "ERROR on epoll_ctl(): %s", strerror(errno));
+		flow_err(conn, "ERROR on epoll_ctl(): %s", strerror_(errno));
 		return ret;
 	}
 
@@ -314,7 +314,7 @@ static int tcp_splice_connect_finish(const struct ctx *c,
 		if (conn->pipe[sidei][0] < 0) {
 			if (pipe2(conn->pipe[sidei], O_NONBLOCK | O_CLOEXEC)) {
 				flow_err(conn, "cannot create %d->%d pipe: %s",
-					 sidei, !sidei, strerror(errno));
+					 sidei, !sidei, strerror_(errno));
 				conn_flag(c, conn, CLOSING);
 				return -EIO;
 			}
@@ -370,7 +370,7 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn)
 	if (connect(conn->s[1], &sa.sa, sl)) {
 		if (errno != EINPROGRESS) {
 			flow_trace(conn, "Couldn't connect socket for splice: %s",
-				   strerror(errno));
+				   strerror_(errno));
 			return -errno;
 		}
 
@@ -469,10 +469,10 @@ void tcp_splice_sock_handler(struct ctx *c, union epoll_ref ref,
 		rc = getsockopt(ref.fd, SOL_SOCKET, SO_ERROR, &err, &sl);
 		if (rc)
 			flow_err(conn, "Error retrieving SO_ERROR: %s",
-				 strerror(errno));
+				 strerror_(errno));
 		else
 			flow_trace(conn, "Error event on socket: %s",
-				   strerror(err));
+				   strerror_(err));
 
 		goto close;
 	}
@@ -551,7 +551,7 @@ eintr:
 					       &lowat, sizeof(lowat))) {
 					flow_trace(conn,
 						   "Setting SO_RCVLOWAT %i: %s",
-						   lowat, strerror(errno));
+						   lowat, strerror_(errno));
 				} else {
 					conn_flag(c, conn, lowat_set_flag);
 					conn_flag(c, conn, lowat_act_flag);
@@ -696,13 +696,13 @@ static int tcp_sock_refill_ns(void *arg)
 		int rc = tcp_sock_refill_pool(c, ns_sock_pool4, AF_INET);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv4 ns socket pool: %s",
-			     strerror(-rc));
+			     strerror_(-rc));
 	}
 	if (c->ifi6) {
 		int rc = tcp_sock_refill_pool(c, ns_sock_pool6, AF_INET6);
 		if (rc < 0)
 			warn("TCP: Error refilling IPv6 ns socket pool: %s",
-			     strerror(-rc));
+			     strerror_(-rc));
 	}
 
 	return 0;
