@@ -443,7 +443,7 @@ uint8_t fwd_nat_from_host(const struct ctx *c, uint8_t proto,
 	else if (proto == IPPROTO_UDP)
 		tgt->eport += c->udp.fwd_in.delta[tgt->eport];
 
-	if (c->mode == MODE_PASTA && inany_is_loopback(&ini->eaddr) &&
+	if (!c->no_splice && inany_is_loopback(&ini->eaddr) &&
 	    (proto == IPPROTO_TCP || proto == IPPROTO_UDP)) {
 		/* spliceable */
 

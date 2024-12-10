@@ -977,7 +977,8 @@ pasta_opts:
 		"			Don't copy all routes to namespace\n"
 		"  --no-copy-addrs	DEPRECATED:\n"
 		"			Don't copy all addresses to namespace\n"
-		"  --ns-mac-addr ADDR	Set MAC address on tap interface\n");
+		"  --ns-mac-addr ADDR	Set MAC address on tap interface\n"
+		"  --no-splice		Disable inbound socket splicing\n");
 
 	exit(status);
 }
@@ -1319,6 +1320,7 @@ void conf(struct ctx *c, int argc, char **argv)
 		{"no-dhcpv6",	no_argument,		&c->no_dhcpv6,	1 },
 		{"no-ndp",	no_argument,		&c->no_ndp,	1 },
 		{"no-ra",	no_argument,		&c->no_ra,	1 },
+		{"no-splice",	no_argument,		&c->no_splice,	1 },
 		{"freebind",	no_argument,		&c->freebind,	1 },
 		{"no-map-gw",	no_argument,		&no_map_gw,	1 },
 		{"ipv4-only",	no_argument,		NULL,		'4' },
@@ -1755,6 +1757,9 @@ void conf(struct ctx *c, int argc, char **argv)
 			break;
 		}
 	} while (name != -1);
+
+	if (c->mode != MODE_PASTA)
+		c->no_splice = 1;
 
 	if (c->mode == MODE_PASTA && !c->pasta_conf_ns) {
 		if (copy_routes_opt)

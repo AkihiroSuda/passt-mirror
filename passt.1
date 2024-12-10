@@ -695,6 +695,11 @@ Configure MAC address \fIaddr\fR on the tap interface in the namespace.
 
 Default is to let the tap driver build a pseudorandom hardware address.
 
+.TP
+.BR \-\-no-splice
+Disable the bypass path for inbound, local traffic. See the section \fBHandling
+of local traffic in pasta\fR in the \fBNOTES\fR for more details.
+
 .SH EXAMPLES
 
 .SS \fBpasta
