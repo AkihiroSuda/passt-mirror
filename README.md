@@ -321,7 +321,7 @@ speeding up local connections, and usually requiring NAT. _pasta_:
   protocol
 * ✅ 4 to 50 times IPv4 TCP throughput of existing, conceptually similar
   solutions depending on MTU (UDP and IPv6 hard to compare)
-* 🛠 [_vhost-user_ support](https://bugs.passt.top/show_bug.cgi?id=25) for
+* ✅ [_vhost-user_ support](https://bugs.passt.top/show_bug.cgi?id=25) for
   maximum one copy on every data path and lower request-response latency
 * ⌚ [multithreading](https://bugs.passt.top/show_bug.cgi?id=13)
 * ⌚ [raw IP socket support](https://bugs.passt.top/show_bug.cgi?id=14) if
