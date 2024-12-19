@@ -92,7 +92,8 @@
  *
  * Return: virtual address in our address space of the guest physical address
  */
-static void *vu_gpa_to_va(struct vu_dev *dev, uint64_t *plen, uint64_t guest_addr)
+static void *vu_gpa_to_va(const struct vu_dev *dev, uint64_t *plen,
+			  uint64_t guest_addr)
 {
 	unsigned int i;
 
@@ -210,7 +211,8 @@ static void virtqueue_get_head(const struct vu_virtq *vq,
  *
  * Return: -1 if there is an error, 0 otherwise
  */
-static int virtqueue_read_indirect_desc(struct vu_dev *dev, struct vring_desc *desc,
+static int virtqueue_read_indirect_desc(const struct vu_dev *dev,
+					struct vring_desc *desc,
 					uint64_t addr, size_t len)
 {
 	uint64_t read_len;
@@ -390,7 +392,7 @@ static inline void vring_set_avail_event(const struct vu_virtq *vq,
  *
  * Return: false on error, true otherwise
  */
-static bool virtqueue_map_desc(struct vu_dev *dev,
+static bool virtqueue_map_desc(const struct vu_dev *dev,
 			       unsigned int *p_num_sg, struct iovec *iov,
 			       unsigned int max_num_sg,
 			       uint64_t pa, size_t sz)
@@ -426,7 +428,8 @@ static bool virtqueue_map_desc(struct vu_dev *dev,
  *
  * Return: -1 if there is an error, 0 otherwise
  */
-static int vu_queue_map_desc(struct vu_dev *dev, struct vu_virtq *vq, unsigned int idx,
+static int vu_queue_map_desc(const struct vu_dev *dev,
+			     struct vu_virtq *vq, unsigned int idx,
 			     struct vu_virtq_element *elem)
 {
 	const struct vring_desc *desc = vq->vring.desc;
@@ -504,7 +507,8 @@ static int vu_queue_map_desc(struct vu_dev *dev, struct vu_virtq *vq, unsigned i
  *
  * Return: -1 if there is an error, 0 otherwise
  */
-int vu_queue_pop(struct vu_dev *dev, struct vu_virtq *vq, struct vu_virtq_element *elem)
+int vu_queue_pop(const struct vu_dev *dev, struct vu_virtq *vq,
+		 struct vu_virtq_element *elem)
 {
 	unsigned int head;
 	int ret;

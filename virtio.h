@@ -170,7 +170,7 @@ static inline bool vu_has_protocol_feature(const struct vu_dev *vdev,
 
 bool vu_queue_empty(struct vu_virtq *vq);
 void vu_queue_notify(const struct vu_dev *dev, struct vu_virtq *vq);
-int vu_queue_pop(struct vu_dev *dev, struct vu_virtq *vq,
+int vu_queue_pop(const struct vu_dev *dev, struct vu_virtq *vq,
 		 struct vu_virtq_element *elem);
 void vu_queue_detach_element(struct vu_virtq *vq);
 void vu_queue_unpop(struct vu_virtq *vq);
