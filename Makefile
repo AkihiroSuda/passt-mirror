@@ -16,6 +16,7 @@ VERSION ?= $(shell git describe --tags HEAD 2>/dev/null || echo "unknown\ versio
 DUAL_STACK_SOCKETS := 1
 
 TARGET ?= $(shell $(CC) -dumpmachine)
+$(if $(TARGET),,$(error Failed to get target architecture))
 # Get 'uname -m'-like architecture description for target
 TARGET_ARCH := $(firstword $(subst -, ,$(TARGET)))
 TARGET_ARCH := $(patsubst [:upper:],[:lower:],$(TARGET_ARCH))
