@@ -209,7 +209,7 @@ flow_sidx_t udp_flow_from_sock(const struct ctx *c, union epoll_ref ref,
 
 	if (!inany_is_unicast(&ini->eaddr) ||
 	    ini->eport == 0 || ini->oport == 0) {
-		/* In principle ini->oddr also must be unicast, but when we've
+		/* In principle ini->oddr also must be specified, but when we've
 		 * been initiated from a socket bound to 0.0.0.0 or ::, we don't
 		 * know our address, so we have to leave it unpopulated.
 		 */
@@ -267,8 +267,8 @@ flow_sidx_t udp_flow_from_tap(const struct ctx *c,
 	ini = flow_initiate_af(flow, PIF_TAP, af, saddr, srcport,
 			       daddr, dstport);
 
-	if (!inany_is_unicast(&ini->eaddr) || ini->eport == 0 ||
-	    !inany_is_unicast(&ini->oaddr) || ini->oport == 0) {
+	if (inany_is_unspecified(&ini->eaddr) || ini->eport == 0 ||
+	    inany_is_unspecified(&ini->oaddr) || ini->oport == 0) {
 		flow_dbg(flow, "Invalid endpoint on UDP packet");
 		flow_alloc_cancel(flow);
 		return FLOW_SIDX_NONE;
