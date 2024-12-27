@@ -180,7 +180,7 @@ void exit_handler(int signal)
  * #syscalls socket getsockopt setsockopt s390x:socketcall i686:socketcall close
  * #syscalls bind connect recvfrom sendto shutdown
  * #syscalls arm:recv ppc64le:recv arm:send ppc64le:send
- * #syscalls accept4|accept listen epoll_ctl epoll_wait|epoll_pwait epoll_pwait
+ * #syscalls accept4 accept listen epoll_ctl epoll_wait|epoll_pwait epoll_pwait
  * #syscalls clock_gettime arm:clock_gettime64 i686:clock_gettime64
  */
 int main(int argc, char **argv)
