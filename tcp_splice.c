@@ -348,6 +348,7 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn)
 	uint8_t tgtpif = conn->f.pif[TGTSIDE];
 	union sockaddr_inany sa;
 	socklen_t sl;
+	int one = 1;
 
 	if (tgtpif == PIF_HOST)
 		conn->s[1] = tcp_conn_sock(c, af);
@@ -359,9 +360,18 @@ static int tcp_splice_connect(const struct ctx *c, struct tcp_splice_conn *conn)
 	if (conn->s[1] < 0)
 		return -1;
 
-	if (setsockopt(conn->s[1], SOL_TCP, TCP_QUICKACK,
-		       &((int){ 1 }), sizeof(int))) {
+	if (setsockopt(conn->s[1], SOL_TCP, TCP_QUICKACK, &one, sizeof(one))) {
 		flow_trace(conn, "failed to set TCP_QUICKACK on socket %i",
+			   conn->s[1]);
+	}
+
+	if (setsockopt(conn->s[0], SOL_TCP, TCP_NODELAY, &one, sizeof(one))) {
+		flow_trace(conn, "failed to set TCP_NODELAY on socket %i",
+			   conn->s[0]);
+	}
+
+	if (setsockopt(conn->s[1], SOL_TCP, TCP_NODELAY, &one, sizeof(one))) {
+		flow_trace(conn, "failed to set TCP_NODELAY on socket %i",
 			   conn->s[1]);
 	}
 
