@@ -452,7 +452,8 @@ uint32_t csum_unfolded(const void *buf, size_t len, uint32_t init)
 	intptr_t align = ROUND_UP((intptr_t)buf, sizeof(__m256i));
 	unsigned int pad = align - (intptr_t)buf;
 
-	if (len < pad)
+	/* Don't mix sum_16b() and csum_avx2() with odd padding lengths */
+	if (pad & 1 || len < pad)
 		pad = len;
 
 	if (pad)
